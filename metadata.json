@@ -1,0 +1,6 @@
+{
+  "name": "WAR MACHINE VECTOR EDITOR",
+  "description": "Professional vector drawing and design application with path editing, shapes, layers, bezier curves, and custom styling tools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
