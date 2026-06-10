@@ -536,19 +536,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     }
                 )
 
-                // 5. Brush Tool
-                SidebarToolButton(
-                    icon = Icons.Default.Brush,
-                    label = "Brush",
-                    isSelected = viewModel.currentTool == VectorTool.BRUSH,
-                    onClick = {
-                        viewModel.currentTool = VectorTool.BRUSH
-                        viewModel.selectedShapeId = null
-                        showBooleanInBottomScope = false
-                    }
-                )
-
-                // 6. Paint Bucket Tool
+                // 5. Paint Bucket Tool
                 SidebarToolButton(
                     icon = Icons.Default.FormatColorFill,
                     label = "Bucket",
@@ -1395,7 +1383,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             }
                         }
 
-                        VectorTool.PEN, VectorTool.BRUSH -> {
+                        VectorTool.PEN -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1704,7 +1692,19 @@ fun MainLayout(viewModel: VectorViewModel) {
                             }
                         )
 
-                        // 10. Magnetic Snapping Popup portal
+                        // 10. Grid Config
+                        IconButtonWithLabel(
+                            icon = Icons.Default.GridOn,
+                            label = "Grid",
+                            isActive = viewModel.isGridEnabled,
+                            onClick = {
+                                viewModel.isGridEnabled = !viewModel.isGridEnabled
+                                Toast.makeText(context, if (viewModel.isGridEnabled) "Grid Enabled" else "Grid Disabled", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+
+                        // 11. Magnetic Snapping Popup portal
                         IconButtonWithLabel(
                             icon = if (viewModel.isSnapToGrid || viewModel.isSnapToObjectEnabled || viewModel.isSnapToPointEnabled) Icons.Default.LeakAdd else Icons.Default.FlashOff,
                             label = "Snap Options",
