@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.asAndroidPath
 import kotlin.math.hypot
 import kotlin.math.max
@@ -611,6 +612,7 @@ data class VectorShape(
                 }
             }
             ShapeType.BEZIER_PATH -> {
+                path.fillType = PathFillType.EvenOdd
                 if (bezierNodes.isNotEmpty()) {
                     val hasCorners = customCornerRadii.any { it > 0.1f }
                     if (hasCorners) {

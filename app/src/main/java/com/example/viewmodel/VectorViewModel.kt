@@ -2448,6 +2448,33 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             }
             else -> {}
         }
+        val rotationAngle = shape.rotationAngle
+        if (rotationAngle != 0f) {
+            val bounds = shape.getBoundingBox()
+            val cx = (bounds.left + bounds.right) / 2f
+            val cy = (bounds.top + bounds.bottom) / 2f
+            
+            fun rotatePoint(p: Offset): Offset {
+                val rad = Math.toRadians(rotationAngle.toDouble())
+                val cos = kotlin.math.cos(rad).toFloat()
+                val sin = kotlin.math.sin(rad).toFloat()
+                val dx = p.x - cx
+                val dy = p.y - cy
+                return Offset(
+                    cx + (dx * cos - dy * sin),
+                    cy + (dx * sin + dy * cos)
+                )
+            }
+            
+            return segments.map { seg ->
+                seg.copy(
+                    p0 = rotatePoint(seg.p0),
+                    p1 = rotatePoint(seg.p1),
+                    p2 = rotatePoint(seg.p2),
+                    p3 = rotatePoint(seg.p3)
+                )
+            }
+        }
         return segments
     }
 

@@ -72,7 +72,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showTextDialog by remember { mutableStateOf(false) }
     var showCustomSettingsDialog by remember { mutableStateOf(false) }
     var showSnappingPopup by remember { mutableStateOf(false) }
-    var bottomBarExpandedLevel by remember { mutableStateOf(3) } // 0: Hidden, 1: Draw tools, 2: Design and Sliders, 3: Artwork Ops, 4: Boolean Actions
+    var bottomBarExpandedLevel by remember { mutableStateOf(2) } // 0: Hidden, 1: Draw tools, 2: Design and Sliders, 3: Artwork Ops, 4: Boolean Actions
     
     // Text tools state
     var textInputState by remember { mutableStateOf("") }
@@ -927,328 +927,331 @@ fun MainLayout(viewModel: VectorViewModel) {
         }
 
         // HORIZONTAL SLIDERS SECTION (Stroke size and transparent alpha connected directly to selected shapes)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF1E293B)) // Standard editor toolbar bar
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Stroke Width Slider with numerical manual popup input box on the left
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+        if (bottomBarExpandedLevel >= 2) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF1E293B)) // Standard editor toolbar bar
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                var showStrokeKeypadPopup by remember { mutableStateOf(false) }
-                var keypadInputString by remember { mutableStateOf("") }
+                // Stroke Width Slider with numerical manual popup input box on the left
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    var showStrokeKeypadPopup by remember { mutableStateOf(false) }
+                    var keypadInputString by remember { mutableStateOf("") }
 
-                Box(modifier = Modifier.wrapContentSize()) {
-                    // Clickable Box indicating thickness pixels
-                    Box(
-                        modifier = Modifier
-                            .width(64.dp)
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF0F172A))
-                            .border(1.dp, Color(0xFF475569), RoundedCornerShape(6.dp))
-                            .clickable {
-                                keypadInputString = viewModel.currentStrokeWidth.toInt().toString()
-                                showStrokeKeypadPopup = true
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "${viewModel.currentStrokeWidth.toInt()}px",
-                            color = Color(0xFF00E676),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-
-                    if (showStrokeKeypadPopup) {
-                        // Small overlay Popup directly above the click box
-                        androidx.compose.ui.window.Popup(
-                            alignment = Alignment.TopCenter,
-                            offset = androidx.compose.ui.unit.IntOffset(0, -290), // positioned perfectly above
-                            onDismissRequest = { showStrokeKeypadPopup = false }
+                    Box(modifier = Modifier.wrapContentSize()) {
+                        // Clickable Box indicating thickness pixels
+                        Box(
+                            modifier = Modifier
+                                .width(56.dp)
+                                .height(28.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF0F172A))
+                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                                .clickable {
+                                    keypadInputString = viewModel.currentStrokeWidth.toInt().toString()
+                                    showStrokeKeypadPopup = true
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Card(
-                                modifier = Modifier
-                                    .width(180.dp)
-                                    .wrapContentHeight(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676)),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(10.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    // Display input outline
-                                    Text(
-                                        text = if (keypadInputString.isEmpty()) "0 px" else "$keypadInputString px",
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(Color(0xFF0F172A))
-                                            .padding(vertical = 6.dp),
-                                        textAlign = TextAlign.Center
-                                    )
+                            Text(
+                                text = "${viewModel.currentStrokeWidth.toInt()}px",
+                                color = Color(0xFF00E676),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
 
-                                    // Touch digits grid 1 to 9
-                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        listOf(
-                                            listOf("1", "2", "3"),
-                                            listOf("4", "5", "6"),
-                                            listOf("7", "8", "9"),
-                                            listOf("0", "Del", "Ok")
-                                        ).forEach { row ->
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                row.forEach { buttonLabel ->
-                                                    val isAction = buttonLabel == "Del" || buttonLabel == "Ok"
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .weight(1f)
-                                                            .height(34.dp)
-                                                            .clip(RoundedCornerShape(6.dp))
-                                                            .background(if (isAction) Color(0xFF334155) else Color(0xFF0F172A))
-                                                            .clickable {
-                                                                when (buttonLabel) {
-                                                                    "Del" -> {
-                                                                        if (keypadInputString.isNotEmpty()) {
-                                                                            keypadInputString = keypadInputString.dropLast(1)
+                        if (showStrokeKeypadPopup) {
+                            // Small overlay Popup directly above the click box
+                            androidx.compose.ui.window.Popup(
+                                alignment = Alignment.TopCenter,
+                                offset = androidx.compose.ui.unit.IntOffset(0, -290), // positioned perfectly above
+                                onDismissRequest = { showStrokeKeypadPopup = false }
+                            ) {
+                                Card(
+                                    modifier = Modifier
+                                        .width(180.dp)
+                                        .wrapContentHeight(),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676)),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(10.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        // Display input outline
+                                        Text(
+                                            text = if (keypadInputString.isEmpty()) "0 px" else "$keypadInputString px",
+                                            color = Color.White,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontFamily = FontFamily.Monospace,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(Color(0xFF0F172A))
+                                                .padding(vertical = 6.dp),
+                                            textAlign = TextAlign.Center
+                                        )
+
+                                        // Touch digits grid 1 to 9
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            listOf(
+                                                listOf("1", "2", "3"),
+                                                listOf("4", "5", "6"),
+                                                listOf("7", "8", "9"),
+                                                listOf("0", "Del", "Ok")
+                                            ).forEach { row ->
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    row.forEach { buttonLabel ->
+                                                        val isAction = buttonLabel == "Del" || buttonLabel == "Ok"
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .height(34.dp)
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(if (isAction) Color(0xFF334155) else Color(0xFF0F172A))
+                                                                .clickable {
+                                                                    when (buttonLabel) {
+                                                                        "Del" -> {
+                                                                            if (keypadInputString.isNotEmpty()) {
+                                                                                keypadInputString = keypadInputString.dropLast(1)
+                                                                            }
+                                                                        }
+                                                                        "Ok" -> {
+                                                                            val parsedVal = keypadInputString.toFloatOrNull() ?: viewModel.currentStrokeWidth
+                                                                            viewModel.currentStrokeWidth = parsedVal.coerceIn(1f, 100f)
+                                                                            if (viewModel.selectedShapeId != null) {
+                                                                                viewModel.updateSelectedShapeStyle()
+                                                                            }
+                                                                            showStrokeKeypadPopup = false
+                                                                        }
+                                                                        else -> {
+                                                                            if (keypadInputString.length < 3) {
+                                                                                keypadInputString += buttonLabel
+                                                                            }
                                                                         }
                                                                     }
-                                                                    "Ok" -> {
-                                                                        val parsedVal = keypadInputString.toFloatOrNull() ?: viewModel.currentStrokeWidth
-                                                                        viewModel.currentStrokeWidth = parsedVal.coerceIn(1f, 100f)
-                                                                        if (viewModel.selectedShapeId != null) {
-                                                                            viewModel.updateSelectedShapeStyle()
-                                                                        }
-                                                                        showStrokeKeypadPopup = false
-                                                                    }
-                                                                    else -> {
-                                                                        if (keypadInputString.length < 3) {
-                                                                            keypadInputString += buttonLabel
-                                                                        }
-                                                                    }
-                                                                }
-                                                            },
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Text(
-                                                            text = buttonLabel,
-                                                            color = if (buttonLabel == "Ok") Color(0xFF00E676) else Color.White,
-                                                            fontSize = 12.sp,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
+                                                                },
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Text(
+                                                                text = buttonLabel,
+                                                                color = if (buttonLabel == "Ok") Color(0xFF00E676) else Color.White,
+                                                                fontSize = 12.sp,
+                                                                fontWeight = FontWeight.Bold
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
-                                    }
 
-                                    // Manual confirm foot button
-                                    Button(
-                                        onClick = {
-                                            val parsedVal = keypadInputString.toFloatOrNull() ?: viewModel.currentStrokeWidth
-                                            viewModel.currentStrokeWidth = parsedVal.coerceIn(1f, 100f)
-                                            if (viewModel.selectedShapeId != null) {
-                                                viewModel.updateSelectedShapeStyle()
-                                            }
-                                            showStrokeKeypadPopup = false
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
-                                        modifier = Modifier.fillMaxWidth().height(32.dp),
-                                        contentPadding = PaddingValues(0.dp),
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
-                                        Text("Confirm", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                        // Manual confirm foot button
+                                        Button(
+                                            onClick = {
+                                                val parsedVal = keypadInputString.toFloatOrNull() ?: viewModel.currentStrokeWidth
+                                                viewModel.currentStrokeWidth = parsedVal.coerceIn(1f, 100f)
+                                                if (viewModel.selectedShapeId != null) {
+                                                    viewModel.updateSelectedShapeStyle()
+                                                }
+                                                showStrokeKeypadPopup = false
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                                            modifier = Modifier.fillMaxWidth().height(32.dp),
+                                            contentPadding = PaddingValues(0.dp),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text("Confirm", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                
-                Slider(
-                    value = viewModel.currentStrokeWidth,
-                    onValueChange = {
-                        viewModel.currentStrokeWidth = it
-                        if (viewModel.selectedShapeId != null) {
-                            viewModel.updateSelectedShapeStyle()
-                        }
-                    },
-                    valueRange = 1f..100f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF00E676),
-                        activeTrackColor = Color(0xFF00E676),
-                        inactiveTrackColor = Color(0xFF475569)
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-            }
 
-            // Transparency Alpha Opacity Slider (0% to 100%)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Text(
-                    text = "${(viewModel.currentStrokeAlpha * 100).toInt()} %",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.width(52.dp),
-                    textAlign = TextAlign.End
-                )
-
-                // Background gradient simulating opacity slider
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(28.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Transparent checker grid simulator
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(
-                                brush = Brush.linearGradient(
-                                    colors = listOf(Color(0x22FFFFFF), Color(0xAAFFFFFF))
-                                )
-                            )
-                    )
                     Slider(
-                        value = viewModel.currentStrokeAlpha,
+                        value = viewModel.currentStrokeWidth,
                         onValueChange = {
-                            viewModel.currentStrokeAlpha = it
-                            viewModel.currentFillAlpha = it
+                            viewModel.currentStrokeWidth = it
                             if (viewModel.selectedShapeId != null) {
                                 viewModel.updateSelectedShapeStyle()
                             }
                         },
-                        valueRange = 0f..1f,
+                        valueRange = 1f..100f,
                         colors = SliderDefaults.colors(
-                            thumbColor = Color.White,
-                            activeTrackColor = Color.Transparent,
-                            inactiveTrackColor = Color.Transparent
-                        )
+                            thumbColor = Color(0xFF00E676),
+                            activeTrackColor = Color(0xFF00E676),
+                            inactiveTrackColor = Color(0xFF475569)
+                        ),
+                        modifier = Modifier.weight(1f).height(24.dp)
                     )
                 }
-            }
 
-            // Stroke Join and Cap Variations Panel
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Stroke Join Choice
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                // Transparency Alpha Opacity Slider (0% to 100%)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = "Sambungan Stroke (Join)",
-                        color = Color.LightGray,
+                        text = "${(viewModel.currentStrokeAlpha * 100).toInt()}%",
+                        color = Color.White,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.width(56.dp),
+                        textAlign = TextAlign.Center
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+
+                    // Background gradient simulating opacity slider
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(20.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        listOf("MITER", "ROUND", "BEVEL").forEach { joinVal ->
-                            val isSelected = viewModel.currentStrokeJoin.uppercase() == joinVal
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(28.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isSelected) Color(0xFF00E676) else Color(0xFF0F172A))
-                                    .border(
-                                        width = 1.dp,
-                                        color = if (isSelected) Color(0xFF00E676) else Color(0xFF475569),
-                                        shape = RoundedCornerShape(6.dp)
+                        // Transparent checker grid simulator
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(Color(0x22FFFFFF), Color(0xAAFFFFFF))
                                     )
-                                    .clickable {
-                                        viewModel.currentStrokeJoin = joinVal
-                                        if (viewModel.selectedShapeId != null) {
-                                            viewModel.updateSelectedShapeStyle()
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = joinVal,
-                                    color = if (isSelected) Color.Black else Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
                                 )
-                            }
-                        }
+                        )
+                        Slider(
+                            value = viewModel.currentStrokeAlpha,
+                            onValueChange = {
+                                viewModel.currentStrokeAlpha = it
+                                viewModel.currentFillAlpha = it
+                                if (viewModel.selectedShapeId != null) {
+                                    viewModel.updateSelectedShapeStyle()
+                                }
+                            },
+                            valueRange = 0f..1f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = Color.Transparent,
+                                inactiveTrackColor = Color.Transparent
+                            ),
+                            modifier = Modifier.height(20.dp)
+                        )
                     }
                 }
 
-                // Stroke Cap Choice
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                // Stroke Join and Cap Variations Panel
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Ujung Stroke (Cap)",
-                        color = Color.LightGray,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    // Stroke Join Choice
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        listOf("ROUND", "BUTT", "SQUARE").forEach { capVal ->
-                            val isSelected = viewModel.currentStrokeCap.uppercase() == capVal
-                            val displayLabel = when (capVal) {
-                                "ROUND" -> "ROUND"
-                                "BUTT" -> "BUTT"
-                                else -> "SQUARE"
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(28.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isSelected) Color(0xFF00E676) else Color(0xFF0F172A))
-                                    .border(
-                                        width = 1.dp,
-                                        color = if (isSelected) Color(0xFF00E676) else Color(0xFF475569),
-                                        shape = RoundedCornerShape(6.dp)
+                        Text(
+                            text = "Sambungan Stroke (Join)",
+                            color = Color.LightGray,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf("MITER", "ROUND", "BEVEL").forEach { joinVal ->
+                                val isSelected = viewModel.currentStrokeJoin.uppercase() == joinVal
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(24.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) Color(0xFF00E676) else Color(0xFF0F172A))
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isSelected) Color(0xFF00E676) else Color(0xFF475569),
+                                            shape = RoundedCornerShape(4.dp)
+                                        )
+                                        .clickable {
+                                            viewModel.currentStrokeJoin = joinVal
+                                            if (viewModel.selectedShapeId != null) {
+                                                viewModel.updateSelectedShapeStyle()
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = joinVal,
+                                        color = if (isSelected) Color.Black else Color.White,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                    .clickable {
-                                        viewModel.currentStrokeCap = capVal
-                                        if (viewModel.selectedShapeId != null) {
-                                            viewModel.updateSelectedShapeStyle()
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = displayLabel,
-                                    color = if (isSelected) Color.Black else Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                }
+                            }
+                        }
+                    }
+
+                    // Stroke Cap Choice
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = "Ujung Stroke (Cap)",
+                            color = Color.LightGray,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf("ROUND", "BUTT", "SQUARE").forEach { capVal ->
+                                val isSelected = viewModel.currentStrokeCap.uppercase() == capVal
+                                val displayLabel = when (capVal) {
+                                    "ROUND" -> "ROUND"
+                                    "BUTT" -> "BUTT"
+                                    else -> "SQUARE"
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(24.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) Color(0xFF00E676) else Color(0xFF0F172A))
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isSelected) Color(0xFF00E676) else Color(0xFF475569),
+                                            shape = RoundedCornerShape(4.dp)
+                                        )
+                                        .clickable {
+                                            viewModel.currentStrokeCap = capVal
+                                            if (viewModel.selectedShapeId != null) {
+                                                viewModel.updateSelectedShapeStyle()
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = displayLabel,
+                                        color = if (isSelected) Color.Black else Color.White,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
