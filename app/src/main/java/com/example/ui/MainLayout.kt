@@ -853,7 +853,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Simetris (Symmetrical Node)", color = if (currentNodeType == "SIMETRIS") Color(0xFF3B82F6) else Color.White, fontSize = 12.sp) },
+                                text = { Text("Simetris (Symmetric Node)", color = if (currentNodeType == "SIMETRIS") Color(0xFF3B82F6) else Color.White, fontSize = 12.sp) },
                                 onClick = {
                                     showNodeTypeMenu = false
                                     val sId = viewModel.selectedShapeId
@@ -875,6 +875,52 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 }
                             )
                         }
+                    }
+                }
+            }
+            
+            // Pen tool contextual actions (Checklist and Close Path) next to the "dropdown tool edit" place
+            if (viewModel.currentTool == VectorTool.PEN && viewModel.activeBezierNodes.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 120.dp, top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color(0xE61E293B), shape = CircleShape)
+                            .border(1.dp, Color.White, shape = CircleShape)
+                            .clickable {
+                                viewModel.finalizeBezierPath(isClosed = true)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Loop,
+                            contentDescription = "Close & Fill Path",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color(0xE61E293B), shape = CircleShape)
+                            .border(1.dp, Color.White, shape = CircleShape)
+                            .clickable {
+                                viewModel.finalizeBezierPath(isClosed = false)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Finish Open Path",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }

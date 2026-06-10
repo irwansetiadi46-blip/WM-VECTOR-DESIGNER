@@ -455,7 +455,7 @@ fun VectorCanvas(
                                                         directSelectionActiveHandleType = handleHitType
                                                         viewModel.pushToUndoStack()
                                                     } else if (nodeIdx != -1) {
-                                                        viewModel.selectedDirectSelectionNodeIndex = nodeIdx
+                                                        directSelectionActiveHandleNodeIndex = nodeIdx
                                                         activeDragHandle = "DIRECT_NODE"
                                                     } else if (shape.type == com.example.model.ShapeType.BEZIER_PATH) {
                                                         val nearestSeg = findNearestSegment(
@@ -695,7 +695,7 @@ fun VectorCanvas(
                                                 }
                                                 VectorTool.DIRECT_SELECTION -> {
                                                     val id = viewModel.selectedShapeId
-                                                    val nodeIdx = viewModel.selectedDirectSelectionNodeIndex
+                                                    val nodeIdx = if (activeDragHandle == "DIRECT_NODE") directSelectionActiveHandleNodeIndex.takeIf { it != -1 } else viewModel.selectedDirectSelectionNodeIndex
                                                     if (id != null && nodeIdx != null && activeDragHandle == "DIRECT_NODE") {
                                                         val canvasPosUnsnapped = rawCanvasPos
                                                         val snappedPos = if (viewModel.isSnapToGrid) {
@@ -811,17 +811,22 @@ fun VectorCanvas(
                                             viewModel.toggleNodeCurve(penActiveNodeIndex)
                                         } else if (penDragMode == "create") {
                                             // JIKA klik di area kosong -> BIKIN NODE BARU
-                                            if (penIsMovementDetected) {
-                                                 val snapE = viewModel.snapOffset(e)
-                                                 if (viewModel.activeBezierNodes.isNotEmpty() && hypot(snapE.x - viewModel.activeBezierNodes.first().anchorX, snapE.y - viewModel.activeBezierNodes.first().anchorY) < 20f) {
-                                                     viewModel.finalizeBezierPath(isClosed = true)
-                                                 } else {
-                                                     if (viewModel.activeBezierNodes.isEmpty()) {
-                                                         viewModel.addBezierPenPointImmediately(Offset(penStartX, penStartY))
-                                                     }
-                                                     viewModel.addBezierPenPointImmediately(e)
-                                                 }
-                                             }
+                                            val snapE = viewModel.snapOffset(e)
+                                            val isCloseToStart = viewModel.activeBezierNodes.isNotEmpty() && hypot(snapE.x - viewModel.activeBezierNodes.first().anchorX, snapE.y - viewModel.activeBezierNodes.first().anchorY) < 20f
+
+                                            if (isCloseToStart) {
+                                                viewModel.finalizeBezierPath(isClosed = true)
+                                            } else {
+                                                if (penIsMovementDetected) {
+                                                    if (viewModel.activeBezierNodes.isEmpty()) {
+                                                        viewModel.addBezierPenPointImmediately(Offset(penStartX, penStartY))
+                                                    }
+                                                    viewModel.addBezierPenPointImmediately(e)
+                                                } else {
+                                                    // This is a TAP.
+                                                    viewModel.addBezierPenPointImmediately(snapE)
+                                                }
+                                            }
                                         }
                                         
                                         // Reset state
@@ -877,8 +882,26 @@ fun VectorCanvas(
                                             }
                                         } else if (viewModel.currentTool == VectorTool.DIRECT_SELECTION) {
                                             if (hypot(e.x - s.x, e.y - s.y) < 6f) {
-                                                viewModel.selectShapeAt(e)
-                                                viewModel.selectedDirectSelectionNodeIndex = null
+                                                val sId = viewModel.selectedShapeId
+                                                var hitNode = false
+                                                if (sId != null) {
+                                                    val shape = viewModel.shapes.find { it.id == sId }
+                                                    if (shape != null) {
+                                                        val nodes = shape.getNodePoints()
+                                                        val nodeIdx = nodes.indexOfFirst { hypot(e.x - it.x, e.y - it.y) < 24f / viewModel.zoomScale }
+                                                        if (nodeIdx != -1) {
+                                                            viewModel.selectedDirectSelectionNodeIndex = nodeIdx
+                                                            hitNode = true
+                                                        }
+                                                    }
+                                                }
+                                                if (!hitNode) {
+                                                    val shapeUnder = viewModel.shapes.findLast { it.isPointInside(e.x, e.y) }
+                                                    if (shapeUnder != null) {
+                                                        viewModel.selectShapeAt(e)
+                                                    }
+                                                    viewModel.selectedDirectSelectionNodeIndex = null
+                                                }
                                             }
                                         } else if (viewModel.currentTool == VectorTool.ROUNDED_CORNER) {
                                             if (hypot(e.x - s.x, e.y - s.y) < 6f) {
@@ -1094,47 +1117,49 @@ fun VectorCanvas(
                                 val c2Pt = Offset(node.control2X, node.control2Y)
                                 
                                 val isSelectedNode = idx == viewModel.activeEditNodeIndex
-                                val handleColor = if (isSelectedNode) Color(0xFFEF4444) else Color(0xFF6366F1)
+                                val handleColor = Color(0xFFEF4444)
                                 val lineStrokeWidth = 2f / viewModel.zoomScale
-                                val circleRadius = (if (isSelectedNode) 10f else 7.5f) / viewModel.zoomScale
+                                val circleRadius = 10f / viewModel.zoomScale
                                 
-                                if (c1Pt != anchorPt) {
-                                    drawLine(
-                                        color = handleColor.copy(alpha = 0.5f),
-                                        start = anchorPt,
-                                        end = c1Pt,
-                                        strokeWidth = lineStrokeWidth
-                                    )
-                                    drawRect(
-                                        color = handleColor,
-                                        topLeft = Offset(c1Pt.x - circleRadius, c1Pt.y - circleRadius),
-                                        size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
-                                    )
-                                    val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
-                                    drawRect(
-                                        color = Color.White,
-                                        topLeft = Offset(c1Pt.x - innerR, c1Pt.y - innerR),
-                                        size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
-                                    )
-                                }
-                                if (c2Pt != anchorPt) {
-                                    drawLine(
-                                        color = handleColor.copy(alpha = 0.5f),
-                                        start = anchorPt,
-                                        end = c2Pt,
-                                        strokeWidth = lineStrokeWidth
-                                    )
-                                    drawRect(
-                                        color = handleColor,
-                                        topLeft = Offset(c2Pt.x - circleRadius, c2Pt.y - circleRadius),
-                                        size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
-                                    )
-                                    val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
-                                    drawRect(
-                                        color = Color.White,
-                                        topLeft = Offset(c2Pt.x - innerR, c2Pt.y - innerR),
-                                        size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
-                                    )
+                                if (isSelectedNode) {
+                                    if (c1Pt != anchorPt) {
+                                        drawLine(
+                                            color = handleColor.copy(alpha = 0.5f),
+                                            start = anchorPt,
+                                            end = c1Pt,
+                                            strokeWidth = lineStrokeWidth
+                                        )
+                                        drawRect(
+                                            color = handleColor,
+                                            topLeft = Offset(c1Pt.x - circleRadius, c1Pt.y - circleRadius),
+                                            size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
+                                        )
+                                        val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                        drawRect(
+                                            color = Color.White,
+                                            topLeft = Offset(c1Pt.x - innerR, c1Pt.y - innerR),
+                                            size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
+                                        )
+                                    }
+                                    if (c2Pt != anchorPt) {
+                                        drawLine(
+                                            color = handleColor.copy(alpha = 0.5f),
+                                            start = anchorPt,
+                                            end = c2Pt,
+                                            strokeWidth = lineStrokeWidth
+                                        )
+                                        drawRect(
+                                            color = handleColor,
+                                            topLeft = Offset(c2Pt.x - circleRadius, c2Pt.y - circleRadius),
+                                            size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
+                                        )
+                                        val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                        drawRect(
+                                            color = Color.White,
+                                            topLeft = Offset(c2Pt.x - innerR, c2Pt.y - innerR),
+                                            size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1188,13 +1213,13 @@ fun VectorCanvas(
                     }
                 }
 
-                val selId = viewModel.selectedShapeId
-                if (selId != null && viewModel.currentTool == VectorTool.DIRECT_SELECTION) {
-                    val shape = viewModel.shapes.find { s -> s.id == selId }
-                    if (shape != null) {
+                if (viewModel.currentTool == VectorTool.DIRECT_SELECTION) {
+                    viewModel.shapes.forEach { shape ->
+                        val isShapeSelected = shape.id == viewModel.selectedShapeId
                         val nodes = shape.getNodePoints()
-                        val activeNodeIdx = viewModel.selectedDirectSelectionNodeIndex
-                        if (shape.type == com.example.model.ShapeType.BEZIER_PATH) {
+                        val activeNodeIdx = if (isShapeSelected) viewModel.selectedDirectSelectionNodeIndex else null
+
+                        if (isShapeSelected && shape.type == com.example.model.ShapeType.BEZIER_PATH) {
                             shape.bezierNodes.forEachIndexed { idx, node ->
                                 if (node.isCurve) {
                                     val anchorPt = Offset(node.anchorX, node.anchorY)
@@ -1202,53 +1227,56 @@ fun VectorCanvas(
                                     val c2Pt = Offset(node.control2X, node.control2Y)
                                     
                                     val isSelectedNode = idx == activeNodeIdx
-                                    val handleColor = if (isSelectedNode) Color(0xFFEF4444) else Color(0xFF6366F1)
+                                    val handleColor = Color(0xFFEF4444)
                                     val lineStrokeWidth = 2f / viewModel.zoomScale
-                                    val circleRadius = (if (isSelectedNode) 10f else 7.5f) / viewModel.zoomScale
+                                    val circleRadius = 10f / viewModel.zoomScale
                                     
-                                    if (c1Pt != anchorPt) {
-                                        drawLine(
-                                            color = handleColor.copy(alpha = 0.5f),
-                                            start = anchorPt,
-                                            end = c1Pt,
-                                            strokeWidth = lineStrokeWidth
-                                        )
-                                        drawRect(
-                                            color = handleColor,
-                                            topLeft = Offset(c1Pt.x - circleRadius, c1Pt.y - circleRadius),
-                                            size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
-                                        )
-                                        val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
-                                        drawRect(
-                                            color = Color.White,
-                                            topLeft = Offset(c1Pt.x - innerR, c1Pt.y - innerR),
-                                            size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
-                                        )
-                                    }
-                                    if (c2Pt != anchorPt) {
-                                        drawLine(
-                                            color = handleColor.copy(alpha = 0.5f),
-                                            start = anchorPt,
-                                            end = c2Pt,
-                                            strokeWidth = lineStrokeWidth
-                                        )
-                                        drawRect(
-                                            color = handleColor,
-                                            topLeft = Offset(c2Pt.x - circleRadius, c2Pt.y - circleRadius),
-                                            size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
-                                        )
-                                        val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
-                                        drawRect(
-                                            color = Color.White,
-                                            topLeft = Offset(c2Pt.x - innerR, c2Pt.y - innerR),
-                                            size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
-                                        )
+                                    if (isSelectedNode) {
+                                        if (c1Pt != anchorPt) {
+                                            drawLine(
+                                                color = handleColor.copy(alpha = 0.5f),
+                                                start = anchorPt,
+                                                end = c1Pt,
+                                                strokeWidth = lineStrokeWidth
+                                            )
+                                            drawRect(
+                                                color = handleColor,
+                                                topLeft = Offset(c1Pt.x - circleRadius, c1Pt.y - circleRadius),
+                                                size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
+                                            )
+                                            val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                            drawRect(
+                                                color = Color.White,
+                                                topLeft = Offset(c1Pt.x - innerR, c1Pt.y - innerR),
+                                                size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
+                                            )
+                                        }
+                                        if (c2Pt != anchorPt) {
+                                            drawLine(
+                                                color = handleColor.copy(alpha = 0.5f),
+                                                start = anchorPt,
+                                                end = c2Pt,
+                                                strokeWidth = lineStrokeWidth
+                                            )
+                                            drawRect(
+                                                color = handleColor,
+                                                topLeft = Offset(c2Pt.x - circleRadius, c2Pt.y - circleRadius),
+                                                size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
+                                            )
+                                            val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                            drawRect(
+                                                color = Color.White,
+                                                topLeft = Offset(c2Pt.x - innerR, c2Pt.y - innerR),
+                                                size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
+                        
                         nodes.forEachIndexed { idx, pt ->
-                            val isNodeSelected = idx == activeNodeIdx
+                            val isNodeSelected = idx == activeNodeIdx && isShapeSelected
                             val handleRad = (if (isNodeSelected) 14f else 10f) / viewModel.zoomScale
                             
                             val outerRad = handleRad + (2f / viewModel.zoomScale)
@@ -1271,6 +1299,8 @@ fun VectorCanvas(
                         }
                     }
                 }
+
+                val selId = viewModel.selectedShapeId
 
                 if (selId != null && viewModel.currentTool == VectorTool.ROUNDED_CORNER) {
                     val shape = viewModel.shapes.find { s -> s.id == selId }
@@ -1726,69 +1756,7 @@ fun VectorCanvas(
             }
         }
 
-        // Contextual floating loop & checkmark buttons following the active node
-        val lastNode = viewModel.activeBezierNodes.lastOrNull()
-        if (viewModel.currentTool == VectorTool.PEN && lastNode != null) {
-            val density = LocalDensity.current
-            val screenX = lastNode.anchorX * viewModel.zoomScale + viewModel.panOffset.x
-            val screenY = lastNode.anchorY * viewModel.zoomScale + viewModel.panOffset.y
-            
-            val offsetADpX = 45.dp
-            val offsetADpY = (-20).dp
-            val offsetBDpX = 30.dp
-            val offsetBDpY = 35.dp
-            val buttonSize = 40.dp
-            
-            // Loop / Close button (Button A)
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            x = (screenX + with(density) { offsetADpX.toPx() } - with(density) { (buttonSize / 2).toPx() }).toInt(),
-                            y = (screenY + with(density) { offsetADpY.toPx() } - with(density) { (buttonSize / 2).toPx() }).toInt()
-                        )
-                    }
-                    .size(buttonSize)
-                    .background(Color(0xE61E293B), shape = androidx.compose.foundation.shape.CircleShape)
-                    .border(1.5.dp, Color.White, shape = androidx.compose.foundation.shape.CircleShape)
-                    .clickable {
-                        viewModel.finalizeBezierPath(isClosed = true)
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Loop,
-                    contentDescription = "Close & Fill Path",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
 
-            // Checkmark / Finish Open path button (Button B)
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            x = (screenX + with(density) { offsetBDpX.toPx() } - with(density) { (buttonSize / 2).toPx() }).toInt(),
-                            y = (screenY + with(density) { offsetBDpY.toPx() } - with(density) { (buttonSize / 2).toPx() }).toInt()
-                        )
-                    }
-                    .size(buttonSize)
-                    .background(Color(0xE61E293B), shape = androidx.compose.foundation.shape.CircleShape)
-                    .border(1.5.dp, Color.White, shape = androidx.compose.foundation.shape.CircleShape)
-                    .clickable {
-                        viewModel.finalizeBezierPath(isClosed = false)
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Finish Open Path",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
     }
 }
 
