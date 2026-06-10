@@ -672,6 +672,10 @@ data class VectorShape(
             m.postRotate(rotationAngle, cx, cy)
             path.asAndroidPath().transform(m)
         }
-        return path
+                // === TRIK JITU: BAKE / FLATTEN COMPOSE PATH DI SINI ===
+        val bakedPath = Path()
+        bakedPath.addPath(path)
+        return bakedPath
+
     }
 }
