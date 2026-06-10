@@ -2566,20 +2566,14 @@ fun SidebarToolButton(
             .clip(RoundedCornerShape(8.dp))
             .background(if (isSelected) Color(0xFF00E676) else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(vertical = 6.dp, horizontal = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+            .padding(vertical = 12.dp, horizontal = 2.dp),
+        verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = if (isSelected) Color.Black else Color.White,
-            modifier = Modifier.size(20.dp)
-        )
-        Text(
-            text = label,
-            color = if (isSelected) Color.Black else Color.LightGray,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.SemiBold
+            modifier = Modifier.size(24.dp)
         )
     }
 }

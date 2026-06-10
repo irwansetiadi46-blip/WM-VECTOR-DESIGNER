@@ -190,33 +190,13 @@ data class VectorShape(
             }
             ShapeType.FREEHAND -> {
                 if (freehandPoints.isEmpty()) return Rect(0f, 0f, 0f, 0f)
-                var minX = Float.MAX_VALUE
-                var minY = Float.MAX_VALUE
-                var maxX = -Float.MAX_VALUE
-                var maxY = -Float.MAX_VALUE
-                for (p in freehandPoints) {
-                    if (p.x < minX) minX = p.x
-                    if (p.y < minY) minY = p.y
-                    if (p.x > maxX) maxX = p.x
-                    if (p.y > maxY) maxY = p.y
-                }
-                Rect(minX, minY, maxX, maxY)
+                val cb = asComposePath().getBounds()
+                Rect(cb.left, cb.top, cb.right, cb.bottom)
             }
             ShapeType.BEZIER_PATH -> {
                 if (bezierNodes.isEmpty()) return Rect(0f, 0f, 0f, 0f)
-                var minX = Float.MAX_VALUE
-                var minY = Float.MAX_VALUE
-                var maxX = -Float.MAX_VALUE
-                var maxY = -Float.MAX_VALUE
-                for (node in bezierNodes) {
-                    val ax = node.anchorX
-                    val ay = node.anchorY
-                    if (ax < minX) minX = ax
-                    if (ay < minY) minY = ay
-                    if (ax > maxX) maxX = ax
-                    if (ay > maxY) maxY = ay
-                }
-                Rect(minX, minY, maxX, maxY)
+                val cb = asComposePath().getBounds()
+                Rect(cb.left, cb.top, cb.right, cb.bottom)
             }
             ShapeType.TEXT -> {
                 // Estimated size based on character count and font size
