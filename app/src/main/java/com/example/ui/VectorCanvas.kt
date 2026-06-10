@@ -429,7 +429,7 @@ fun VectorCanvas(
                                                     val targetTolerance = 20f / viewModel.zoomScale
                                                     var handleHitIdx = -1
                                                     var handleHitType = ""
-                                                    val hitTolerance = 96f / viewModel.zoomScale
+                                                    val hitTolerance = 24f / viewModel.zoomScale
                                                     if (shape.type == com.example.model.ShapeType.BEZIER_PATH) {
                                                         for (i in shape.bezierNodes.indices) {
                                                             val node = shape.bezierNodes[i]
@@ -447,7 +447,7 @@ fun VectorCanvas(
                                                             }
                                                         }
                                                     }
-                                                    val nodeIdx = nodes.indexOfFirst { hypot(rawCanvasPos.x - it.x, rawCanvasPos.y - it.y) < 100f / viewModel.zoomScale }
+                                                    val nodeIdx = nodes.indexOfFirst { hypot(rawCanvasPos.x - it.x, rawCanvasPos.y - it.y) < 24f / viewModel.zoomScale }
                                                     if (handleHitIdx != -1) {
                                                         viewModel.selectedDirectSelectionNodeIndex = handleHitIdx
                                                         activeDragHandle = "DIRECT_HANDLE"
@@ -462,7 +462,7 @@ fun VectorCanvas(
                                                             rawCanvasPos,
                                                             shape.bezierNodes,
                                                             isClosed = shape.isPathClosed,
-                                                            tolerance = 120f / viewModel.zoomScale
+                                                            tolerance = 24f / viewModel.zoomScale
                                                         )
                                                         if (nearestSeg != null) {
                                                             activeDragHandle = "DIRECT_SEGMENT"
@@ -1095,8 +1095,8 @@ fun VectorCanvas(
                                 
                                 val isSelectedNode = idx == viewModel.activeEditNodeIndex
                                 val handleColor = if (isSelectedNode) Color(0xFFEF4444) else Color(0xFF6366F1)
-                                val lineStrokeWidth = 2.5f / viewModel.zoomScale
-                                val circleRadius = (if (isSelectedNode) 20f else 15f) / viewModel.zoomScale
+                                val lineStrokeWidth = 2f / viewModel.zoomScale
+                                val circleRadius = (if (isSelectedNode) 10f else 7.5f) / viewModel.zoomScale
                                 
                                 if (c1Pt != anchorPt) {
                                     drawLine(
@@ -1110,7 +1110,7 @@ fun VectorCanvas(
                                         topLeft = Offset(c1Pt.x - circleRadius, c1Pt.y - circleRadius),
                                         size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
                                     )
-                                    val innerR = (circleRadius - 3.5f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                    val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
                                     drawRect(
                                         color = Color.White,
                                         topLeft = Offset(c1Pt.x - innerR, c1Pt.y - innerR),
@@ -1129,7 +1129,7 @@ fun VectorCanvas(
                                         topLeft = Offset(c2Pt.x - circleRadius, c2Pt.y - circleRadius),
                                         size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
                                     )
-                                    val innerR = (circleRadius - 3.5f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                    val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
                                     drawRect(
                                         color = Color.White,
                                         topLeft = Offset(c2Pt.x - innerR, c2Pt.y - innerR),
@@ -1139,27 +1139,27 @@ fun VectorCanvas(
                             }
                         }
 
-                        val nodeRadius = 24f / viewModel.zoomScale
-                        val innerRadius = 18f / viewModel.zoomScale
+                        val nodeRadius = 12f / viewModel.zoomScale
+                        val innerRadius = 8f / viewModel.zoomScale
 
                         for (i in 0 until viewModel.activeBezierNodes.size) {
                             val node = viewModel.activeBezierNodes[i]
 
                             val isNodeSelected = i == viewModel.activeEditNodeIndex
-                            val finalNodeRadius = if (isNodeSelected) nodeRadius + 8f / viewModel.zoomScale else nodeRadius
+                            val finalNodeRadius = if (isNodeSelected) nodeRadius + 3f / viewModel.zoomScale else nodeRadius
                             val nodeColor = if (isNodeSelected) Color(0xFFEF4444) else Color(0xFF6366F1)
                             val innerNodeColor = if (isNodeSelected) Color(0xFFFEF2F2) else Color.White
 
-                            drawRect(
+                            drawCircle(
                                 color = nodeColor,
-                                topLeft = Offset(node.anchorX - finalNodeRadius, node.anchorY - finalNodeRadius),
-                                size = androidx.compose.ui.geometry.Size(finalNodeRadius * 2f, finalNodeRadius * 2f)
+                                radius = finalNodeRadius,
+                                center = Offset(node.anchorX, node.anchorY)
                             )
-                            val finalInnerRadius = if (isNodeSelected) innerRadius + 6f / viewModel.zoomScale else innerRadius
-                            drawRect(
+                            val finalInnerRadius = if (isNodeSelected) innerRadius + 3f / viewModel.zoomScale else innerRadius
+                            drawCircle(
                                 color = innerNodeColor,
-                                topLeft = Offset(node.anchorX - finalInnerRadius, node.anchorY - finalInnerRadius),
-                                size = androidx.compose.ui.geometry.Size(finalInnerRadius * 2f, finalInnerRadius * 2f)
+                                radius = finalInnerRadius,
+                                center = Offset(node.anchorX, node.anchorY)
                             )
                         }
 
@@ -1203,8 +1203,8 @@ fun VectorCanvas(
                                     
                                     val isSelectedNode = idx == activeNodeIdx
                                     val handleColor = if (isSelectedNode) Color(0xFFEF4444) else Color(0xFF6366F1)
-                                    val lineStrokeWidth = 2.5f / viewModel.zoomScale
-                                    val circleRadius = (if (isSelectedNode) 20f else 15f) / viewModel.zoomScale
+                                    val lineStrokeWidth = 2f / viewModel.zoomScale
+                                    val circleRadius = (if (isSelectedNode) 10f else 7.5f) / viewModel.zoomScale
                                     
                                     if (c1Pt != anchorPt) {
                                         drawLine(
@@ -1218,7 +1218,7 @@ fun VectorCanvas(
                                             topLeft = Offset(c1Pt.x - circleRadius, c1Pt.y - circleRadius),
                                             size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
                                         )
-                                        val innerR = (circleRadius - 3.5f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                        val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
                                         drawRect(
                                             color = Color.White,
                                             topLeft = Offset(c1Pt.x - innerR, c1Pt.y - innerR),
@@ -1237,7 +1237,7 @@ fun VectorCanvas(
                                             topLeft = Offset(c2Pt.x - circleRadius, c2Pt.y - circleRadius),
                                             size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
                                         )
-                                        val innerR = (circleRadius - 3.5f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                        val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
                                         drawRect(
                                             color = Color.White,
                                             topLeft = Offset(c2Pt.x - innerR, c2Pt.y - innerR),
@@ -1249,24 +1249,24 @@ fun VectorCanvas(
                         }
                         nodes.forEachIndexed { idx, pt ->
                             val isNodeSelected = idx == activeNodeIdx
-                            val handleRad = (if (isNodeSelected) 32f else 24f) / viewModel.zoomScale
+                            val handleRad = (if (isNodeSelected) 14f else 10f) / viewModel.zoomScale
                             
-                            val outerRad = handleRad + (4f / viewModel.zoomScale)
-                            drawRect(
+                            val outerRad = handleRad + (2f / viewModel.zoomScale)
+                            drawCircle(
                                 color = Color(0xFF0F172A),
-                                topLeft = Offset(pt.x - outerRad, pt.y - outerRad),
-                                size = androidx.compose.ui.geometry.Size(outerRad * 2f, outerRad * 2f)
+                                radius = outerRad,
+                                center = pt
                             )
-                            drawRect(
+                            drawCircle(
                                 color = if (isNodeSelected) Color(0xFF00E676) else Color(0xFF00B0FF),
-                                topLeft = Offset(pt.x - handleRad, pt.y - handleRad),
-                                size = androidx.compose.ui.geometry.Size(handleRad * 2f, handleRad * 2f)
+                                radius = handleRad,
+                                center = pt
                             )
-                            val innerR = handleRad - (6f / viewModel.zoomScale)
-                            drawRect(
+                            val innerR = handleRad - (3f / viewModel.zoomScale)
+                            drawCircle(
                                 color = Color.White,
-                                topLeft = Offset(pt.x - innerR, pt.y - innerR),
-                                size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
+                                radius = innerR,
+                                center = pt
                             )
                         }
                     }
