@@ -1866,12 +1866,16 @@ fun MainLayout(viewModel: VectorViewModel) {
 
     // LAYER VIEW STACKS SIDE DRAWER OVERLAY
     if (showLayersPanel) {
-        Dialog(onDismissRequest = { showLayersPanel = false }) {
+        androidx.compose.ui.window.Popup(
+            alignment = Alignment.TopEnd,
+            offset = androidx.compose.ui.unit.IntOffset(-12, 100),
+            onDismissRequest = { showLayersPanel = false }
+        ) {
             Card(
                 modifier = Modifier
-                    .fillMaxWidth(0.95f)
-                    .fillMaxHeight(0.7f),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                    .width(300.dp)
+                    .heightIn(min = 200.dp, max = 500.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xCC1E293B)), // Transparan
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -1881,39 +1885,45 @@ fun MainLayout(viewModel: VectorViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Layers Stack Panel (${viewModel.shapes.size})",
+                            text = "Layer Manager",
                             color = Color.White,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        IconButton(onClick = { showLayersPanel = false }) {
-                            Icon(Icons.Default.Close, "Close Panel", tint = Color.LightGray)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { viewModel.addNewLayer() }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.Add, "Add Layer", tint = Color(0xFF00E676))
+                            }
+                            IconButton(onClick = { showLayersPanel = false }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.Close, "Close Panel", tint = Color.LightGray)
+                            }
                         }
                     }
 
                     Divider(color = Color(0xFF475569), modifier = Modifier.padding(vertical = 8.dp))
 
-                    if (viewModel.shapes.isEmpty()) {
+                    if (viewModel.layers.isEmpty()) {
                         Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("No design layout layers yet.", color = Color.Gray, fontSize = 13.sp)
+                            Text("No layers yet.", color = Color.Gray, fontSize = 13.sp)
                         }
                     } else {
                         LazyColumn(modifier = Modifier.weight(1f)) {
-                            items(viewModel.shapes.reversed()) { shape -> // Newest (front) layers on top
-                                val isSelected = viewModel.selectedShapeId == shape.id
+                            items(viewModel.layers.reversed()) { layer -> 
+                                val actualIndex = viewModel.layers.indexOf(layer)
+                                val isSelected = viewModel.activeLayerId == layer.id
+                                val shapeCount = viewModel.shapes.count { it.layerId == layer.id }
+                                
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(vertical = 4.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) Color(0xFF334155) else Color.Transparent)
+                                        .background(if (isSelected) Color(0x88334155) else Color.Transparent)
                                         .clickable {
-                                            viewModel.selectedShapeId = shape.id
+                                            viewModel.activeLayerId = layer.id
                                         }
                                         .padding(8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1924,26 +1934,16 @@ fun MainLayout(viewModel: VectorViewModel) {
                                         modifier = Modifier.weight(1f),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        // Shape icon category mini indicator
                                         Icon(
-                                            imageVector = when (shape.type) {
-                                                ShapeType.RECTANGLE -> Icons.Default.Square
-                                                ShapeType.ELLIPSE -> Icons.Default.Circle
-                                                ShapeType.LINE -> Icons.Default.Maximize
-                                                ShapeType.FREEHAND -> Icons.Default.Brush
-                                                ShapeType.BEZIER_PATH -> Icons.Default.Gesture
-                                                ShapeType.TEXT -> Icons.Default.TextFields
-                                                ShapeType.POLYGON -> Icons.Default.Category
-                                                ShapeType.STAR -> Icons.Default.Star
-                                            },
-                                            contentDescription = "Shape Icon",
+                                            imageVector = Icons.Default.Layers,
+                                            contentDescription = "Layer Icon",
                                             tint = if (isSelected) Color(0xFF00E676) else Color.Gray,
                                             modifier = Modifier.size(18.dp)
                                         )
 
                                         Column {
                                             Text(
-                                                text = shape.name,
+                                                text = layer.name,
                                                 color = Color.White,
                                                 fontSize = 13.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
@@ -1951,7 +1951,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
-                                                text = "Stroke: ${shape.strokeWidth.toInt()}px | Hex: ${shape.strokeColorHex}",
+                                                text = "$shapeCount objects",
                                                 color = Color.LightGray,
                                                 fontSize = 10.sp
                                             )
@@ -1963,56 +1963,80 @@ fun MainLayout(viewModel: VectorViewModel) {
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        // Visibility eye shape toggle
+                                        // Visibility toggle
                                         IconButton(
-                                            onClick = { viewModel.toggleShapeVisibility(shape.id) },
-                                            modifier = Modifier.size(28.dp)
+                                            onClick = { 
+                                                viewModel.layers = viewModel.layers.map { 
+                                                    if (it.id == layer.id) it.copy(isVisible = !it.isVisible) else it 
+                                                }
+                                            },
+                                            modifier = Modifier.size(24.dp)
                                         ) {
                                             Icon(
-                                                imageVector = if (shape.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                imageVector = if (layer.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                                 contentDescription = "Toggle Visibility",
-                                                tint = if (shape.isVisible) Color.LightGray else Color.Red,
-                                                modifier = Modifier.size(16.dp)
+                                                tint = if (layer.isVisible) Color.LightGray else Color.Red,
+                                                modifier = Modifier.size(14.dp)
                                             )
                                         }
 
-                                        // Lock shape toggle
+                                        // Lock layer toggle
                                         IconButton(
-                                            onClick = { viewModel.toggleShapeLock(shape.id) },
-                                            modifier = Modifier.size(28.dp)
+                                            onClick = { 
+                                                viewModel.layers = viewModel.layers.map { 
+                                                    if (it.id == layer.id) it.copy(isLocked = !it.isLocked) else it 
+                                                }
+                                            },
+                                            modifier = Modifier.size(24.dp)
                                         ) {
                                             Icon(
-                                                imageVector = if (shape.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                                imageVector = if (layer.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
                                                 contentDescription = "Toggle Lock",
-                                                tint = if (shape.isLocked) Color.Red else Color.LightGray,
-                                                modifier = Modifier.size(16.dp)
+                                                tint = if (layer.isLocked) Color.Red else Color.LightGray,
+                                                modifier = Modifier.size(14.dp)
                                             )
                                         }
 
                                         // Move layer up
                                         IconButton(
-                                            onClick = {
-                                                viewModel.selectedShapeId = shape.id
-                                                viewModel.bringToFront()
-                                            },
-                                            modifier = Modifier.size(28.dp)
+                                            onClick = { viewModel.reorderLayers(actualIndex, actualIndex + 1) },
+                                            modifier = Modifier.size(24.dp)
                                         ) {
-                                            Icon(Icons.Default.ArrowUpward, "Layer up", tint = Color.White, modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.ArrowUpward, "Layer up", tint = Color.White, modifier = Modifier.size(14.dp))
                                         }
 
                                         // Move layer down
                                         IconButton(
-                                            onClick = {
-                                                viewModel.selectedShapeId = shape.id
-                                                viewModel.sendToBack()
-                                            },
-                                            modifier = Modifier.size(28.dp)
+                                            onClick = { viewModel.reorderLayers(actualIndex, actualIndex - 1) },
+                                            modifier = Modifier.size(24.dp)
                                         ) {
-                                            Icon(Icons.Default.ArrowDownward, "Layer down", tint = Color.White, modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.ArrowDownward, "Layer down", tint = Color.White, modifier = Modifier.size(14.dp))
+                                        }
+                                        
+                                        // Delete layer
+                                        IconButton(
+                                            onClick = { viewModel.deleteLayer(layer.id) },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
                                         }
                                     }
                                 }
                             }
+                        }
+                    }
+                    
+                    if (viewModel.selectedShapeId != null) {
+                        Button(
+                            onClick = { 
+                                viewModel.selectedShapeId?.let { objId ->
+                                   viewModel.moveSelectedObjectToLayer(objId, viewModel.activeLayerId) 
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676))
+                        ) {
+                            Text("Move Selected to Active Layer", color = Color.Black, fontSize = 12.sp)
                         }
                     }
                 }

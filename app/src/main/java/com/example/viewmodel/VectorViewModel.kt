@@ -47,6 +47,53 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var shapes by mutableStateOf<List<VectorShape>>(emptyList())
         private set
 
+    // Layer Management System
+    var layers by mutableStateOf<List<com.example.model.VectorLayer>>(
+        listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
+    )
+    var activeLayerId by mutableStateOf("default_layer")
+
+    // Operations for Layers
+    fun addNewLayer() {
+        val newLayer = com.example.model.VectorLayer(name = "Layer ${layers.size + 1}")
+        val activeIndex = layers.indexOfFirst { it.id == activeLayerId }
+        val insertIndex = if (activeIndex != -1) activeIndex + 1 else layers.size
+        
+        val newLayers = layers.toMutableList()
+        newLayers.add(insertIndex, newLayer)
+        layers = newLayers
+        activeLayerId = newLayer.id
+    }
+
+    fun deleteLayer(layerId: String) {
+        if (layers.size <= 1) return // Prevent deleting the last layer
+        
+        pushToUndoStack()
+        
+        // Remove layer
+        layers = layers.filter { it.id != layerId }
+        // Remove objects in layer
+        shapes = shapes.filter { it.layerId != layerId }
+        
+        if (activeLayerId == layerId) {
+            activeLayerId = layers.lastOrNull()?.id ?: ""
+        }
+    }
+
+    fun reorderLayers(fromIndex: Int, toIndex: Int) {
+        if (fromIndex == toIndex) return
+        val newLayers = layers.toMutableList()
+        val moveItem = newLayers.removeAt(fromIndex)
+        val targetIndex = if (toIndex >= newLayers.size) newLayers.size else toIndex
+        newLayers.add(targetIndex, moveItem)
+        layers = newLayers
+    }
+
+    fun moveSelectedObjectToLayer(objectId: String, targetLayerId: String) {
+        pushToUndoStack()
+        shapes = shapes.map { if (it.id == objectId) it.copy(layerId = targetLayerId) else it }
+    }
+
     var selectedShapeId by mutableStateOf<String?>(null)
     var selectedShapeIds by mutableStateOf<Set<String>>(emptySet())
     var isCloneModeActive by mutableStateOf(false)
@@ -751,7 +798,9 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
     // Shape selection logic
     fun selectShapeAt(pos: Offset) {
-        val clickedShape = shapes.reversed().firstOrNull { it.isPointInside(pos.x, pos.y) }
+        val lockedLayerIds = layers.filter { it.isLocked }.map { it.id }.toSet()
+        val clickableShapes = shapes.filter { !it.isLocked && !lockedLayerIds.contains(it.layerId) }
+        val clickedShape = clickableShapes.reversed().firstOrNull { it.isPointInside(pos.x, pos.y) }
         if (clickedShape != null) {
             val cid = clickedShape.id
             val currentSelected = selectedShapeIds.toMutableSet()
@@ -969,7 +1018,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 )
             }
         }
-        shapes = shapes + newShape
+        val shapeWithLayer = newShape.copy(layerId = activeLayerId)
+        shapes = shapes + shapeWithLayer
         selectedShapeId = id
         selectedShapeIds = setOf(id)
     }
@@ -993,7 +1043,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             hasFill = false,
             layerOrder = shapes.size
         )
-        shapes = shapes + newShape
+        val shapeWithLayer = newShape.copy(layerId = activeLayerId)
+        shapes = shapes + shapeWithLayer
         selectedShapeId = id
     }
 
@@ -1338,7 +1389,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             fillAlpha = currentFillAlpha,
             layerOrder = shapes.size
         )
-        shapes = shapes + shape
+        val shapeWithLayer = shape.copy(layerId = activeLayerId)
+        shapes = shapes + shapeWithLayer
         activeBezierNodes = emptyList()
         activeEditNodeIndex = null
         selectedShapeId = id
@@ -1694,7 +1746,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             id = newId,
             name = "${original.name} Copy"
         )
-        shapes = shapes + duplicated
+        val shapeWithLayer = duplicated.copy(layerId = activeLayerId)
+        shapes = shapes + shapeWithLayer
         selectedShapeId = newId
     }
 
@@ -1705,7 +1758,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             id = newId,
             name = "${original.name} Copy"
         )
-        shapes = shapes + duplicated
+        val shapeWithLayer = duplicated.copy(layerId = activeLayerId)
+        shapes = shapes + shapeWithLayer
         selectedShapeId = newId
         selectedShapeIds = setOf(newId)
         return duplicated
@@ -1832,7 +1886,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             strokeColorHex = currentStrokeColorHex,
             layerOrder = shapes.size
         )
-        shapes = shapes + shape
+        val shapeWithLayer = shape.copy(layerId = activeLayerId)
+        shapes = shapes + shapeWithLayer
         selectedShapeId = id
     }
 

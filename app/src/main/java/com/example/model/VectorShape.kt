@@ -138,6 +138,9 @@ data class VectorShape(
     val starPoints: Int = 5,
     val lineStyle: String = "SOLID", // "SOLID", "DASHED", "DOTTED"
     
+    // Layer Association
+    val layerId: String = "default_layer",
+    
     // Individual corner roundness
     val radiusTL: Float = 0f,
     val radiusTR: Float = 0f,
@@ -413,26 +416,54 @@ data class VectorShape(
             }
             ShapeType.POLYGON -> {
                 if (polygonSides >= 3) {
+                    val rawPts = mutableListOf<Offset>()
                     for (i in 0 until polygonSides) {
                         val angle = i * 2 * Math.PI / polygonSides - Math.PI / 2
-                        val px = x + width * kotlin.math.cos(angle).toFloat()
-                        val py = y + height * kotlin.math.sin(angle).toFloat()
-                        list.add(Offset(px, py))
+                        val px = kotlin.math.cos(angle).toFloat()
+                        val py = kotlin.math.sin(angle).toFloat()
+                        rawPts.add(Offset(px, py))
+                    }
+                    val minX = rawPts.minOf { it.x }
+                    val maxX = rawPts.maxOf { it.x }
+                    val minY = rawPts.minOf { it.y }
+                    val maxY = rawPts.maxOf { it.y }
+                    
+                    val rangeX = if (maxX - minX > 0) maxX - minX else 1f
+                    val rangeY = if (maxY - minY > 0) maxY - minY else 1f
+
+                    for (p in rawPts) {
+                        val nx = ((p.x - minX) / rangeX) * 2f - 1f // from -1 to 1
+                        val ny = ((p.y - minY) / rangeY) * 2f - 1f // from -1 to 1
+                        list.add(Offset(x + width * nx, y + height * ny))
                     }
                 }
             }
             ShapeType.STAR -> {
                 if (starPoints >= 3) {
                     val totalPoints = starPoints * 2
-                    val innerRx = width * 0.4f
-                    val innerRy = height * 0.4f
+                    val innerRadius = 0.4f
+                    val rawPts = mutableListOf<Offset>()
+                    
                     for (i in 0 until totalPoints) {
                         val angle = i * Math.PI / starPoints - Math.PI / 2
-                        val rXFactor = if (i % 2 == 0) width else innerRx
-                        val rYFactor = if (i % 2 == 0) height else innerRy
-                        val px = x + rXFactor * kotlin.math.cos(angle).toFloat()
-                        val py = y + rYFactor * kotlin.math.sin(angle).toFloat()
-                        list.add(Offset(px, py))
+                        val rFactor = if (i % 2 == 0) 1f else innerRadius
+                        val px = rFactor * kotlin.math.cos(angle).toFloat()
+                        val py = rFactor * kotlin.math.sin(angle).toFloat()
+                        rawPts.add(Offset(px, py))
+                    }
+                    
+                    val minX = rawPts.minOf { it.x }
+                    val maxX = rawPts.maxOf { it.x }
+                    val minY = rawPts.minOf { it.y }
+                    val maxY = rawPts.maxOf { it.y }
+
+                    val rangeX = if (maxX - minX > 0) maxX - minX else 1f
+                    val rangeY = if (maxY - minY > 0) maxY - minY else 1f
+
+                    for (p in rawPts) {
+                        val nx = ((p.x - minX) / rangeX) * 2f - 1f // from -1 to 1
+                        val ny = ((p.y - minY) / rangeY) * 2f - 1f // from -1 to 1
+                        list.add(Offset(x + width * nx, y + height * ny))
                     }
                 }
             }

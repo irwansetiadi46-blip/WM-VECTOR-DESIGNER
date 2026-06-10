@@ -864,7 +864,9 @@ fun VectorCanvas(
                                                 val maxX = maxOf(s.x, e.x)
                                                 val maxY = maxOf(s.y, e.y)
                                                 val selectBox = Rect(minX, minY, maxX, maxY)
+                                                val lockedLayerIds = viewModel.layers.filter { it.isLocked }.map { it.id }.toSet()
                                                 val matchingShapeIds = viewModel.shapes.filter { sShape ->
+                                                    if (sShape.isLocked || lockedLayerIds.contains(sShape.layerId)) return@filter false
                                                     val sb = sShape.getBoundingBox()
                                                     sb.overlaps(selectBox) || selectBox.contains(Offset(sShape.x, sShape.y))
                                                 }.map { it.id }.toSet()
@@ -896,7 +898,8 @@ fun VectorCanvas(
                                                     }
                                                 }
                                                 if (!hitNode) {
-                                                    val shapeUnder = viewModel.shapes.findLast { it.isPointInside(e.x, e.y) }
+                                                    val lockedLayerIds = viewModel.layers.filter { it.isLocked }.map { it.id }.toSet()
+                                                    val shapeUnder = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(e.x, e.y) }
                                                     if (shapeUnder != null) {
                                                         viewModel.selectShapeAt(e)
                                                     }
@@ -905,7 +908,8 @@ fun VectorCanvas(
                                             }
                                         } else if (viewModel.currentTool == VectorTool.ROUNDED_CORNER) {
                                             if (hypot(e.x - s.x, e.y - s.y) < 6f) {
-                                                val shapeUnder = viewModel.shapes.findLast { it.isPointInside(e.x, e.y) }
+                                                val lockedLayerIds = viewModel.layers.filter { it.isLocked }.map { it.id }.toSet()
+                                                val shapeUnder = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(e.x, e.y) }
                                                 if (shapeUnder != null && shapeUnder.id != viewModel.selectedShapeId) {
                                                     viewModel.selectedShapeId = shapeUnder.id
                                                     viewModel.selectedRoundedCornerIndex = null
@@ -1016,46 +1020,65 @@ fun VectorCanvas(
                     }
                 }
 
-                for (shape in viewModel.shapes) {
-                    if (!shape.isVisible) continue
+                // Melakukan looping berurutan dari layer indeks paling bawah (latar belakang) ke layer indeks paling atas
+                for (layer in viewModel.layers) {
+                    // Pengecekan status isVisible
+                    if (!layer.isVisible) continue
 
-                    val strokeColor = shape.getStrokeColor().copy(alpha = shape.strokeAlpha)
-                    val fillColor = shape.getFillColor().copy(alpha = shape.fillAlpha)
+                    val shapesInLayer = viewModel.shapes.filter { it.layerId == layer.id }
+                    if (shapesInLayer.isEmpty()) continue
 
-                    if (shape.type == ShapeType.TEXT) {
-                        val paintText = Paint().apply {
-                            color = strokeColor.toArgb()
-                            textSize = shape.fontSize
-                            typeface = viewModel.importedTypeface ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                            isAntiAlias = true
-                        }
-                        canvas.nativeCanvas.drawText(
-                            shape.textContent,
-                            shape.x,
-                            shape.y,
-                            paintText
-                        )
-                    } else {
-                        val composePath = shape.asComposePath()
+                    // Menerapkan efek opacity layer
+                    if (layer.opacity < 1f) {
+                        val layerPaint = Paint().apply { alpha = (layer.opacity * 255).toInt() }
+                        canvas.nativeCanvas.saveLayer(0f, 0f, canvasWidthVal, canvasHeightVal, layerPaint)
+                    }
 
-                        if (shape.hasFill && shape.type != ShapeType.LINE) {
-                            drawPath(
-                                path = composePath,
-                                color = fillColor
+                    for (shape in shapesInLayer) {
+                        if (!shape.isVisible) continue
+
+                        val strokeColor = shape.getStrokeColor().copy(alpha = shape.strokeAlpha)
+                        val fillColor = shape.getFillColor().copy(alpha = shape.fillAlpha)
+
+                        if (shape.type == ShapeType.TEXT) {
+                            val paintText = Paint().apply {
+                                color = strokeColor.toArgb()
+                                textSize = shape.fontSize
+                                typeface = viewModel.importedTypeface ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                                isAntiAlias = true
+                            }
+                            canvas.nativeCanvas.drawText(
+                                shape.textContent,
+                                shape.x,
+                                shape.y,
+                                paintText
                             )
-                        }
+                        } else {
+                            val composePath = shape.asComposePath()
 
-                        if (shape.strokeWidth > 0f) {
-                            drawPath(
-                                path = composePath,
-                                color = strokeColor,
-                                style = Stroke(
-                                    width = shape.strokeWidth,
-                                    join = mapStrokeJoin(shape.strokeJoin),
-                                    cap = mapStrokeCap(shape.strokeCap)
+                            if (shape.hasFill && shape.type != ShapeType.LINE) {
+                                drawPath(
+                                    path = composePath,
+                                    color = fillColor
                                 )
-                            )
+                            }
+
+                            if (shape.strokeWidth > 0f) {
+                                drawPath(
+                                    path = composePath,
+                                    color = strokeColor,
+                                    style = Stroke(
+                                        width = shape.strokeWidth,
+                                        join = mapStrokeJoin(shape.strokeJoin),
+                                        cap = mapStrokeCap(shape.strokeCap)
+                                    )
+                                )
+                            }
                         }
+                    }
+
+                    if (layer.opacity < 1f) {
+                        canvas.nativeCanvas.restore()
                     }
                 }
 
@@ -1412,11 +1435,26 @@ fun VectorCanvas(
                             val path = Path().apply {
                                 val rx = abs(e.x - s.x)
                                 val ry = abs(e.y - s.y)
+                                val rawPts = mutableListOf<Offset>()
                                 for (i in 0 until sides) {
                                     val angle = i * 2 * Math.PI / sides - Math.PI / 2
-                                    val px = s.x + rx * kotlin.math.cos(angle).toFloat()
-                                    val py = s.y + ry * kotlin.math.sin(angle).toFloat()
-                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                    val px = kotlin.math.cos(angle).toFloat()
+                                    val py = kotlin.math.sin(angle).toFloat()
+                                    rawPts.add(Offset(px, py))
+                                }
+                                val minX = rawPts.minOf { it.x }
+                                val maxX = rawPts.maxOf { it.x }
+                                val minY = rawPts.minOf { it.y }
+                                val maxY = rawPts.maxOf { it.y }
+                                val rangeX = if (maxX - minX > 0) maxX - minX else 1f
+                                val rangeY = if (maxY - minY > 0) maxY - minY else 1f
+                                
+                                for (i in 0 until sides) {
+                                    val p = rawPts[i]
+                                    val nx = ((p.x - minX) / rangeX) * 2f - 1f
+                                    val ny = ((p.y - minY) / rangeY) * 2f - 1f
+                                    if (i == 0) moveTo(s.x + rx * nx, s.y + ry * ny)
+                                    else lineTo(s.x + rx * nx, s.y + ry * ny)
                                 }
                                 close()
                             }
@@ -1436,16 +1474,29 @@ fun VectorCanvas(
                             val path = Path().apply {
                                 val rx = abs(e.x - s.x)
                                 val ry = abs(e.y - s.y)
-                                val innerRx = rx * 0.4f
-                                val innerRy = ry * 0.4f
+                                val innerRadius = 0.4f
                                 val totalPoints = pts * 2
+                                val rawPts = mutableListOf<Offset>()
                                 for (i in 0 until totalPoints) {
                                     val angle = i * Math.PI / pts - Math.PI / 2
-                                    val rXFactor = if (i % 2 == 0) rx else innerRx
-                                    val rYFactor = if (i % 2 == 0) ry else innerRy
-                                    val px = s.x + rXFactor * kotlin.math.cos(angle).toFloat()
-                                    val py = s.y + rYFactor * kotlin.math.sin(angle).toFloat()
-                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                    val rFactor = if (i % 2 == 0) 1f else innerRadius
+                                    val px = rFactor * kotlin.math.cos(angle).toFloat()
+                                    val py = rFactor * kotlin.math.sin(angle).toFloat()
+                                    rawPts.add(Offset(px, py))
+                                }
+                                val minX = rawPts.minOf { it.x }
+                                val maxX = rawPts.maxOf { it.x }
+                                val minY = rawPts.minOf { it.y }
+                                val maxY = rawPts.maxOf { it.y }
+                                val rangeX = if (maxX - minX > 0) maxX - minX else 1f
+                                val rangeY = if (maxY - minY > 0) maxY - minY else 1f
+
+                                for (i in 0 until totalPoints) {
+                                    val p = rawPts[i]
+                                    val nx = ((p.x - minX) / rangeX) * 2f - 1f
+                                    val ny = ((p.y - minY) / rangeY) * 2f - 1f
+                                    if (i == 0) moveTo(s.x + rx * nx, s.y + ry * ny)
+                                    else lineTo(s.x + rx * nx, s.y + ry * ny)
                                 }
                                 close()
                             }
