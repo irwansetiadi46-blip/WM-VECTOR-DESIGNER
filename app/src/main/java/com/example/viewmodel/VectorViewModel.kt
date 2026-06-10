@@ -2500,8 +2500,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         while (hasContour) {
             val len = pm.length
             if (len > 0.1f) {
-                // Adaptive sampling with a safe upper limit to prevent ANR issues
-                val numSamples = (len / 4f).toInt().coerceIn(45, 220)
+                // Adaptive sampling with higher density to preserve sharp geometric corners (200-450 samples)
+                val numSamples = (len / 2f).toInt().coerceIn(200, 450)
                 val step = len / numSamples
                 val rawPoints = mutableListOf<Offset>()
                 val pos = FloatArray(2)
