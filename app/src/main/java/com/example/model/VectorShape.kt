@@ -473,6 +473,8 @@ data class VectorShape(
         val drawAsArc = BooleanArray(n)
         val arcStarts = Array(n) { Offset.Zero }
         val arcEnds = Array(n) { Offset.Zero }
+        val arcC1 = Array(n) { Offset.Zero }
+        val arcC2 = Array(n) { Offset.Zero }
         
         for (i in 0 until n) {
             val pi = vertices[i]
@@ -492,14 +494,24 @@ data class VectorShape(
                     val u1 = Offset(v1.x / L1, v1.y / L1)
                     val u2 = Offset(v2.x / L2, v2.y / L2)
                     
-                    val rMax = minOf(L1, L2) / 2.2f
-                    val rClamped = minOf(r, rMax)
-                    
-                    if (rClamped > 0.1f) {
-                        drawAsArc[i] = true
-                        arcStarts[i] = pi + u1 * rClamped
-                        arcEnds[i] = pi + u2 * rClamped
-                        continue
+                    val c = u1.x * u2.x + u1.y * u2.y
+                    if (c < 0.99f && c > -0.99f) {
+                        val dReq = r * kotlin.math.sqrt((1f + c) / (1f - c))
+                        val dMax = minOf(L1, L2) / 2f
+                        val D = minOf(dReq, dMax)
+                        
+                        if (D > 0.1f) {
+                            val k = kotlin.math.sqrt((1f - c) / 2f)
+                            val f = (4f * k) / (3f * (1f + k))
+                            val L = f * D
+                            
+                            drawAsArc[i] = true
+                            arcStarts[i] = pi + u1 * D
+                            arcEnds[i] = pi + u2 * D
+                            arcC1[i] = arcStarts[i] - u1 * L
+                            arcC2[i] = arcEnds[i] - u2 * L
+                            continue
+                        }
                     }
                 }
             }
@@ -518,7 +530,11 @@ data class VectorShape(
             path.lineTo(nextStart.x, nextStart.y)
             
             if (drawAsArc[nextIdx]) {
-                path.quadraticTo(vertices[nextIdx].x, vertices[nextIdx].y, arcEnds[nextIdx].x, arcEnds[nextIdx].y)
+                path.cubicTo(
+                    arcC1[nextIdx].x, arcC1[nextIdx].y,
+                    arcC2[nextIdx].x, arcC2[nextIdx].y,
+                    arcEnds[nextIdx].x, arcEnds[nextIdx].y
+                )
             }
         }
         path.close()
@@ -531,35 +547,20 @@ data class VectorShape(
         when (type) {
             ShapeType.RECTANGLE -> {
                 if (radiusTL > 0f || radiusTR > 0f || radiusBL > 0f || radiusBR > 0f) {
-                    // Explictly flatten Path using lineTo and quadraticTo
                     val rTL = minOf(radiusTL, width / 2f, height / 2f)
                     val rTR = minOf(radiusTR, width / 2f, height / 2f)
                     val rBR = minOf(radiusBR, width / 2f, height / 2f)
                     val rBL = minOf(radiusBL, width / 2f, height / 2f)
-
-                    val rectLeft = x
-                    val rectTop = y
-                    val rectRight = x + width
-                    val rectBottom = y + height
-
-                    path.moveTo(rectLeft + rTL, rectTop)
-                    path.lineTo(rectRight - rTR, rectTop)
-                    if (rTR > 0f) {
-                        path.quadraticTo(rectRight, rectTop, rectRight, rectTop + rTR)
-                    }
-                    path.lineTo(rectRight, rectBottom - rBR)
-                    if (rBR > 0f) {
-                        path.quadraticTo(rectRight, rectBottom, rectRight - rBR, rectBottom)
-                    }
-                    path.lineTo(rectLeft + rBL, rectBottom)
-                    if (rBL > 0f) {
-                        path.quadraticTo(rectLeft, rectBottom, rectLeft, rectBottom - rBL)
-                    }
-                    path.lineTo(rectLeft, rectTop + rTL)
-                    if (rTL > 0f) {
-                        path.quadraticTo(rectLeft, rectTop, rectLeft + rTL, rectTop)
-                    }
-                    path.close()
+                    
+                    path.addRoundRect(
+                        androidx.compose.ui.geometry.RoundRect(
+                            rect = Rect(x, y, x + width, y + height),
+                            topLeft = androidx.compose.ui.geometry.CornerRadius(rTL, rTL),
+                            topRight = androidx.compose.ui.geometry.CornerRadius(rTR, rTR),
+                            bottomRight = androidx.compose.ui.geometry.CornerRadius(rBR, rBR),
+                            bottomLeft = androidx.compose.ui.geometry.CornerRadius(rBL, rBL)
+                        )
+                    )
                 } else {
                     path.addRect(Rect(x, y, x + width, y + height))
                 }
