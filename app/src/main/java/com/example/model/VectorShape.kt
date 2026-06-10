@@ -169,8 +169,20 @@ data class VectorShape(
             ShapeType.RECTANGLE -> {
                 Rect(x, y, x + width, y + height)
             }
-            ShapeType.ELLIPSE, ShapeType.POLYGON, ShapeType.STAR -> {
+            ShapeType.ELLIPSE -> {
                 Rect(x - width, y - height, x + width, y + height)
+            }
+            ShapeType.POLYGON, ShapeType.STAR -> {
+                val nodes = getCornerPoints()
+                if (nodes.isEmpty()) {
+                    Rect(x - width, y - height, x + width, y + height)
+                } else {
+                    val minX = nodes.minOf { it.x }
+                    val maxX = nodes.maxOf { it.x }
+                    val minY = nodes.minOf { it.y }
+                    val maxY = nodes.maxOf { it.y }
+                    Rect(minX, minY, maxX, maxY)
+                }
             }
             ShapeType.LINE -> {
                 Rect(min(startX, endX), min(startY, endY), max(startX, endX), max(startY, endY))
@@ -416,54 +428,26 @@ data class VectorShape(
             }
             ShapeType.POLYGON -> {
                 if (polygonSides >= 3) {
-                    val rawPts = mutableListOf<Offset>()
                     for (i in 0 until polygonSides) {
                         val angle = i * 2 * Math.PI / polygonSides - Math.PI / 2
-                        val px = kotlin.math.cos(angle).toFloat()
-                        val py = kotlin.math.sin(angle).toFloat()
-                        rawPts.add(Offset(px, py))
-                    }
-                    val minX = rawPts.minOf { it.x }
-                    val maxX = rawPts.maxOf { it.x }
-                    val minY = rawPts.minOf { it.y }
-                    val maxY = rawPts.maxOf { it.y }
-                    
-                    val rangeX = if (maxX - minX > 0) maxX - minX else 1f
-                    val rangeY = if (maxY - minY > 0) maxY - minY else 1f
-
-                    for (p in rawPts) {
-                        val nx = ((p.x - minX) / rangeX) * 2f - 1f // from -1 to 1
-                        val ny = ((p.y - minY) / rangeY) * 2f - 1f // from -1 to 1
-                        list.add(Offset(x + width * nx, y + height * ny))
+                        val px = x + width * kotlin.math.cos(angle).toFloat()
+                        val py = y + height * kotlin.math.sin(angle).toFloat()
+                        list.add(Offset(px, py))
                     }
                 }
             }
             ShapeType.STAR -> {
                 if (starPoints >= 3) {
                     val totalPoints = starPoints * 2
-                    val innerRadius = 0.4f
-                    val rawPts = mutableListOf<Offset>()
-                    
+                    val innerRx = width * 0.4f
+                    val innerRy = height * 0.4f
                     for (i in 0 until totalPoints) {
                         val angle = i * Math.PI / starPoints - Math.PI / 2
-                        val rFactor = if (i % 2 == 0) 1f else innerRadius
-                        val px = rFactor * kotlin.math.cos(angle).toFloat()
-                        val py = rFactor * kotlin.math.sin(angle).toFloat()
-                        rawPts.add(Offset(px, py))
-                    }
-                    
-                    val minX = rawPts.minOf { it.x }
-                    val maxX = rawPts.maxOf { it.x }
-                    val minY = rawPts.minOf { it.y }
-                    val maxY = rawPts.maxOf { it.y }
-
-                    val rangeX = if (maxX - minX > 0) maxX - minX else 1f
-                    val rangeY = if (maxY - minY > 0) maxY - minY else 1f
-
-                    for (p in rawPts) {
-                        val nx = ((p.x - minX) / rangeX) * 2f - 1f // from -1 to 1
-                        val ny = ((p.y - minY) / rangeY) * 2f - 1f // from -1 to 1
-                        list.add(Offset(x + width * nx, y + height * ny))
+                        val rXFactor = if (i % 2 == 0) width else innerRx
+                        val rYFactor = if (i % 2 == 0) height else innerRy
+                        val px = x + rXFactor * kotlin.math.cos(angle).toFloat()
+                        val py = y + rYFactor * kotlin.math.sin(angle).toFloat()
+                        list.add(Offset(px, py))
                     }
                 }
             }
@@ -566,15 +550,35 @@ data class VectorShape(
         when (type) {
             ShapeType.RECTANGLE -> {
                 if (radiusTL > 0f || radiusTR > 0f || radiusBL > 0f || radiusBR > 0f) {
-                    path.addRoundRect(
-                        androidx.compose.ui.geometry.RoundRect(
-                            rect = Rect(x, y, x + width, y + height),
-                            topLeft = androidx.compose.ui.geometry.CornerRadius(radiusTL),
-                            topRight = androidx.compose.ui.geometry.CornerRadius(radiusTR),
-                            bottomRight = androidx.compose.ui.geometry.CornerRadius(radiusBR),
-                            bottomLeft = androidx.compose.ui.geometry.CornerRadius(radiusBL)
-                        )
-                    )
+                    // Explictly flatten Path using lineTo and quadraticTo
+                    val rTL = minOf(radiusTL, width / 2f, height / 2f)
+                    val rTR = minOf(radiusTR, width / 2f, height / 2f)
+                    val rBR = minOf(radiusBR, width / 2f, height / 2f)
+                    val rBL = minOf(radiusBL, width / 2f, height / 2f)
+
+                    val rectLeft = x
+                    val rectTop = y
+                    val rectRight = x + width
+                    val rectBottom = y + height
+
+                    path.moveTo(rectLeft + rTL, rectTop)
+                    path.lineTo(rectRight - rTR, rectTop)
+                    if (rTR > 0f) {
+                        path.quadraticTo(rectRight, rectTop, rectRight, rectTop + rTR)
+                    }
+                    path.lineTo(rectRight, rectBottom - rBR)
+                    if (rBR > 0f) {
+                        path.quadraticTo(rectRight, rectBottom, rectRight - rBR, rectBottom)
+                    }
+                    path.lineTo(rectLeft + rBL, rectBottom)
+                    if (rBL > 0f) {
+                        path.quadraticTo(rectLeft, rectBottom, rectLeft, rectBottom - rBL)
+                    }
+                    path.lineTo(rectLeft, rectTop + rTL)
+                    if (rTL > 0f) {
+                        path.quadraticTo(rectLeft, rectTop, rectLeft + rTL, rectTop)
+                    }
+                    path.close()
                 } else {
                     path.addRect(Rect(x, y, x + width, y + height))
                 }
@@ -672,10 +676,6 @@ data class VectorShape(
             m.postRotate(rotationAngle, cx, cy)
             path.asAndroidPath().transform(m)
         }
-                // === TRIK JITU: BAKE / FLATTEN COMPOSE PATH DI SINI ===
-        val bakedPath = Path()
-        bakedPath.addPath(path)
-        return bakedPath
-
+        return path
     }
 }

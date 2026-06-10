@@ -1435,26 +1435,12 @@ fun VectorCanvas(
                             val path = Path().apply {
                                 val rx = abs(e.x - s.x)
                                 val ry = abs(e.y - s.y)
-                                val rawPts = mutableListOf<Offset>()
                                 for (i in 0 until sides) {
                                     val angle = i * 2 * Math.PI / sides - Math.PI / 2
-                                    val px = kotlin.math.cos(angle).toFloat()
-                                    val py = kotlin.math.sin(angle).toFloat()
-                                    rawPts.add(Offset(px, py))
-                                }
-                                val minX = rawPts.minOf { it.x }
-                                val maxX = rawPts.maxOf { it.x }
-                                val minY = rawPts.minOf { it.y }
-                                val maxY = rawPts.maxOf { it.y }
-                                val rangeX = if (maxX - minX > 0) maxX - minX else 1f
-                                val rangeY = if (maxY - minY > 0) maxY - minY else 1f
-                                
-                                for (i in 0 until sides) {
-                                    val p = rawPts[i]
-                                    val nx = ((p.x - minX) / rangeX) * 2f - 1f
-                                    val ny = ((p.y - minY) / rangeY) * 2f - 1f
-                                    if (i == 0) moveTo(s.x + rx * nx, s.y + ry * ny)
-                                    else lineTo(s.x + rx * nx, s.y + ry * ny)
+                                    val px = s.x + rx * kotlin.math.cos(angle).toFloat()
+                                    val py = s.y + ry * kotlin.math.sin(angle).toFloat()
+                                    if (i == 0) moveTo(px, py)
+                                    else lineTo(px, py)
                                 }
                                 close()
                             }
@@ -1474,29 +1460,17 @@ fun VectorCanvas(
                             val path = Path().apply {
                                 val rx = abs(e.x - s.x)
                                 val ry = abs(e.y - s.y)
-                                val innerRadius = 0.4f
+                                val innerRx = rx * 0.4f
+                                val innerRy = ry * 0.4f
                                 val totalPoints = pts * 2
-                                val rawPts = mutableListOf<Offset>()
                                 for (i in 0 until totalPoints) {
                                     val angle = i * Math.PI / pts - Math.PI / 2
-                                    val rFactor = if (i % 2 == 0) 1f else innerRadius
-                                    val px = rFactor * kotlin.math.cos(angle).toFloat()
-                                    val py = rFactor * kotlin.math.sin(angle).toFloat()
-                                    rawPts.add(Offset(px, py))
-                                }
-                                val minX = rawPts.minOf { it.x }
-                                val maxX = rawPts.maxOf { it.x }
-                                val minY = rawPts.minOf { it.y }
-                                val maxY = rawPts.maxOf { it.y }
-                                val rangeX = if (maxX - minX > 0) maxX - minX else 1f
-                                val rangeY = if (maxY - minY > 0) maxY - minY else 1f
-
-                                for (i in 0 until totalPoints) {
-                                    val p = rawPts[i]
-                                    val nx = ((p.x - minX) / rangeX) * 2f - 1f
-                                    val ny = ((p.y - minY) / rangeY) * 2f - 1f
-                                    if (i == 0) moveTo(s.x + rx * nx, s.y + ry * ny)
-                                    else lineTo(s.x + rx * nx, s.y + ry * ny)
+                                    val rXFactor = if (i % 2 == 0) rx else innerRx
+                                    val rYFactor = if (i % 2 == 0) ry else innerRy
+                                    val px = s.x + rXFactor * kotlin.math.cos(angle).toFloat()
+                                    val py = s.y + rYFactor * kotlin.math.sin(angle).toFloat()
+                                    if (i == 0) moveTo(px, py)
+                                    else lineTo(px, py)
                                 }
                                 close()
                             }

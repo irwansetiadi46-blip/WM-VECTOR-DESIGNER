@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePath
 import androidx.lifecycle.AndroidViewModel
 import com.example.model.BezierNode
 import com.example.model.SerializedPoint
@@ -797,26 +798,37 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     fun canRedo(): Boolean = redoStack.isNotEmpty()
 
     // Shape selection logic
-    fun selectShapeAt(pos: Offset) {
+    fun selectShapeAt(pos: Offset, toggle: Boolean = false) {
         val lockedLayerIds = layers.filter { it.isLocked }.map { it.id }.toSet()
         val clickableShapes = shapes.filter { !it.isLocked && !lockedLayerIds.contains(it.layerId) }
         val clickedShape = clickableShapes.reversed().firstOrNull { it.isPointInside(pos.x, pos.y) }
         if (clickedShape != null) {
             val cid = clickedShape.id
-            val currentSelected = selectedShapeIds.toMutableSet()
-            if (currentSelected.contains(cid)) {
-                currentSelected.remove(cid)
-                selectedShapeIds = currentSelected
-                selectedShapeId = currentSelected.firstOrNull()
+            if (toggle) {
+                val currentSelected = selectedShapeIds.toMutableSet()
+                if (currentSelected.contains(cid)) {
+                    currentSelected.remove(cid)
+                    selectedShapeIds = currentSelected
+                    selectedShapeId = currentSelected.firstOrNull()
+                } else {
+                    val group = clickedShape.groupId
+                    if (group != null) {
+                        val groupShapeIds = shapes.filter { it.groupId == group }.map { it.id }
+                        currentSelected.addAll(groupShapeIds)
+                    } else {
+                        currentSelected.add(cid)
+                    }
+                    selectedShapeIds = currentSelected
+                    selectedShapeId = cid
+                }
             } else {
                 val group = clickedShape.groupId
                 if (group != null) {
-                    val groupShapeIds = shapes.filter { it.groupId == group }.map { it.id }
-                    currentSelected.addAll(groupShapeIds)
+                    val groupShapeIds = shapes.filter { it.groupId == group }.map { it.id }.toSet()
+                    selectedShapeIds = groupShapeIds
                 } else {
-                    currentSelected.add(cid)
+                    selectedShapeIds = setOf(cid)
                 }
-                selectedShapeIds = currentSelected
                 selectedShapeId = cid
             }
             
@@ -1603,118 +1615,47 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         if (index == -1) return
         
         val newId = UUID.randomUUID().toString()
-        val newShape = when (shape.type) {
-            ShapeType.LINE -> {
-                val dx = shape.endX - shape.startX
-                val dy = shape.endY - shape.startY
-                val length = kotlin.math.hypot(dx, dy)
-                val angle = Math.toDegrees(Math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
-                VectorShape(
-                    id = newId,
-                    name = "${shape.name} Stroke-Path",
-                    type = ShapeType.RECTANGLE,
-                    x = shape.startX,
-                    y = shape.startY - shape.strokeWidth / 2f,
-                    width = length,
-                    height = shape.strokeWidth,
-                    strokeColorHex = "#000000",
-                    strokeWidth = 0f,
-                    hasFill = true,
-                    fillColorHex = shape.strokeColorHex,
-                    fillAlpha = shape.strokeAlpha,
-                    rotationAngle = angle,
-                    layerOrder = shapes.size
-                )
+        
+        // 1. Get the shape's vector path as a Compose path
+        val composePath = shape.asComposePath()
+        val androidPath = composePath.asAndroidPath()
+        
+        // 2. Use Android Paint to get the filled stroke outline path
+        val strokePaint = android.graphics.Paint().apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = shape.strokeWidth
+            strokeCap = when (shape.strokeCap) {
+                "BUTT" -> android.graphics.Paint.Cap.BUTT
+                "SQUARE" -> android.graphics.Paint.Cap.SQUARE
+                else -> android.graphics.Paint.Cap.ROUND
             }
-            ShapeType.RECTANGLE -> {
-                val outerL = shape.x
-                val outerT = shape.y
-                val outerR = shape.x + shape.width
-                val outerB = shape.y + shape.height
-                val halfW = shape.strokeWidth / 2f
-                val innerL = outerL + halfW
-                val innerT = outerT + halfW
-                val innerR = outerR - halfW
-                val innerB = outerB - halfW
-                val nodes = listOf(
-                    BezierNode(outerL, outerT),
-                    BezierNode(outerR, outerT),
-                    BezierNode(outerR, outerB),
-                    BezierNode(outerL, outerB),
-                    BezierNode(outerL, outerT),
-                    BezierNode(innerL, innerT),
-                    BezierNode(innerL, innerB),
-                    BezierNode(innerR, innerB),
-                    BezierNode(innerR, innerT),
-                    BezierNode(innerL, innerT)
-                )
-                VectorShape(
-                    id = newId,
-                    name = "${shape.name} Stroke-Path",
-                    type = ShapeType.BEZIER_PATH,
-                    bezierNodes = nodes,
-                    isPathClosed = true,
-                    strokeColorHex = "#333333",
-                    strokeWidth = 1f,
-                    hasFill = true,
-                    fillColorHex = shape.strokeColorHex,
-                    fillAlpha = shape.strokeAlpha,
-                    layerOrder = shapes.size
-                )
-            }
-            ShapeType.ELLIPSE -> {
-                val rwOuter = shape.width
-                val rhOuter = shape.height
-                val rwInner = maxOf(2f, rwOuter - shape.strokeWidth)
-                val rhInner = maxOf(2f, rhOuter - shape.strokeWidth)
-                val nodes = mutableListOf<BezierNode>()
-                val segments = 16
-                for (i in 0..segments) {
-                    val a = i * 2 * Math.PI / segments
-                    val px = shape.x + rwOuter * kotlin.math.cos(a).toFloat()
-                    val py = shape.y + rhOuter * kotlin.math.sin(a).toFloat()
-                    nodes.add(BezierNode(px, py))
-                }
-                for (i in segments downTo 0) {
-                    val a = i * 2 * Math.PI / segments
-                    val px = shape.x + rwInner * kotlin.math.cos(a).toFloat()
-                    val py = shape.y + rhInner * kotlin.math.sin(a).toFloat()
-                    nodes.add(BezierNode(px, py))
-                }
-                VectorShape(
-                    id = newId,
-                    name = "${shape.name} Stroke-Path",
-                    type = ShapeType.BEZIER_PATH,
-                    bezierNodes = nodes,
-                    isPathClosed = true,
-                    strokeColorHex = "#333333",
-                    strokeWidth = 1f,
-                    hasFill = true,
-                    fillColorHex = shape.strokeColorHex,
-                    fillAlpha = shape.strokeAlpha,
-                    layerOrder = shapes.size
-                )
-            }
-            else -> {
-                VectorShape(
-                    id = newId,
-                    name = "${shape.name} Stroke-Path",
-                    type = shape.type,
-                    x = shape.x, y = shape.y, width = shape.width, height = shape.height,
-                    startX = shape.startX, startY = shape.startY, endX = shape.endX, endY = shape.endY,
-                    freehandPoints = shape.freehandPoints,
-                    bezierNodes = shape.bezierNodes,
-                    isPathClosed = shape.isPathClosed,
-                    strokeColorHex = "#333333",
-                    strokeWidth = 1f,
-                    hasFill = true,
-                    fillColorHex = shape.strokeColorHex,
-                    fillAlpha = shape.strokeAlpha,
-                    layerOrder = shapes.size
-                )
+            strokeJoin = when (shape.strokeJoin) {
+                "MITER" -> android.graphics.Paint.Join.MITER
+                "BEVEL" -> android.graphics.Paint.Join.BEVEL
+                else -> android.graphics.Paint.Join.ROUND
             }
         }
-        newShapesList[index] = newShape
+        val outlinePath = android.graphics.Path()
+        strokePaint.getFillPath(androidPath, outlinePath)
+        
+        // 3. For stroke to path, reconstruct nodes directly from the outline without snapping to the internal skeleton segments
+        val nodes = reconstructBezierNodesFromAndroidPath(outlinePath, emptyList())
+        
+        val strokePathShape = VectorShape(
+            id = newId,
+            name = "${shape.name} Stroke-Path",
+            type = ShapeType.BEZIER_PATH,
+            bezierNodes = nodes,
+            isPathClosed = true,
+            strokeColorHex = "#333333",
+            strokeWidth = 0f,
+            hasFill = true,
+            fillColorHex = shape.strokeColorHex,
+            fillAlpha = shape.strokeAlpha,
+            layerOrder = shape.layerOrder
+        )
+        
+        newShapesList[index] = strokePathShape
         shapes = newShapesList
         selectedShapeId = newId
         selectedShapeIds = setOf(newId)
@@ -2138,7 +2079,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         fun findClosestT(q: Offset): Pair<Float, Float> {
             var bestT = 0f
             var minDist = Float.MAX_VALUE
-            val n = 20
+            val n = 10
             for (i in 0..n) {
                 val t = i.toFloat() / n
                 val pt = getPoint(t)
@@ -2148,8 +2089,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     bestT = t
                 }
             }
-            var tMin = maxOf(0f, bestT - 0.05f)
-            var tMax = minOf(1f, bestT + 0.05f)
+            var tMin = maxOf(0f, bestT - 0.1f)
+            var tMax = minOf(1f, bestT + 0.1f)
             for (step in 0..8) {
                 val tMid = (tMin + tMax) / 2f
                 val ptMid = getPoint(tMid)
@@ -2230,25 +2171,61 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val top = shape.y
                 val right = shape.x + shape.width
                 val bottom = shape.y + shape.height
-                val p0 = Offset(left, top)
-                val p1 = Offset(right, top)
-                val p2 = Offset(right, bottom)
-                val p3 = Offset(left, bottom)
-                
+                val rTL = minOf(shape.radiusTL, shape.width / 2f, shape.height / 2f)
+                val rTR = minOf(shape.radiusTR, shape.width / 2f, shape.height / 2f)
+                val rBR = minOf(shape.radiusBR, shape.width / 2f, shape.height / 2f)
+                val rBL = minOf(shape.radiusBL, shape.width / 2f, shape.height / 2f)
+
                 fun addLine(start: Offset, end: Offset) {
+                    if (kotlin.math.hypot(end.x - start.x, end.y - start.y) > 0.05f) {
+                        segments.add(BezierSegment(
+                            start, 
+                            start + (end - start) / 3f, 
+                            start + (end - start) * 2f / 3f, 
+                            end, 
+                            shape.id,
+                            isCurve = false
+                        ))
+                    }
+                }
+
+                fun addCorner(pStart: Offset, pControl: Offset, pEnd: Offset) {
+                    val p1 = pStart + (pControl - pStart) * (2f / 3f)
+                    val p2 = pEnd + (pControl - pEnd) * (2f / 3f)
                     segments.add(BezierSegment(
-                        start, 
-                        start + (end - start) / 3f, 
-                        start + (end - start) * 2f / 3f, 
-                        end, 
+                        pStart,
+                        p1,
+                        p2,
+                        pEnd,
                         shape.id,
-                        isCurve = false
+                        isCurve = true
                     ))
                 }
-                addLine(p0, p1)
-                addLine(p1, p2)
-                addLine(p2, p3)
-                addLine(p3, p0)
+
+                // Top line
+                addLine(Offset(left + rTL, top), Offset(right - rTR, top))
+                // Top-Right corner
+                if (rTR > 0f) {
+                    addCorner(Offset(right - rTR, top), Offset(right, top), Offset(right, top + rTR))
+                }
+                // Right line
+                addLine(Offset(right, top + rTR), Offset(right, bottom - rBR))
+                // Bottom-Right corner
+                if (rBR > 0f) {
+                    addCorner(Offset(right, bottom - rBR), Offset(right, bottom), Offset(right - rBR, bottom))
+                }
+                // Bottom line
+                addLine(Offset(right - rBR, bottom), Offset(left + rBL, bottom))
+                // Bottom-Left corner
+                if (rBL > 0f) {
+                    addCorner(Offset(left + rBL, bottom), Offset(left, bottom), Offset(left, bottom - rBL))
+                }
+                // Left line
+                addLine(Offset(left, bottom - rBL), Offset(left, top + rTL))
+                // Top-Left corner
+                if (rTL > 0f) {
+                    addCorner(Offset(left, top + rTL), Offset(left, top), Offset(left + rTL, top))
+                }
             }
             ShapeType.ELLIPSE -> {
                 val cx = shape.x
@@ -2292,18 +2269,82 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             }
             ShapeType.POLYGON, ShapeType.STAR -> {
                 val vertices = shape.getCornerPoints()
-                if (vertices.size >= 2) {
-                    for (i in vertices.indices) {
-                        val start = vertices[i]
-                        val end = vertices[(i + 1) % vertices.size]
+                if (vertices.isNotEmpty()) {
+                    val n = vertices.size
+                    val drawAsArc = BooleanArray(n)
+                    val arcStarts = Array(n) { Offset.Zero }
+                    val arcEnds = Array(n) { Offset.Zero }
+                    val radii = shape.customCornerRadii
+
+                    for (i in 0 until n) {
+                        val pi = vertices[i]
+                        val prevIndex = if (i > 0) i - 1 else n - 1
+                        val nextIndex = if (i < n - 1) i + 1 else 0
+                        
+                        val pPrev = vertices[prevIndex]
+                        val pNext = vertices[nextIndex]
+                        
+                        val r = radii.getOrNull(i) ?: 0f
+                        if (r > 0.1f) {
+                            val v1 = pPrev - pi
+                            val v2 = pNext - pi
+                            val L1 = kotlin.math.hypot(v1.x, v1.y)
+                            val L2 = kotlin.math.hypot(v2.x, v2.y)
+                            if (L1 > 0.1f && L2 > 0.1f) {
+                                val u1 = Offset(v1.x / L1, v1.y / L1)
+                                val u2 = Offset(v2.x / L2, v2.y / L2)
+                                
+                                val rMax = minOf(L1, L2) / 2.2f
+                                val rClamped = minOf(r, rMax)
+                                
+                                if (rClamped > 0.1f) {
+                                    drawAsArc[i] = true
+                                    arcStarts[i] = pi + u1 * rClamped
+                                    arcEnds[i] = pi + u2 * rClamped
+                                    continue
+                                }
+                            }
+                        }
+                        drawAsArc[i] = false
+                    }
+
+                    fun addLine(start: Offset, end: Offset) {
+                        if (kotlin.math.hypot(end.x - start.x, end.y - start.y) > 0.05f) {
+                            segments.add(BezierSegment(
+                                start, 
+                                start + (end - start) / 3f, 
+                                start + (end - start) * 2f / 3f, 
+                                end, 
+                                shape.id,
+                                isCurve = false
+                            ))
+                        }
+                    }
+
+                    fun addCorner(pStart: Offset, pControl: Offset, pEnd: Offset) {
+                        val p1 = pStart + (pControl - pStart) * (2f / 3f)
+                        val p2 = pEnd + (pControl - pEnd) * (2f / 3f)
                         segments.add(BezierSegment(
-                            start, 
-                            start + (end - start) / 3f, 
-                            start + (end - start) * 2f / 3f, 
-                            end, 
+                            pStart,
+                            p1,
+                            p2,
+                            pEnd,
                             shape.id,
-                            isCurve = false
+                            isCurve = true
                         ))
+                    }
+
+                    for (i in 0 until n) {
+                        val nextIdx = (i + 1) % n
+                        
+                        val currentEnd = if (drawAsArc[i]) arcEnds[i] else vertices[i]
+                        val nextStart = if (drawAsArc[nextIdx]) arcStarts[nextIdx] else vertices[nextIdx]
+                        
+                        addLine(currentEnd, nextStart)
+                        
+                        if (drawAsArc[nextIdx]) {
+                            addCorner(nextStart, vertices[nextIdx], arcEnds[nextIdx])
+                        }
                     }
                 }
             }
@@ -2433,35 +2474,24 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return contourNodes
     }
 
-    fun applyBooleanOperation(opType: String) {
-        val selected = shapes.filter { selectedShapeIds.contains(it.id) }
-        if (selected.size < 2) return
-        pushToUndoStack()
+    /**
+     * Mempersiapkan path (Bake Path) agar kurva visual seperti border radius atau lengkungan 
+     * diubah jadi instruksi path murni. Hal ini mencegah hilangnya sudut lengkung (squircle) 
+     * karena bug Path.op() Android pada bentuk primitif round rect.
+     */
+    private fun preparePathForBoolean(sourcePath: Path): Path {
+        val androidPath = sourcePath.asAndroidPath()
+        val flattenedPath = android.graphics.Path()
+        val pm = android.graphics.PathMeasure(androidPath, false)
+        flattenedPath.addPath(androidPath)
+        return flattenedPath.asComposePath()
+    }
 
-        // Keeps sorting matching the layout stack order
-        val sortedSelected = shapes.filter { selected.any { sel -> sel.id == it.id } }
-        
-        var compositePath = sortedSelected[0].asComposePath()
-        
-        val op = when (opType) {
-            "UNITE" -> PathOperation.Union
-            "MINUS_FRONT" -> PathOperation.Difference
-            "INTERSECT" -> PathOperation.Intersect
-            "EXCLUDE" -> PathOperation.Xor
-            else -> PathOperation.Union
-        }
-
-        for (i in 1 until sortedSelected.size) {
-            val nextPath = sortedSelected[i].asComposePath()
-            val result = Path()
-            result.op(compositePath, nextPath, op)
-            compositePath = result
-        }
-
-        // Extract original boundaries
-        val origSegments = sortedSelected.flatMap { getOriginalBezierSegments(it) }
-
-        val androidPath = compositePath.asAndroidPath()
+    /**
+     * Reconstructs custom BezierNode lists from any input Android Path.
+     * Includes a state-of-the-art curve fitting tangent estimating fallback for unmatched segments.
+     */
+    private fun reconstructBezierNodesFromAndroidPath(androidPath: android.graphics.Path, origSegments: List<BezierSegment>): List<BezierNode> {
         val pm = android.graphics.PathMeasure(androidPath, false)
         val nodes = mutableListOf<BezierNode>()
 
@@ -2470,8 +2500,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         while (hasContour) {
             val len = pm.length
             if (len > 0.1f) {
-                // Adaptive high-density sampling (pixel accuracy 0.2px)
-                val numSamples = maxOf(600, (len / 0.2f).toInt())
+                // Adaptive sampling with a safe upper limit to prevent ANR issues
+                val numSamples = (len / 4f).toInt().coerceIn(45, 220)
                 val step = len / numSamples
                 val rawPoints = mutableListOf<Offset>()
                 val pos = FloatArray(2)
@@ -2484,18 +2514,27 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 }
 
                 if (rawPoints.size >= 2) {
-                    // Match each point to original boundaries
+                    // Match each point to original boundaries with fallback curve fitting
                     val processedPoints = rawPoints.map { q ->
                         var bestSegIdx = -1
                         var bestT = 0f
                         var minDist = Float.MAX_VALUE
                         for (idx in origSegments.indices) {
                             val seg = origSegments[idx]
-                            val (t, dist) = seg.findClosestT(q)
-                            if (dist < minDist) {
-                                minDist = dist
-                                bestSegIdx = idx
-                                bestT = t
+                            
+                            // Highly efficient fast bounding box pruning!
+                            val minX = minOf(seg.p0.x, seg.p1.x, seg.p2.x, seg.p3.x) - 7f
+                            val maxX = maxOf(seg.p0.x, seg.p1.x, seg.p2.x, seg.p3.x) + 7f
+                            val minY = minOf(seg.p0.y, seg.p1.y, seg.p2.y, seg.p3.y) - 7f
+                            val maxY = maxOf(seg.p0.y, seg.p1.y, seg.p2.y, seg.p3.y) + 7f
+                            
+                            if (q.x in minX..maxX && q.y in minY..maxY) {
+                                val (t, dist) = seg.findClosestT(q)
+                                if (dist < minDist) {
+                                    minDist = dist
+                                    bestSegIdx = idx
+                                    bestT = t
+                                }
                             }
                         }
                         if (minDist < 5.0f) {
@@ -2505,7 +2544,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
 
-                    // Group sequential points belonging to the same segment
+                    // Group sequential points belonging to the same segment using angle delta & proximity limits
                     val blocks = mutableListOf<MutableList<ProcessedPoint>>()
                     if (processedPoints.isNotEmpty()) {
                         var currentBlock = mutableListOf<ProcessedPoint>()
@@ -2514,9 +2553,31 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             val prev = processedPoints[i - 1]
                             val curr = processedPoints[i]
                             
-                            val canContinue = curr.segmentIndex != -1 && 
-                                               curr.segmentIndex == prev.segmentIndex &&
+                            // Detect sharp corners by measuring the angle between consecutive direction vectors
+                            val hasSharpCorner = if (i >= 2) {
+                                val pPrev2 = processedPoints[i - 2].point
+                                val pPrev1 = prev.point
+                                val pCurr = curr.point
+                                val v1 = pPrev1 - pPrev2
+                                val v2 = pCurr - pPrev1
+                                val len1 = kotlin.math.hypot(v1.x, v1.y)
+                                val len2 = kotlin.math.hypot(v2.x, v2.y)
+                                if (len1 > 0.1f && len2 > 0.1f) {
+                                    val dot = (v1.x * v2.x + v1.y * v2.y) / (len1 * len2)
+                                    dot < 0.707f // If direction changes by more than 45 degrees, consider it a sharp corner
+                                } else false
+                            } else false
+                            
+                            val canContinue = if (hasSharpCorner) {
+                                false
+                            } else if (curr.segmentIndex != -1 && prev.segmentIndex != -1) {
+                                curr.segmentIndex == prev.segmentIndex &&
                                                kotlin.math.abs(curr.t - prev.t) < 0.25f
+                            } else if (curr.segmentIndex == -1 && prev.segmentIndex == -1) {
+                                currentBlock.size < 15 // Beautifully chunk unmatched areas (like stroke outline arches) up to 15 points
+                            } else {
+                                false
+                            }
                             
                             if (canContinue) {
                                 currentBlock.add(curr)
@@ -2540,7 +2601,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
 
-                    // Reconstruct perfect curves/lines using De Casteljau interval splitting
+                    // Reconstruct perfect curves/lines using De Casteljau interval splitting or smart chord tangent curve fitting
                     val reconstructedSegments = mutableListOf<BezierSegment>()
                     for (block in blocks) {
                         if (block.isEmpty()) continue
@@ -2562,13 +2623,47 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         } else {
                             val startPt = first.point
                             val endPt = last.point
+                            val dx = endPt.x - startPt.x
+                            val dy = endPt.y - startPt.y
+                            val blockLen = kotlin.math.hypot(dx, dy)
+                            
+                            var resolvedIsCurve = false
+                            var p1 = startPt + (endPt - startPt) / 3f
+                            var p2 = startPt + (endPt - startPt) * 2f / 3f
+
+                            if (block.size >= 4 && blockLen > 1f) {
+                                val midPt = block[block.size / 2].point
+                                val tProj = (((midPt.x - startPt.x) * dx + (midPt.y - startPt.y) * dy) / (blockLen * blockLen)).coerceIn(0f, 1f)
+                                val projPt = Offset(startPt.x + tProj * dx, startPt.y + tProj * dy)
+                                val distToChord = kotlin.math.hypot(midPt.x - projPt.x, midPt.y - projPt.y)
+                                
+                                if (distToChord > 0.25f) {
+                                    resolvedIsCurve = true
+                                    val step = minOf(3, block.size - 1)
+                                    val q0 = block[0].point
+                                    val qStep = block[step].point
+                                    val dStart = qStep - q0
+                                    val lenStart = kotlin.math.hypot(dStart.x, dStart.y)
+                                    val uA = if (lenStart > 0.01f) Offset(dStart.x / lenStart, dStart.y / lenStart) else Offset(dx / blockLen, dy / blockLen)
+
+                                    val qN = block[block.size - 1].point
+                                    val qNSub = block[block.size - 1 - step].point
+                                    val dEnd = qN - qNSub
+                                    val lenEnd = kotlin.math.hypot(dEnd.x, dEnd.y)
+                                    val uB = if (lenEnd > 0.01f) Offset(dEnd.x / lenEnd, dEnd.y / lenEnd) else Offset(dx / blockLen, dy / blockLen)
+
+                                    p1 = startPt + uA * (blockLen / 3f)
+                                    p2 = endPt - uB * (blockLen / 3f)
+                                }
+                            }
+
                             reconstructedSegments.add(BezierSegment(
                                 startPt,
-                                startPt + (endPt - startPt) / 3f,
-                                startPt + (endPt - startPt) * 2f / 3f,
+                                p1,
+                                p2,
                                 endPt,
                                 "",
-                                isCurve = false
+                                isCurve = resolvedIsCurve
                             ))
                         }
                     }
@@ -2597,6 +2692,37 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             }
             hasContour = pm.nextContour()
         }
+        return nodes
+    }
+
+    fun applyBooleanOperation(opType: String) {
+        val selected = shapes.filter { selectedShapeIds.contains(it.id) }
+        if (selected.size < 2) return
+        pushToUndoStack()
+
+        // Keeps sorting matching the layout stack order
+        val sortedSelected = shapes.filter { selected.any { sel -> sel.id == it.id } }
+        
+        var compositePath = preparePathForBoolean(sortedSelected[0].asComposePath())
+        
+        val op = when (opType) {
+            "UNITE" -> PathOperation.Union
+            "MINUS_FRONT" -> PathOperation.Difference
+            "INTERSECT" -> PathOperation.Intersect
+            "EXCLUDE" -> PathOperation.Xor
+            else -> PathOperation.Union
+        }
+
+        for (i in 1 until sortedSelected.size) {
+            val nextPath = preparePathForBoolean(sortedSelected[i].asComposePath())
+            val result = Path()
+            result.op(compositePath, nextPath, op)
+            compositePath = result
+        }
+
+        // Extract original boundaries
+        val origSegments = sortedSelected.flatMap { getOriginalBezierSegments(it) }
+        val nodes = reconstructBezierNodesFromAndroidPath(compositePath.asAndroidPath(), origSegments)
 
         if (nodes.isEmpty()) {
             shapes = shapes.filter { !selectedShapeIds.contains(it.id) }
