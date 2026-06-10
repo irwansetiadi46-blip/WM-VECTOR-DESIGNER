@@ -73,6 +73,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showCustomSettingsDialog by remember { mutableStateOf(false) }
     var showSnappingPopup by remember { mutableStateOf(false) }
     var bottomBarExpandedLevel by remember { mutableStateOf(2) } // 0: Hidden, 1: Draw tools, 2: Design and Sliders, 3: Artwork Ops, 4: Boolean Actions
+    var showBooleanInBottomScope by remember { mutableStateOf(false) }
     
     // Text tools state
     var textInputState by remember { mutableStateOf("") }
@@ -472,17 +473,118 @@ fun MainLayout(viewModel: VectorViewModel) {
         }
 
         // MAIN CANVAS AND VIEWPORT ARENA
-        Box(
+        Row(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
         ) {
-            // Workspace canvas
-            VectorCanvas(
-                viewModel = viewModel,
-                modifier = Modifier.fillMaxSize().clipToBounds()
-            )
+            // --- LEFT SIDEBAR TOOLBAR ---
+            Column(
+                modifier = Modifier
+                    .width(62.dp)
+                    .fillMaxHeight()
+                    .background(Color(0xFF1E293B))
+                    .border(width = 1.dp, color = Color(0xFF334155))
+                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // 1. Pointer (Selection) Tool
+                SidebarToolButton(
+                    icon = Icons.Default.NearMe,
+                    label = "Select",
+                    isSelected = viewModel.currentTool == VectorTool.POINTER,
+                    onClick = {
+                        viewModel.currentTool = VectorTool.POINTER
+                        showBooleanInBottomScope = false
+                    }
+                )
+
+                // 2. Direct Selection (Edit Node) Tool
+                SidebarToolButton(
+                    icon = Icons.Default.Adjust,
+                    label = "Nodes",
+                    isSelected = viewModel.currentTool == VectorTool.DIRECT_SELECTION,
+                    onClick = {
+                        viewModel.currentTool = VectorTool.DIRECT_SELECTION
+                        showBooleanInBottomScope = false
+                    }
+                )
+
+                // 3. Pen Tool
+                SidebarToolButton(
+                    icon = Icons.Default.Gesture,
+                    label = "Pen",
+                    isSelected = viewModel.currentTool == VectorTool.PEN,
+                    onClick = {
+                        viewModel.currentTool = VectorTool.PEN
+                        viewModel.selectedShapeId = null
+                        showBooleanInBottomScope = false
+                    }
+                )
+
+                // 4. Shapes Tool
+                SidebarToolButton(
+                    icon = Icons.Default.Category,
+                    label = "Shapes",
+                    isSelected = viewModel.currentTool == VectorTool.SHAPES,
+                    onClick = {
+                        viewModel.currentTool = VectorTool.SHAPES
+                        viewModel.selectedShapeId = null
+                        showPrimitiveSelector = !showPrimitiveSelector
+                        showBooleanInBottomScope = false
+                    }
+                )
+
+                // 5. Brush Tool
+                SidebarToolButton(
+                    icon = Icons.Default.Brush,
+                    label = "Brush",
+                    isSelected = viewModel.currentTool == VectorTool.BRUSH,
+                    onClick = {
+                        viewModel.currentTool = VectorTool.BRUSH
+                        viewModel.selectedShapeId = null
+                        showBooleanInBottomScope = false
+                    }
+                )
+
+                // 6. Paint Bucket Tool
+                SidebarToolButton(
+                    icon = Icons.Default.FormatColorFill,
+                    label = "Bucket",
+                    isSelected = viewModel.currentTool == VectorTool.BUCKET,
+                    onClick = {
+                        viewModel.currentTool = VectorTool.BUCKET
+                        viewModel.selectedShapeId = null
+                        showColorPickerFill = true
+                        showBooleanInBottomScope = false
+                    }
+                )
+
+                // 7. Rounded Corner Tool
+                SidebarToolButton(
+                    icon = Icons.Default.CropFree,
+                    label = "Rounded",
+                    isSelected = viewModel.currentTool == VectorTool.ROUNDED_CORNER,
+                    onClick = {
+                        viewModel.currentTool = VectorTool.ROUNDED_CORNER
+                        showBooleanInBottomScope = false
+                    }
+                )
+            }
+
+            // --- RIGHT SIDE: MAIN CANVAS AND VIEWPORT ARENA ---
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.Center
+            ) {
+                // Workspace canvas
+                VectorCanvas(
+                    viewModel = viewModel,
+                    modifier = Modifier.fillMaxSize().clipToBounds()
+                )
 
 
 
@@ -508,13 +610,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "PILIH BENTUK PRIMITIF",
-                            color = Color.LightGray,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
                         // Primitive list with previews!
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -620,13 +715,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                                             }
                                         }
                                     }
-                                    
-                                    Text(
-                                        text = shortLabel,
-                                        color = if (isSel) Color.Black else Color.White,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
                                 }
                             }
                         }
@@ -704,17 +792,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     }
                                 }
                             }
-                        }
-
-                        // Close Button
-                        Button(
-                            onClick = { showPrimitiveSelector = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
-                            modifier = Modifier.fillMaxWidth().height(36.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("Selesai", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -925,6 +1002,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                 }
             }
         }
+    }
 
         // HORIZONTAL SLIDERS SECTION (Stroke size and transparent alpha connected directly to selected shapes)
         if (bottomBarExpandedLevel >= 2) {
@@ -935,398 +1013,443 @@ fun MainLayout(viewModel: VectorViewModel) {
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Stroke Width Slider with numerical manual popup input box on the left
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    var showStrokeKeypadPopup by remember { mutableStateOf(false) }
-                    var keypadInputString by remember { mutableStateOf("") }
-
-                    Box(modifier = Modifier.wrapContentSize()) {
-                        // Clickable Box indicating thickness pixels
-                        Box(
-                            modifier = Modifier
-                                .width(56.dp)
-                                .height(28.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF0F172A))
-                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
-                                .clickable {
-                                    keypadInputString = viewModel.currentStrokeWidth.toInt().toString()
-                                    showStrokeKeypadPopup = true
-                                },
-                            contentAlignment = Alignment.Center
+                if (showBooleanInBottomScope) {
+                    // --- BOOLEAN OPERATIONS PANEL ---
+                    val canApplyBoolean = viewModel.selectedShapeIds.size >= 2
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${viewModel.currentStrokeWidth.toInt()}px",
-                                color = Color(0xFF00E676),
+                                text = if (canApplyBoolean) "OPERASI BOOLEAN PATH" else "Operasi Boolean (Pilih 2+ Objek)",
+                                color = if (canApplyBoolean) Color(0xFF00E676) else Color.LightGray,
                                 fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Tutup [X]",
+                                color = Color.LightGray,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
+                                modifier = Modifier
+                                    .clickable { showBooleanInBottomScope = false }
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
 
-                        if (showStrokeKeypadPopup) {
-                            // Small overlay Popup directly above the click box
-                            androidx.compose.ui.window.Popup(
-                                alignment = Alignment.TopCenter,
-                                offset = androidx.compose.ui.unit.IntOffset(0, -290), // positioned perfectly above
-                                onDismissRequest = { showStrokeKeypadPopup = false }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 1. Unite Button
+                            Button(
+                                onClick = {
+                                    if (canApplyBoolean) {
+                                        viewModel.applyBooleanOperation("UNITE")
+                                        Toast.makeText(context, "Path United Successfully!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Pilih minimal 2 objek!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = canApplyBoolean,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF00E676),
+                                    disabledContainerColor = Color(0xFF334155)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(32.dp)
                             ) {
-                                Card(
-                                    modifier = Modifier
-                                        .width(180.dp)
-                                        .wrapContentHeight(),
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676)),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(10.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        // Display input outline
-                                        Text(
-                                            text = if (keypadInputString.isEmpty()) "0 px" else "$keypadInputString px",
-                                            color = Color.White,
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontFamily = FontFamily.Monospace,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(Color(0xFF0F172A))
-                                                .padding(vertical = 6.dp),
-                                            textAlign = TextAlign.Center
-                                        )
+                                Text("Unite", color = if (canApplyBoolean) Color.Black else Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
 
-                                        // Touch digits grid 1 to 9
-                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            listOf(
-                                                listOf("1", "2", "3"),
-                                                listOf("4", "5", "6"),
-                                                listOf("7", "8", "9"),
-                                                listOf("0", "Del", "Ok")
-                                            ).forEach { row ->
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                    modifier = Modifier.fillMaxWidth()
-                                                ) {
-                                                    row.forEach { buttonLabel ->
-                                                        val isAction = buttonLabel == "Del" || buttonLabel == "Ok"
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .weight(1f)
-                                                                .height(34.dp)
-                                                                .clip(RoundedCornerShape(6.dp))
-                                                                .background(if (isAction) Color(0xFF334155) else Color(0xFF0F172A))
-                                                                .clickable {
-                                                                    when (buttonLabel) {
-                                                                        "Del" -> {
-                                                                            if (keypadInputString.isNotEmpty()) {
-                                                                                keypadInputString = keypadInputString.dropLast(1)
-                                                                            }
-                                                                        }
-                                                                        "Ok" -> {
-                                                                            val parsedVal = keypadInputString.toFloatOrNull() ?: viewModel.currentStrokeWidth
-                                                                            viewModel.currentStrokeWidth = parsedVal.coerceIn(1f, 100f)
-                                                                            if (viewModel.selectedShapeId != null) {
-                                                                                viewModel.updateSelectedShapeStyle()
-                                                                            }
-                                                                            showStrokeKeypadPopup = false
-                                                                        }
-                                                                        else -> {
-                                                                            if (keypadInputString.length < 3) {
-                                                                                keypadInputString += buttonLabel
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                },
-                                                            contentAlignment = Alignment.Center
-                                                        ) {
-                                                            Text(
-                                                                text = buttonLabel,
-                                                                color = if (buttonLabel == "Ok") Color(0xFF00E676) else Color.White,
-                                                                fontSize = 12.sp,
-                                                                fontWeight = FontWeight.Bold
-                                                            )
-                                                        }
-                                                    }
-                                                }
+                            // 2. Minus Front Button
+                            Button(
+                                onClick = {
+                                    if (canApplyBoolean) {
+                                        viewModel.applyBooleanOperation("MINUS_FRONT")
+                                        Toast.makeText(context, "Front Path Subtracted!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Pilih minimal 2 objek!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = canApplyBoolean,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFFF5722),
+                                    disabledContainerColor = Color(0xFF334155)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(32.dp)
+                            ) {
+                                Text("Minus", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            // 3. Intersect Button
+                            Button(
+                                onClick = {
+                                    if (canApplyBoolean) {
+                                        viewModel.applyBooleanOperation("INTERSECT")
+                                        Toast.makeText(context, "Path Intersected!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Pilih minimal 2 objek!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = canApplyBoolean,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF6366F1),
+                                    disabledContainerColor = Color(0xFF334155)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(32.dp)
+                            ) {
+                                Text("Intersect", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            // 4. Exclude Button
+                            Button(
+                                onClick = {
+                                    if (canApplyBoolean) {
+                                        viewModel.applyBooleanOperation("EXCLUDE")
+                                        Toast.makeText(context, "Exclude Xor Completed!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Pilih minimal 2 objek!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = canApplyBoolean,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFEC4899),
+                                    disabledContainerColor = Color(0xFF334155)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(32.dp)
+                            ) {
+                                Text("Exclude", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                } else {
+                    // --- DYNAMIC/CONTEXTUAL SLIDERS SECTION ---
+                    when (viewModel.currentTool) {
+                        VectorTool.ROUNDED_CORNER -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CropFree,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFF5722),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = if (viewModel.selectedRoundedCornerIndex != null) {
+                                            "Sudut #${viewModel.selectedRoundedCornerIndex!! + 1}"
+                                        } else {
+                                            "Semua Sudut"
+                                        },
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Row(
+                                    modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val currentRadiusVal = if (viewModel.selectedRoundedCornerIndex != null) {
+                                        val shVal = viewModel.shapes.find { it.id == viewModel.selectedShapeId }
+                                        if (shVal != null) {
+                                            when (viewModel.selectedRoundedCornerIndex!!) {
+                                                0 -> shVal.radiusTL
+                                                1 -> shVal.radiusTR
+                                                2 -> shVal.radiusBR
+                                                3 -> shVal.radiusBL
+                                                else -> shVal.customCornerRadii.getOrNull(viewModel.selectedRoundedCornerIndex!!) ?: 0f
+                                            }
+                                        } else 0f
+                                    } else {
+                                        val shVal = viewModel.shapes.find { it.id == viewModel.selectedShapeId }
+                                        shVal?.radiusTL ?: 0f
+                                    }
+
+                                    Text(
+                                        text = "${currentRadiusVal.toInt()}px",
+                                        color = Color(0xFFFF5722),
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.width(42.dp)
+                                    )
+
+                                    Slider(
+                                        value = currentRadiusVal,
+                                        onValueChange = { radius ->
+                                            viewModel.manualCornerRadiusText = radius.toInt().toString()
+                                            if (viewModel.selectedRoundedCornerIndex != null) {
+                                                viewModel.updateSpecificCornerRadius(viewModel.selectedRoundedCornerIndex!!, radius)
+                                            } else {
+                                                viewModel.updateSelectedShapeCornerRadius(radius)
+                                            }
+                                        },
+                                        valueRange = 0f..250f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = Color(0xFFFF5722),
+                                            activeTrackColor = Color(0xFFFF5722),
+                                            inactiveTrackColor = Color(0xFF475569)
+                                        ),
+                                        modifier = Modifier.weight(1f).height(24.dp)
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("Radius:", color = Color.Gray, fontSize = 11.sp)
+                                    val textVal = viewModel.manualCornerRadiusText
+                                    androidx.compose.foundation.text.BasicTextField(
+                                        value = textVal,
+                                        onValueChange = { input ->
+                                            val cleanInput = input.filter { it.isDigit() }
+                                            viewModel.manualCornerRadiusText = cleanInput
+                                            val radius = cleanInput.toFloatOrNull() ?: 0f
+                                            if (viewModel.selectedRoundedCornerIndex != null) {
+                                                viewModel.updateSpecificCornerRadius(viewModel.selectedRoundedCornerIndex!!, radius)
+                                            } else {
+                                                viewModel.updateSelectedShapeCornerRadius(radius)
+                                            }
+                                        },
+                                        textStyle = androidx.compose.ui.text.TextStyle(
+                                            color = Color(0xFFFF5722),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                            textAlign = TextAlign.Center
+                                        ),
+                                        modifier = Modifier
+                                            .width(46.dp)
+                                            .height(24.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF0F172A))
+                                            .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                                            .padding(top = 2.dp),
+                                        singleLine = true
+                                    )
+                                }
+                            }
+                        }
+
+                        VectorTool.BUCKET -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = "Opacity Cat:",
+                                    color = Color.LightGray,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(72.dp)
+                                )
+
+                                Text(
+                                    text = "${(viewModel.currentFillAlpha * 100).toInt()}%",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.width(36.dp),
+                                    textAlign = TextAlign.End
+                                )
+
+                                Box(
+                                    modifier = Modifier.weight(1f).height(20.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(4.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(
+                                                brush = Brush.linearGradient(
+                                                    colors = listOf(Color(0x22FFFFFF), Color(0xAAFFFFFF))
+                                                )
+                                            )
+                                    )
+                                    Slider(
+                                        value = viewModel.currentFillAlpha,
+                                        onValueChange = {
+                                            viewModel.currentFillAlpha = it
+                                            if (viewModel.selectedShapeId != null) {
+                                                viewModel.updateSelectedShapeStyle()
+                                            }
+                                        },
+                                        valueRange = 0f..1f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = Color.White,
+                                            activeTrackColor = Color.Transparent,
+                                            inactiveTrackColor = Color.Transparent
+                                        ),
+                                        modifier = Modifier.height(20.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        VectorTool.SHAPES -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                StrokeWidthAndOpacitySlidersSection(viewModel)
+                                
+                                if (viewModel.activePrimitiveType == PrimitiveType.POLYGON) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().height(28.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Sisi Poligon:",
+                                            color = Color.LightGray,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            IconButton(
+                                                onClick = { viewModel.currentPolygonSides = (viewModel.currentPolygonSides - 1).coerceAtLeast(3) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(Icons.Default.Remove, "Less sides", tint = Color.White, modifier = Modifier.size(16.dp))
+                                            }
+                                            Text(
+                                                text = "${viewModel.currentPolygonSides}",
+                                                color = Color(0xFF00E676),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            IconButton(
+                                                onClick = { viewModel.currentPolygonSides = (viewModel.currentPolygonSides + 1).coerceAtMost(20) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(Icons.Default.Add, "More sides", tint = Color.White, modifier = Modifier.size(16.dp))
                                             }
                                         }
-
-                                        // Manual confirm foot button
-                                        Button(
-                                            onClick = {
-                                                val parsedVal = keypadInputString.toFloatOrNull() ?: viewModel.currentStrokeWidth
-                                                viewModel.currentStrokeWidth = parsedVal.coerceIn(1f, 100f)
-                                                if (viewModel.selectedShapeId != null) {
-                                                    viewModel.updateSelectedShapeStyle()
-                                                }
-                                                showStrokeKeypadPopup = false
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
-                                            modifier = Modifier.fillMaxWidth().height(32.dp),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = RoundedCornerShape(6.dp)
+                                    }
+                                } else if (viewModel.activePrimitiveType == PrimitiveType.STAR) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().height(28.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Sisi Bintang (Points):",
+                                            color = Color.LightGray,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Text("Confirm", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                            IconButton(
+                                                onClick = { viewModel.currentStarPoints = (viewModel.currentStarPoints - 1).coerceAtLeast(3) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(Icons.Default.Remove, "Less points", tint = Color.White, modifier = Modifier.size(16.dp))
+                                            }
+                                            Text(
+                                                text = "${viewModel.currentStarPoints}",
+                                                color = Color(0xFF00E676),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            IconButton(
+                                                onClick = { viewModel.currentStarPoints = (viewModel.currentStarPoints + 1).coerceAtMost(30) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(Icons.Default.Add, "More points", tint = Color.White, modifier = Modifier.size(16.dp))
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    Slider(
-                        value = viewModel.currentStrokeWidth,
-                        onValueChange = {
-                            viewModel.currentStrokeWidth = it
-                            if (viewModel.selectedShapeId != null) {
-                                viewModel.updateSelectedShapeStyle()
-                            }
-                        },
-                        valueRange = 1f..100f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color(0xFF00E676),
-                            activeTrackColor = Color(0xFF00E676),
-                            inactiveTrackColor = Color(0xFF475569)
-                        ),
-                        modifier = Modifier.weight(1f).height(24.dp)
-                    )
-                }
-
-                // Transparency Alpha Opacity Slider (0% to 100%)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "${(viewModel.currentStrokeAlpha * 100).toInt()}%",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.width(56.dp),
-                        textAlign = TextAlign.Center
-                    )
-
-                    // Background gradient simulating opacity slider
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(20.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Transparent checker grid simulator
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(Color(0x22FFFFFF), Color(0xAAFFFFFF))
-                                    )
-                                )
-                        )
-                        Slider(
-                            value = viewModel.currentStrokeAlpha,
-                            onValueChange = {
-                                viewModel.currentStrokeAlpha = it
-                                viewModel.currentFillAlpha = it
-                                if (viewModel.selectedShapeId != null) {
-                                    viewModel.updateSelectedShapeStyle()
+                        VectorTool.PEN, VectorTool.BRUSH -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                StrokeWidthAndOpacitySlidersSection(viewModel)
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Gaya Garis:", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    listOf("SOLID", "DASHED", "DOTTED").forEach { style ->
+                                        val isSel = viewModel.currentLineStyle == style
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(22.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isSel) Color(0xFF00E676) else Color(0xFF0F172A))
+                                                .border(1.dp, if (isSel) Color(0xFF00E676) else Color(0xFF475569), RoundedCornerShape(4.dp))
+                                                .clickable {
+                                                    viewModel.currentLineStyle = style
+                                                    if (viewModel.selectedShapeId != null) {
+                                                        viewModel.updateSelectedShapeStyle()
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(style, color = if (isSel) Color.Black else Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 }
-                            },
-                            valueRange = 0f..1f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = Color.Transparent,
-                                inactiveTrackColor = Color.Transparent
-                            ),
-                            modifier = Modifier.height(20.dp)
-                        )
-                    }
-                }
+                            }
+                        }
 
-                // Stroke Join and Cap Variations Panel
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Stroke Join Choice
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Text(
-                            text = "Sambungan Stroke (Join)",
-                            color = Color.LightGray,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            listOf("MITER", "ROUND", "BEVEL").forEach { joinVal ->
-                                val isSelected = viewModel.currentStrokeJoin.uppercase() == joinVal
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(24.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) Color(0xFF00E676) else Color(0xFF0F172A))
-                                        .border(
-                                            width = 1.dp,
-                                            color = if (isSelected) Color(0xFF00E676) else Color(0xFF475569),
-                                            shape = RoundedCornerShape(4.dp)
-                                        )
-                                        .clickable {
-                                            viewModel.currentStrokeJoin = joinVal
-                                            if (viewModel.selectedShapeId != null) {
-                                                viewModel.updateSelectedShapeStyle()
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
+                        else -> {
+                            val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
+                            if (isShapeSelected) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Text(
-                                        text = joinVal,
-                                        color = if (isSelected) Color.Black else Color.White,
-                                        fontSize = 8.sp,
+                                        text = "Ubah Style Objek Terpilih:",
+                                        color = Color(0xFF00E676),
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
+                                    StrokeWidthAndOpacitySlidersSection(viewModel)
                                 }
                             }
                         }
                     }
-
-                    // Stroke Cap Choice
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Text(
-                            text = "Ujung Stroke (Cap)",
-                            color = Color.LightGray,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            listOf("ROUND", "BUTT", "SQUARE").forEach { capVal ->
-                                val isSelected = viewModel.currentStrokeCap.uppercase() == capVal
-                                val displayLabel = when (capVal) {
-                                    "ROUND" -> "ROUND"
-                                    "BUTT" -> "BUTT"
-                                    else -> "SQUARE"
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(24.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) Color(0xFF00E676) else Color(0xFF0F172A))
-                                        .border(
-                                            width = 1.dp,
-                                            color = if (isSelected) Color(0xFF00E676) else Color(0xFF475569),
-                                            shape = RoundedCornerShape(4.dp)
-                                        )
-                                        .clickable {
-                                            viewModel.currentStrokeCap = capVal
-                                            if (viewModel.selectedShapeId != null) {
-                                                viewModel.updateSelectedShapeStyle()
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = displayLabel,
-                                        color = if (isSelected) Color.Black else Color.White,
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ROUNDED CORNER DYNAMIC MANUAL NUMERICAL CONTROL CARD
-        if (viewModel.currentTool == VectorTool.ROUNDED_CORNER) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF0F172A))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CropFree,
-                        contentDescription = null,
-                        tint = Color(0xFFFF5722),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = if (viewModel.selectedRoundedCornerIndex != null) {
-                            "Select: Sudut #${viewModel.selectedRoundedCornerIndex!! + 1}"
-                        } else {
-                            "Select: Semua Sudut (Drag / input)"
-                        },
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("Radius:", color = Color.Gray, fontSize = 12.sp)
-                    
-                    val textVal = viewModel.manualCornerRadiusText
-                    androidx.compose.foundation.text.BasicTextField(
-                        value = textVal,
-                        onValueChange = { input ->
-                            val cleanInput = input.filter { it.isDigit() }
-                            viewModel.manualCornerRadiusText = cleanInput
-                            val radius = cleanInput.toFloatOrNull() ?: 0f
-                            if (viewModel.selectedRoundedCornerIndex != null) {
-                                viewModel.updateSpecificCornerRadius(viewModel.selectedRoundedCornerIndex!!, radius)
-                            } else {
-                                viewModel.updateSelectedShapeCornerRadius(radius)
-                            }
-                        },
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            color = Color(0xFFFF5722),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            textAlign = TextAlign.Center
-                        ),
-                        modifier = Modifier
-                            .width(60.dp)
-                            .height(28.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFF1E293B))
-                            .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
-                            .padding(top = 4.dp),
-                        singleLine = true
-                    )
-                    Text("px", color = Color.Gray, fontSize = 12.sp)
                 }
             }
         }
@@ -1350,7 +1473,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     modifier = Modifier
                         .width(165.dp)
                         .height(36.dp)
-                        .clickable { bottomBarExpandedLevel = 1 }
+                        .clickable { bottomBarExpandedLevel = 2 }
                 ) {
                     Row(
                         modifier = Modifier.fillMaxSize(),
@@ -1392,8 +1515,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                         .fillMaxWidth()
                         .height(28.dp)
                         .clickable {
-                            // Cycle through levels on tap or simple click!
-                            bottomBarExpandedLevel = if (bottomBarExpandedLevel >= 4) 1 else bottomBarExpandedLevel + 1
+                            // Cycle through levels on tap or simple click between Minimized and Maximized!
+                            bottomBarExpandedLevel = if (bottomBarExpandedLevel >= 2) 1 else bottomBarExpandedLevel + 1
                         }
                         .pointerInput(Unit) {
                             var accumulatedDragY = 0f
@@ -1407,7 +1530,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                         }
                                         accumulatedDragY = 0f
                                     } else if (accumulatedDragY < -40f) {
-                                        if (bottomBarExpandedLevel < 4) {
+                                        if (bottomBarExpandedLevel < 2) {
                                             bottomBarExpandedLevel++
                                         }
                                         accumulatedDragY = 0f
@@ -1426,144 +1549,11 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(Color(0xFF64748B))
                         )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = "Level Toolbar: $currentLevel/4 (Geser Naik/Turun)",
-                            color = Color.Gray,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
                     }
                 }
 
-                // SUB-ROW: LINE STYLE CHIPS (Only shown if Level >= 2 AND tools are brush, pen, or shapes)
-                if (currentLevel >= 2 && (viewModel.currentTool == VectorTool.BRUSH || viewModel.currentTool == VectorTool.PEN || viewModel.currentTool == VectorTool.SHAPES)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF0F172A))
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Gaya Garis:", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        listOf("SOLID", "DASHED", "DOTTED").forEach { style ->
-                            val isSel = viewModel.currentLineStyle == style
-                            FilterChip(
-                                selected = isSel,
-                                onClick = {
-                                    viewModel.currentLineStyle = style
-                                    if (viewModel.selectedShapeId != null) {
-                                        viewModel.updateSelectedShapeStyle()
-                                    }
-                                },
-                                label = { Text(style, fontSize = 9.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFF00E676),
-                                    selectedLabelColor = Color.Black,
-                                    labelColor = Color.White
-                                )
-                            )
-                        }
-                    }
-                }
-
-                // ROW 1: PRIMITIVE DRAWING AND EDITING TOOLS (Visible in Level >= 1)
-                if (currentLevel >= 1) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF0F172A))
-                            .horizontalScroll(rememberScrollState())
-                            .padding(vertical = 8.dp, horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 1. Brush Tool
-                        ToolButton(
-                            icon = Icons.Default.Brush,
-                            label = "Brush",
-                            isSelected = viewModel.currentTool == VectorTool.BRUSH,
-                            onClick = {
-                                viewModel.currentTool = VectorTool.BRUSH
-                                viewModel.selectedShapeId = null
-                            }
-                        )
-
-                        // 2. Bucket fill tool
-                        ToolButton(
-                            icon = Icons.Default.FormatColorFill,
-                            label = "Bucket",
-                            isSelected = viewModel.currentTool == VectorTool.BUCKET,
-                            onClick = {
-                                viewModel.currentTool = VectorTool.BUCKET
-                                viewModel.selectedShapeId = null
-                                showColorPickerFill = true
-                            }
-                        )
-
-                        // 3. Grid Pattern Config
-                        ToolButton(
-                            icon = Icons.Default.GridOn,
-                            label = "Grid",
-                            isSelected = viewModel.isGridEnabled,
-                            onClick = {
-                                viewModel.isGridEnabled = !viewModel.isGridEnabled
-                                Toast.makeText(context, if (viewModel.isGridEnabled) "Grid Enabled" else "Grid Disabled", Toast.LENGTH_SHORT).show()
-                            }
-                        )
-
-                        // 4. Bezier Curve Pen Tool
-                        ToolButton(
-                            icon = Icons.Default.Gesture,
-                            label = "Pen Tool",
-                            isSelected = viewModel.currentTool == VectorTool.PEN,
-                            onClick = {
-                                viewModel.currentTool = VectorTool.PEN
-                                viewModel.selectedShapeId = null
-                            }
-                        )
-
-                        // 5. Transforming Select Pointer (Core tool)
-                        ToolButton(
-                            icon = Icons.Default.NearMe,
-                            label = "Selection",
-                            isSelected = viewModel.currentTool == VectorTool.POINTER,
-                            onClick = { viewModel.currentTool = VectorTool.POINTER }
-                        )
-
-                        // 6. Edit Tool
-                        ToolButton(
-                            icon = Icons.Default.Adjust,
-                            label = "Edit",
-                            isSelected = viewModel.currentTool == VectorTool.DIRECT_SELECTION,
-                            onClick = { viewModel.currentTool = VectorTool.DIRECT_SELECTION }
-                        )
-
-                        // 7. Rounded Corner Tool
-                        ToolButton(
-                            icon = Icons.Default.CropFree,
-                            label = "Rounded",
-                            isSelected = viewModel.currentTool == VectorTool.ROUNDED_CORNER,
-                            onClick = { viewModel.currentTool = VectorTool.ROUNDED_CORNER }
-                        )
-
-                        // 8. Shapes overlay primitive drawer
-                        ToolButton(
-                            icon = Icons.Default.Category,
-                            label = "Shapes",
-                            isSelected = viewModel.currentTool == VectorTool.SHAPES,
-                            onClick = {
-                                viewModel.currentTool = VectorTool.SHAPES
-                                viewModel.selectedShapeId = null
-                                showPrimitiveSelector = !showPrimitiveSelector
-                            }
-                        )
-                    }
-                }
-
-                // ROW 2: GENERAL ARTWORK OPERATIONS AND MANIPULATIONS (Visible in Level >= 3)
-                if (currentLevel >= 3) {
+                // ROW: GENERAL ARTWORK OPERATIONS AND MANIPULATIONS (Visible in Level >= 2)
+                if (currentLevel >= 2) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1573,14 +1563,16 @@ fun MainLayout(viewModel: VectorViewModel) {
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 1. Settings
+                        // 1. Boolean Operations
                         IconButtonWithLabel(
-                            icon = Icons.Default.Settings,
-                            label = "Settings",
-                            onClick = { showCustomSettingsDialog = true }
+                            icon = Icons.Default.MergeType,
+                            label = "Boolean",
+                            onClick = {
+                                showBooleanInBottomScope = !showBooleanInBottomScope
+                            }
                         )
 
-                        // 3. Stroke to Path
+                        // 2. Stroke to Path
                         IconButtonWithLabel(
                             icon = Icons.Default.LinearScale,
                             label = "StrokeToPath",
@@ -1718,149 +1710,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                             label = "Snap Options",
                             onClick = { showSnappingPopup = !showSnappingPopup }
                         )
-                    }
-                }
-
-                // ROW 3: BOOLEAN OPERATIONS (Visible in Level >= 4 / Fully Expanded)
-                if (currentLevel >= 4) {
-                    val canApplyBoolean = viewModel.selectedShapeIds.size >= 2
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF0F172A))
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = if (canApplyBoolean) "OPERASI BOOLEAN PATH" else "Operasi Boolean (Tahan & Pilih 2+ Objek)",
-                            color = if (canApplyBoolean) Color(0xFF00E676) else Color.Gray,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 2.dp)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 1. Unite Button
-                            Button(
-                                onClick = {
-                                    if (canApplyBoolean) {
-                                        viewModel.applyBooleanOperation("UNITE")
-                                        Toast.makeText(context, "Path United Successfully!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Pilih minimal 2 objek! (Tahan ketuk multi)", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                enabled = canApplyBoolean,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF00E676),
-                                    disabledContainerColor = Color(0xFF334155)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Black)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Unite", color = if (canApplyBoolean) Color.Black else Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            // 2. Minus Front Button
-                            Button(
-                                onClick = {
-                                    if (canApplyBoolean) {
-                                        viewModel.applyBooleanOperation("MINUS_FRONT")
-                                        Toast.makeText(context, "Front Path Subtracted!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Pilih minimal 2 objek!", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                enabled = canApplyBoolean,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFFF5722),
-                                    disabledContainerColor = Color(0xFF334155)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Minus", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            // 3. Intersect Button
-                            Button(
-                                onClick = {
-                                    if (canApplyBoolean) {
-                                        viewModel.applyBooleanOperation("INTERSECT")
-                                        Toast.makeText(context, "Path Intersected!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Pilih minimal 2 objek!", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                enabled = canApplyBoolean,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF6366F1),
-                                    disabledContainerColor = Color(0xFF334155)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(Icons.Default.MergeType, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Intersect", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            // 4. Exclude Button
-                            Button(
-                                onClick = {
-                                    if (canApplyBoolean) {
-                                        viewModel.applyBooleanOperation("EXCLUDE")
-                                        Toast.makeText(context, "Exclude Xor Completed!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Pilih minimal 2 objek!", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                enabled = canApplyBoolean,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFEC4899),
-                                    disabledContainerColor = Color(0xFF334155)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(Icons.Default.Layers, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Exclude", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -2627,7 +2476,9 @@ fun MainLayout(viewModel: VectorViewModel) {
                     viewModel.updateSelectedShapeStyle()
                 }
             },
-            onDismissRequest = { showColorPickerStroke = false }
+            onDismissRequest = { showColorPickerStroke = false },
+            isStrokePanel = true,
+            viewModel = viewModel
         )
     }
 }
@@ -2700,6 +2551,111 @@ fun IconButtonWithLabel(
         )
     }
 }
+
+@Composable
+fun SidebarToolButton(
+    icon: ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isSelected) Color(0xFF00E676) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp, horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (isSelected) Color.Black else Color.White,
+            modifier = Modifier.size(20.dp)
+        )
+        Text(
+            text = label,
+            color = if (isSelected) Color.Black else Color.LightGray,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // Stroke width slider
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "${viewModel.currentStrokeWidth.toInt()}px",
+                color = Color.White,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.width(36.dp)
+            )
+            Slider(
+                value = viewModel.currentStrokeWidth,
+                onValueChange = { width ->
+                    viewModel.currentStrokeWidth = width
+                    if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
+                        viewModel.updateSelectedShapeStyle()
+                    }
+                },
+                valueRange = 0f..100f,
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(0xFF00E676),
+                    activeTrackColor = Color(0xFF00E676),
+                    inactiveTrackColor = Color(0xFF475569)
+                ),
+                modifier = Modifier.weight(1f).height(24.dp)
+            )
+            Text("Ukuran", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Opacity slider
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "${(viewModel.currentStrokeAlpha * 100).toInt()}%",
+                color = Color.White,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.width(36.dp)
+            )
+            Slider(
+                value = viewModel.currentStrokeAlpha,
+                onValueChange = { opacity ->
+                    viewModel.currentStrokeAlpha = opacity
+                    if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
+                        viewModel.updateSelectedShapeStyle()
+                    }
+                },
+                valueRange = 0f..1f,
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(0xFF00E676),
+                    activeTrackColor = Color(0xFF00E676),
+                    inactiveTrackColor = Color(0xFF475569)
+                ),
+                modifier = Modifier.weight(1f).height(24.dp)
+            )
+            Text("Opacity", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
 
 @Composable
 fun AlignButton(

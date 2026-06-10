@@ -43,7 +43,9 @@ fun ColorPickerDialog(
     supportNoneButton: Boolean = false,
     onNoneSelected: (() -> Unit)? = null,
     onColorSelected: (String, Float) -> Unit,
-    onDismissRequest: () -> Unit
+    onDismissRequest: () -> Unit,
+    isStrokePanel: Boolean = false,
+    viewModel: com.example.viewmodel.VectorViewModel? = null
 ) {
     // Designer built-in standard palette swatches (can be customized or appended via import)
     var palettesState by remember {
@@ -55,7 +57,7 @@ fun ColorPickerDialog(
         )
     }
 
-    var selectedTab by remember { mutableStateOf("WHEEL") } // "WHEEL", "RGB", "HSB", "PALETTE"
+    var selectedTab by remember { mutableStateOf("HSV") } // "HSV", "RGB", "PALETTE", "JOIN", "CAP"
     var hexInput by remember { mutableStateOf(initialColorHex) }
     var alphaVal by remember { mutableStateOf(initialAlpha) }
     
@@ -168,7 +170,7 @@ fun ColorPickerDialog(
                         .padding(3.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    val tabs = listOf("WHEEL", "RGB", "HSB", "PALETTE")
+                    val tabs = if (isStrokePanel) listOf("HSV", "RGB", "PALETTE", "JOIN", "CAP") else listOf("HSV", "RGB", "PALETTE")
                     tabs.forEach { tabName ->
                         val isSel = selectedTab == tabName
                         Box(
@@ -192,140 +194,6 @@ fun ColorPickerDialog(
 
                 // Content Areas depending on active tab
                 when (selectedTab) {
-                    "WHEEL" -> {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                "Touch color wheel to pick shade and saturation level",
-                                color = Color.LightGray,
-                                fontSize = 12.sp,
-                                modifier = Modifier.align(Alignment.Start)
-                            )
-
-                            val hsv = hexToHsv(hexInput)
-                            var hue by remember(hexInput) { mutableStateOf(hsv[0]) }
-                            var sat by remember(hexInput) { mutableStateOf(hsv[1]) }
-                            var valValue by remember(hexInput) { mutableStateOf(hsv[2]) }
-
-                            // Stunning circular Custom Hue wheel
-                            Box(
-                                modifier = Modifier
-                                    .size(160.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Canvas(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .pointerInput(hue, sat) {
-                                            fun handleTouch(offset: Offset) {
-                                                val centerX = size.width / 2f
-                                                val centerY = size.height / 2f
-                                                val dx = offset.x - centerX
-                                                val dy = offset.y - centerY
-                                                val distance = sqrt(dx * dx + dy * dy)
-                                                val radius = centerX.coerceAtMost(centerY)
-
-                                                if (distance > 0) {
-                                                    // Calculate hue index from angle
-                                                    var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-                                                    if (angle < 0) angle += 360f
-                                                    hue = angle
-
-                                                    // Saturation index from relative distance ratio
-                                                    sat = (distance / radius).coerceIn(0f, 1f)
-
-                                                    // Calculate Hex
-                                                    hexInput = hsvToHex(hue, sat, valValue)
-                                                }
-                                            }
-
-                                            detectTapGestures { handleTouch(it) }
-                                        }
-                                        .pointerInput(hue, sat) {
-                                            detectDragGestures { change, _ ->
-                                                change.consume()
-                                                val start = change.position
-                                                val centerX = size.width / 2f
-                                                val centerY = size.height / 2f
-                                                val dx = start.x - centerX
-                                                val dy = start.y - centerY
-                                                val distance = sqrt(dx * dx + dy * dy)
-                                                val radius = centerX.coerceAtMost(centerY)
-
-                                                var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-                                                if (angle < 0) angle += 360f
-                                                hue = angle
-                                                sat = (distance / radius).coerceIn(0f, 1f)
-
-                                                hexInput = hsvToHex(hue, sat, valValue)
-                                            }
-                                        }
-                                ) {
-                                    val r = size.width / 2f
-                                    // Hue Spectrum Ring Swirl Canvas design representation
-                                    for (deg in 0 until 360 step 3) {
-                                        val angleRad = Math.toRadians(deg.toDouble())
-                                        val cosVal = cos(angleRad).toFloat()
-                                        val sinVal = sin(angleRad).toFloat()
-                                        
-                                        drawLine(
-                                            brush = Brush.horizontalGradient(
-                                                colors = listOf(
-                                                    Color.White,
-                                                    Color(android.graphics.Color.HSVToColor(floatArrayOf(deg.toFloat(), 1f, 1f)))
-                                                )
-                                            ),
-                                            start = Offset(r, r),
-                                            end = Offset(r + cosVal * r, r + sinVal * r),
-                                            strokeWidth = 6f
-                                        )
-                                    }
-
-                                    // Draw picker handle node indicators
-                                    val angleRad = Math.toRadians(hue.toDouble())
-                                    val indicatorX = r + cos(angleRad).toFloat() * (sat * r)
-                                    val indicatorY = r + sin(angleRad).toFloat() * (sat * r)
-
-                                    drawCircle(
-                                        color = Color.Black,
-                                        radius = 12f,
-                                        center = Offset(indicatorX, indicatorY),
-                                        style = Stroke(width = 4f)
-                                    )
-                                    drawCircle(
-                                        color = Color.White,
-                                        radius = 10f,
-                                        center = Offset(indicatorX, indicatorY)
-                                    )
-                                }
-                            }
-
-                            // Brightness/Value sliders underneath
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Brightness (Value):", color = Color.White, fontSize = 12.sp)
-                                Text("${(valValue * 100).toInt()}%", color = Color(0xFF00E676), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                            Slider(
-                                value = valValue,
-                                onValueChange = {
-                                    valValue = it
-                                    hexInput = hsvToHex(hue, sat, valValue)
-                                },
-                                valueRange = 0f..1f,
-                                colors = SliderDefaults.colors(
-                                    activeTrackColor = Color(0xFF00E676),
-                                    thumbColor = Color(0xFF00E676)
-                                )
-                            )
-                        }
-                    }
 
                     "RGB" -> {
                         val rgb = hexToRgb(hexInput)
@@ -393,7 +261,7 @@ fun ColorPickerDialog(
                         }
                     }
 
-                    "HSB" -> {
+                    "HSV" -> {
                         val hsv = hexToHsv(hexInput)
                         var hVal by remember(hexInput) { mutableStateOf(hsv[0]) }
                         var sVal by remember(hexInput) { mutableStateOf(hsv[1]) }
@@ -511,6 +379,78 @@ fun ColorPickerDialog(
                                                     hexInput = colorHex
                                                 }
                                         )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "JOIN" -> {
+                        if (viewModel != null) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text("Line Join:", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    listOf("MITER", "ROUND", "BEVEL").forEach { join ->
+                                        val isSel = viewModel.currentStrokeJoin == join
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(36.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isSel) Color(0xFF00E676) else Color(0xFF0F172A))
+                                                .border(1.dp, if (isSel) Color(0xFF00E676) else Color(0xFF475569), RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    viewModel.currentStrokeJoin = join
+                                                    if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
+                                                        viewModel.updateSelectedShapeStyle()
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(join, color = if (isSel) Color.Black else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "CAP" -> {
+                        if (viewModel != null) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text("Line Cap:", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    listOf("ROUND", "BUTT", "SQUARE").forEach { cap ->
+                                        val isSel = viewModel.currentStrokeCap == cap
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(36.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isSel) Color(0xFF00E676) else Color(0xFF0F172A))
+                                                .border(1.dp, if (isSel) Color(0xFF00E676) else Color(0xFF475569), RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    viewModel.currentStrokeCap = cap
+                                                    if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
+                                                        viewModel.updateSelectedShapeStyle()
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(cap, color = if (isSel) Color.Black else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
