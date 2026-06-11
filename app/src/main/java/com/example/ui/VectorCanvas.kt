@@ -1309,7 +1309,7 @@ fun VectorCanvas(
                                 center = pt
                             )
                             drawCircle(
-                                color = if (isNodeSelected) Color(0xFF00E676) else Color(0xFF00B0FF),
+                                color = if (isNodeSelected) Color(0xFFFF6D00) else Color(0xFF00B0FF),
                                 radius = handleRad,
                                 center = pt
                             )

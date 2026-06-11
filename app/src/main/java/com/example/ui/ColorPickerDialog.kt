@@ -126,7 +126,7 @@ fun ColorPickerDialog(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = hexInput.uppercase(),
-                            color = Color(0xFF00E676),
+                            color = Color(0xFFFF6D00),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -151,7 +151,7 @@ fun ColorPickerDialog(
                         },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF00E676),
+                            focusedBorderColor = Color(0xFFFF6D00),
                             unfocusedBorderColor = Color(0xFF475569),
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White
@@ -177,7 +177,7 @@ fun ColorPickerDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSel) Color(0xFF00E676) else Color.Transparent)
+                                .background(if (isSel) Color(0xFFFF6D00) else Color.Transparent)
                                 .clickable { selectedTab = tabName }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
@@ -310,7 +310,7 @@ fun ColorPickerDialog(
                             // Brightness
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Brightness (Value) %:", color = Color.White, fontSize = 12.sp)
-                                Text("${(bVal * 100).toInt()}%", color = Color(0xFF00E676), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("${(bVal * 100).toInt()}%", color = Color(0xFFFF6D00), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                             Slider(
                                 value = bVal,
@@ -320,8 +320,8 @@ fun ColorPickerDialog(
                                 },
                                 valueRange = 0f..1f,
                                 colors = SliderDefaults.colors(
-                                    activeTrackColor = Color(0xFF00E676),
-                                    thumbColor = Color(0xFF00E676)
+                                    activeTrackColor = Color(0xFFFF6D00),
+                                    thumbColor = Color(0xFFFF6D00)
                                 )
                             )
                         }
@@ -372,7 +372,7 @@ fun ColorPickerDialog(
                                                 .background(colorValue)
                                                 .border(
                                                     width = if (isSel) 3.dp else 1.dp,
-                                                    color = if (isSel) Color(0xFF00E676) else Color(0x33FFFFFF),
+                                                    color = if (isSel) Color(0xFFFF6D00) else Color(0x33FFFFFF),
                                                     shape = RoundedCornerShape(8.dp)
                                                 )
                                                 .clickable {
@@ -403,8 +403,8 @@ fun ColorPickerDialog(
                                                 .weight(1f)
                                                 .height(36.dp)
                                                 .clip(RoundedCornerShape(8.dp))
-                                                .background(if (isSel) Color(0xFF00E676) else Color(0xFF0F172A))
-                                                .border(1.dp, if (isSel) Color(0xFF00E676) else Color(0xFF475569), RoundedCornerShape(8.dp))
+                                                .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                                .border(1.dp, if (isSel) Color(0xFFFF6D00) else Color(0xFF475569), RoundedCornerShape(8.dp))
                                                 .clickable {
                                                     viewModel.currentStrokeJoin = join
                                                     if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
@@ -439,8 +439,8 @@ fun ColorPickerDialog(
                                                 .weight(1f)
                                                 .height(36.dp)
                                                 .clip(RoundedCornerShape(8.dp))
-                                                .background(if (isSel) Color(0xFF00E676) else Color(0xFF0F172A))
-                                                .border(1.dp, if (isSel) Color(0xFF00E676) else Color(0xFF475569), RoundedCornerShape(8.dp))
+                                                .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                                .border(1.dp, if (isSel) Color(0xFFFF6D00) else Color(0xFF475569), RoundedCornerShape(8.dp))
                                                 .clickable {
                                                     viewModel.currentStrokeCap = cap
                                                     if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
@@ -469,15 +469,15 @@ fun ColorPickerDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Opacity (Transparency):", color = Color.White, fontSize = 12.sp)
-                        Text("${(alphaVal * 100).toInt()}%", color = Color(0xFF00E676), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("${(alphaVal * 100).toInt()}%", color = Color(0xFFFF6D00), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     Slider(
                         value = alphaVal,
                         onValueChange = { alphaVal = it },
                         valueRange = 0f..1f,
                         colors = SliderDefaults.colors(
-                            activeTrackColor = Color(0xFF00E676),
-                            thumbColor = Color(0xFF00E676)
+                            activeTrackColor = Color(0xFFFF6D00),
+                            thumbColor = Color(0xFFFF6D00)
                         )
                     )
                 }
@@ -504,7 +504,7 @@ fun ColorPickerDialog(
                             onColorSelected(hexInput, alphaVal)
                             onDismissRequest()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
                         modifier = Modifier.weight(if (supportNoneButton) 1.2f else 1f)
                     ) {
                         Text("Confirm", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -580,7 +580,7 @@ fun ColorPickerDialog(
                                 }
                                 showImportDialog = false
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Convert", color = Color.Black)

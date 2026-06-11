@@ -97,7 +97,7 @@ fun MainLayout(viewModel: VectorViewModel) {
             Icon(
                 imageVector = Icons.Default.Category,
                 contentDescription = "Logo",
-                tint = Color(0xFF00E676),
+                tint = Color(0xFFFF6D00),
                 modifier = Modifier.size(72.dp)
             )
             Text(
@@ -109,7 +109,7 @@ fun MainLayout(viewModel: VectorViewModel) {
             )
             Text(
                 text = "VECTOR EDITOR",
-                color = Color(0xFF00E676),
+                color = Color(0xFFFF6D00),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 4.sp
@@ -153,7 +153,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSel) Color(0xFF00E676) else Color(0xFF1E293B))
+                            .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF1E293B))
                             .border(1.dp, if (isSel) Color.White else Color(0xFF475569), RoundedCornerShape(8.dp))
                             .clickable {
                                 selectedWidth = dims.first.toString()
@@ -179,7 +179,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     onValueChange = { selectedWidth = it },
                     label = { Text("Width (px)") },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, focusedBorderColor = Color(0xFF00E676),
+                        focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
                         unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
                     ),
                     singleLine = true,
@@ -190,7 +190,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     onValueChange = { selectedHeight = it },
                     label = { Text("Height (px)") },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, focusedBorderColor = Color(0xFF00E676),
+                        focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
                         unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
                     ),
                     singleLine = true,
@@ -240,7 +240,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     )
                     Text(
                         text = "Hex Code: ${artboardColorHex.uppercase()}",
-                        color = Color(0xFF00E676),
+                        color = Color(0xFFFF6D00),
                         fontSize = 12.sp
                     )
                 }
@@ -268,13 +268,13 @@ fun MainLayout(viewModel: VectorViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Opacity Latar Belakang:", color = Color.White, fontSize = 12.sp)
-                Text("${(artboardAlpha * 100).toInt()}%", color = Color(0xFF00E676), fontWeight = FontWeight.Bold)
+                Text("${(artboardAlpha * 100).toInt()}%", color = Color(0xFFFF6D00), fontWeight = FontWeight.Bold)
             }
             Slider(
                 value = artboardAlpha,
                 onValueChange = { artboardAlpha = it },
                 valueRange = 0f..1f,
-                colors = SliderDefaults.colors(activeTrackColor = Color(0xFF00E676), thumbColor = Color(0xFF00E676))
+                colors = SliderDefaults.colors(activeTrackColor = Color(0xFFFF6D00), thumbColor = Color(0xFFFF6D00))
             )
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -290,7 +290,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     viewModel.isSetupCompleted = true
                     Toast.makeText(context, "Proyek Baru Dibuat: ${w.toInt()} x ${h.toInt()} px", Toast.LENGTH_SHORT).show()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -467,7 +467,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                 Icon(
                     imageVector = Icons.Default.Layers,
                     contentDescription = "Layers Manager Panel",
-                    tint = if (showLayersPanel) Color(0xFF00E676) else Color(0xFF334155)
+                    tint = if (showLayersPanel) Color(0xFFFF6D00) else Color(0xFF334155)
                 )
             }
         }
@@ -617,7 +617,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSel) Color(0xFF00E676) else Color(0xFF0F172A))
+                                        .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
                                         .border(1.dp, if (isSel) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
                                         .clickable {
                                             viewModel.activePrimitiveType = type
@@ -628,7 +628,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 ) {
                                     // Mini Shape preview
                                     Canvas(modifier = Modifier.size(24.dp)) {
-                                        val fillBrush = if (isSel) Color.Black else Color(0xFF00E676)
+                                        val fillBrush = if (isSel) Color.Black else Color(0xFFFF6D00)
                                         
                                         when (type) {
                                             PrimitiveType.RECTANGLE -> {
@@ -732,7 +732,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     }
                                     Text(
                                         text = "${viewModel.currentPolygonSides}",
-                                        color = Color(0xFF00E676),
+                                        color = Color(0xFFFF6D00),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -768,7 +768,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     }
                                     Text(
                                         text = "${viewModel.currentStarPoints}",
-                                        color = Color(0xFF00E676),
+                                        color = Color(0xFFFF6D00),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -810,7 +810,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 onClick = { viewModel.alignBasisIsCanvas = true },
                                 label = { Text("Canvas", fontSize = 10.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFF00E676),
+                                    selectedContainerColor = Color(0xFFFF6D00),
                                     selectedLabelColor = Color.Black,
                                     labelColor = Color.LightGray
                                 )
@@ -820,7 +820,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 onClick = { viewModel.alignBasisIsCanvas = false },
                                 label = { Text("Object", fontSize = 10.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFF00E676),
+                                    selectedContainerColor = Color(0xFFFF6D00),
                                     selectedLabelColor = Color.Black,
                                     labelColor = Color.LightGray
                                 )
@@ -1015,7 +1015,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         ) {
                             Text(
                                 text = if (canApplyBoolean) "OPERASI BOOLEAN PATH" else "Operasi Boolean (Pilih 2+ Objek)",
-                                color = if (canApplyBoolean) Color(0xFF00E676) else Color.LightGray,
+                                color = if (canApplyBoolean) Color(0xFFFF6D00) else Color.LightGray,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1047,7 +1047,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 },
                                 enabled = canApplyBoolean,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF00E676),
+                                    containerColor = Color(0xFFFF6D00),
                                     disabledContainerColor = Color(0xFF334155)
                                 ),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -1331,7 +1331,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                             }
                                             Text(
                                                 text = "${viewModel.currentPolygonSides}",
-                                                color = Color(0xFF00E676),
+                                                color = Color(0xFFFF6D00),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -1367,7 +1367,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                             }
                                             Text(
                                                 text = "${viewModel.currentStarPoints}",
-                                                color = Color(0xFF00E676),
+                                                color = Color(0xFFFF6D00),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -1403,8 +1403,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                 .weight(1f)
                                                 .height(22.dp)
                                                 .clip(RoundedCornerShape(4.dp))
-                                                .background(if (isSel) Color(0xFF00E676) else Color(0xFF0F172A))
-                                                .border(1.dp, if (isSel) Color(0xFF00E676) else Color(0xFF475569), RoundedCornerShape(4.dp))
+                                                .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                                .border(1.dp, if (isSel) Color(0xFFFF6D00) else Color(0xFF475569), RoundedCornerShape(4.dp))
                                                 .clickable {
                                                     viewModel.currentLineStyle = style
                                                     if (viewModel.selectedShapeId != null) {
@@ -1429,7 +1429,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 ) {
                                     Text(
                                         text = "Ubah Style Objek Terpilih:",
-                                        color = Color(0xFF00E676),
+                                        color = Color(0xFFFF6D00),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -1471,7 +1471,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         Icon(
                             imageVector = Icons.Default.ArrowUpward,
                             contentDescription = "Expand Toolbar",
-                            tint = Color(0xFF00E676),
+                            tint = Color(0xFFFF6D00),
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -1606,7 +1606,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 ) {
                                     Card(
                                         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676)),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF6D00)),
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.width(200.dp)
                                     ) {
@@ -1744,7 +1744,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { viewModel.addNewLayer() }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Default.Add, "Add Layer", tint = Color(0xFF00E676))
+                                Icon(Icons.Default.Add, "Add Layer", tint = Color(0xFFFF6D00))
                             }
                             IconButton(onClick = { showLayersPanel = false }, modifier = Modifier.size(32.dp)) {
                                 Icon(Icons.Default.Close, "Close Panel", tint = Color.LightGray)
@@ -1789,7 +1789,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                         Icon(
                                             imageVector = Icons.Default.Layers,
                                             contentDescription = "Layer Icon",
-                                            tint = if (isSelected) Color(0xFF00E676) else Color.Gray,
+                                            tint = if (isSelected) Color(0xFFFF6D00) else Color.Gray,
                                             modifier = Modifier.size(18.dp)
                                         )
 
@@ -1886,7 +1886,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676))
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00))
                         ) {
                             Text("Move Selected to Active Layer", color = Color.Black, fontSize = 12.sp)
                         }
@@ -1940,7 +1940,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     // 2. Export
                     DropdownMenuItem(
                         text = { Text("Export Graphics...", color = Color.White) },
-                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = "Export icon", tint = Color(0xFF00E676)) },
+                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = "Export icon", tint = Color(0xFFFF6D00)) },
                         onClick = {
                             showMenuSheet = false
                             showExportDialog = true
@@ -1982,7 +1982,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     .wrapContentHeight(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xEE1E293B)),
                 shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF00E676))
+                border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFFFF6D00))
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -2010,7 +2010,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         Switch(
                             checked = viewModel.isSmartGuideEnabled,
                             onCheckedChange = { viewModel.isSmartGuideEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00E676))
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
                         )
                     }
 
@@ -2027,7 +2027,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         Switch(
                             checked = viewModel.isSnapToObjectEnabled,
                             onCheckedChange = { viewModel.isSnapToObjectEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00E676))
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
                         )
                     }
 
@@ -2044,7 +2044,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         Switch(
                             checked = viewModel.isSnapToGrid,
                             onCheckedChange = { viewModel.isSnapToGrid = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00E676))
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
                         )
                     }
 
@@ -2061,13 +2061,13 @@ fun MainLayout(viewModel: VectorViewModel) {
                         Switch(
                             checked = viewModel.isSnapToPointEnabled,
                             onCheckedChange = { viewModel.isSnapToPointEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00E676))
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
                         )
                     }
 
                     Button(
                         onClick = { showSnappingPopup = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text("Save Configurations", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -2138,7 +2138,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             onClick = { exportSelectionOnly = false },
                             label = { Text("Export Document", fontSize = 11.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF00E676),
+                                selectedContainerColor = Color(0xFFFF6D00),
                                 selectedLabelColor = Color.Black,
                                 labelColor = Color.White
                             ),
@@ -2155,7 +2155,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             },
                             label = { Text("Export Selection Object", fontSize = 11.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF00E676),
+                                selectedContainerColor = Color(0xFFFF6D00),
                                 selectedLabelColor = Color.Black,
                                 labelColor = Color.White
                             ),
@@ -2177,7 +2177,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSel) Color(0xFF00E676) else Color(0xFF0F172A))
+                                    .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
                                     .clickable { chosenFormat = format }
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
@@ -2287,7 +2287,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     Toast.makeText(context, "Gagal export: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Export Now", color = Color.Black, fontWeight = FontWeight.Bold)
@@ -2334,7 +2334,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Grid Spacing px:", color = Color.White, fontSize = 13.sp)
-                        Text("${viewModel.gridSize.toInt()} px", color = Color(0xFF00E676), fontWeight = FontWeight.Bold)
+                        Text("${viewModel.gridSize.toInt()} px", color = Color(0xFFFF6D00), fontWeight = FontWeight.Bold)
                     }
 
                     Slider(
@@ -2342,8 +2342,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                         onValueChange = { viewModel.gridSize = it },
                         valueRange = 10f..100f,
                         colors = SliderDefaults.colors(
-                            activeTrackColor = Color(0xFF00E676),
-                            thumbColor = Color(0xFF00E676)
+                            activeTrackColor = Color(0xFFFF6D00),
+                            thumbColor = Color(0xFFFF6D00)
                         )
                     )
 
@@ -2358,7 +2358,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             checked = viewModel.hasFillEnabled,
                             onCheckedChange = { viewModel.hasFillEnabled = it },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF00E676),
+                                checkedThumbColor = Color(0xFFFF6D00),
                                 checkedTrackColor = Color(0xFF064E3B)
                             )
                         )
@@ -2366,7 +2366,7 @@ fun MainLayout(viewModel: VectorViewModel) {
 
                     Button(
                         onClick = { showCustomSettingsDialog = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text("Done", color = Color.Black)
@@ -2418,7 +2418,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         showTextDialog = false
                     }
                 ) {
-                    Text("Add Vector", color = Color(0xFF00E676))
+                    Text("Add Vector", color = Color(0xFFFF6D00))
                 }
             },
             dismissButton = {
@@ -2500,7 +2500,7 @@ fun ToolButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) Color(0xFF00E676) else Color.Transparent) // Highlight bright neon mint green
+            .background(if (isSelected) Color(0xFFFF6D00) else Color.Transparent) // Highlight bright neon mint green
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp)
             .widthIn(min = 44.dp),
@@ -2564,7 +2564,7 @@ fun SidebarToolButton(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) Color(0xFF00E676) else Color.Transparent)
+            .background(if (isSelected) Color(0xFFFF6D00) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 2.dp),
         verticalArrangement = Arrangement.Center
@@ -2607,8 +2607,8 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
                 },
                 valueRange = 0f..100f,
                 colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFF00E676),
-                    activeTrackColor = Color(0xFF00E676),
+                    thumbColor = Color(0xFFFF6D00),
+                    activeTrackColor = Color(0xFFFF6D00),
                     inactiveTrackColor = Color(0xFF475569)
                 ),
                 modifier = Modifier.weight(1f).height(24.dp)
@@ -2639,8 +2639,8 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
                 },
                 valueRange = 0f..1f,
                 colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFF00E676),
-                    activeTrackColor = Color(0xFF00E676),
+                    thumbColor = Color(0xFFFF6D00),
+                    activeTrackColor = Color(0xFFFF6D00),
                     inactiveTrackColor = Color(0xFF475569)
                 ),
                 modifier = Modifier.weight(1f).height(24.dp)
