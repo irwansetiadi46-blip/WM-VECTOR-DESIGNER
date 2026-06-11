@@ -833,24 +833,6 @@ fun VectorCanvas(
                                             viewModel.toggleNodeCurve(penActiveNodeIndex)
                                         } else if (penDragMode == "create") {
                                              // Node already created on touch down.
-                                         } else if (false && penDragMode == "create") {
-                                            // JIKA klik di area kosong -> BIKIN NODE BARU
-                                            val snapE = viewModel.snapOffset(e)
-                                            val isCloseToStart = viewModel.activeBezierNodes.isNotEmpty() && hypot(snapE.x - viewModel.activeBezierNodes.first().anchorX, snapE.y - viewModel.activeBezierNodes.first().anchorY) < 20f
-
-                                            if (isCloseToStart) {
-                                                viewModel.finalizeBezierPath(isClosed = true)
-                                            } else {
-                                                if (penIsMovementDetected) {
-                                                    if (viewModel.activeBezierNodes.isEmpty()) {
-                                                        viewModel.addBezierPenPointImmediately(Offset(penStartX, penStartY))
-                                                    }
-                                                    viewModel.addBezierPenPointImmediately(e)
-                                                } else {
-                                                    // This is a TAP.
-                                                    viewModel.addBezierPenPointImmediately(snapE)
-                                                }
-                                            }
                                         }
                                         
                                         // Reset state
@@ -1232,29 +1214,6 @@ fun VectorCanvas(
                                 color = innerNodeColor,
                                 radius = finalInnerRadius,
                                 center = Offset(node.anchorX, node.anchorY)
-                            )
-                        }
-
-                        val touchPos = currentTouchPos
-                        if (touchPos != null && activePenDragMode == "create" && activePenIsMovementDetected) {
-                            val lastNode = viewModel.activeBezierNodes.last()
-                            drawLine(
-                                color = Color(android.graphics.Color.parseColor(viewModel.currentStrokeColorHex)).copy(alpha = viewModel.currentStrokeAlpha),
-                                start = Offset(lastNode.anchorX, lastNode.anchorY),
-                                end = touchPos,
-                                strokeWidth = viewModel.currentStrokeWidth,
-                                cap = mapStrokeCap(viewModel.currentStrokeCap)
-                            )
-                        }
-                    } else {
-                        val touchPos = currentTouchPos
-                        if (touchPos != null && activePenDragMode == "create" && activePenIsMovementDetected) {
-                            drawLine(
-                                color = Color(android.graphics.Color.parseColor(viewModel.currentStrokeColorHex)).copy(alpha = viewModel.currentStrokeAlpha),
-                                start = Offset(activePenStartX, activePenStartY),
-                                end = touchPos,
-                                strokeWidth = viewModel.currentStrokeWidth,
-                                cap = mapStrokeCap(viewModel.currentStrokeCap)
                             )
                         }
                     }
