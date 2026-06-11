@@ -1119,6 +1119,31 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // Pen Tool: Update handle coordinate dynamically during live creation dragging
+    fun updateActiveBezierNodeHandlesOnDrag(index: Int, dragPos: Offset) {
+        if (index in activeBezierNodes.indices) {
+            val node = activeBezierNodes[index]
+            val anchorX = node.anchorX
+            val anchorY = node.anchorY
+            val dx = dragPos.x - anchorX
+            val dy = dragPos.y - anchorY
+            
+            // Outgoing control handle (control2) follows the dragging finger directly,
+            // while the incoming control handle (control1) is mirrored symmetrically
+            val updated = node.copy(
+                isCurve = true,
+                nodeType = "SIMETRIS",
+                control2X = dragPos.x,
+                control2Y = dragPos.y,
+                control1X = anchorX - dx,
+                control1Y = anchorY - dy
+            )
+            activeBezierNodes = activeBezierNodes.toMutableList().apply {
+                this[index] = updated
+            }
+        }
+    }
+
     // Update single Bezier handle coordinate directly
     fun updateActiveBezierHandle(index: Int, handleType: String, newPos: Offset) {
         if (index in activeBezierNodes.indices) {

@@ -626,10 +626,14 @@ data class VectorShape(
                             for (j in 1 until sub.size) {
                                 val node = sub[j]
                                 val prev = sub[j - 1]
-                                if (node.isCurve) {
+                                if (prev.isCurve || node.isCurve) {
+                                    val cp1X = if (prev.isCurve) prev.control2X else prev.anchorX
+                                    val cp1Y = if (prev.isCurve) prev.control2Y else prev.anchorY
+                                    val cp2X = if (node.isCurve) node.control1X else node.anchorX
+                                    val cp2Y = if (node.isCurve) node.control1Y else node.anchorY
                                     path.cubicTo(
-                                        prev.control2X, prev.control2Y,
-                                        node.control1X, node.control1Y,
+                                        cp1X, cp1Y,
+                                        cp2X, cp2Y,
                                         node.anchorX, node.anchorY
                                     )
                                 } else {
@@ -638,10 +642,14 @@ data class VectorShape(
                             }
                             if (isPathClosed) {
                                 val last = sub.last()
-                                if (startNode.isCurve) {
+                                if (last.isCurve || startNode.isCurve) {
+                                    val cp1X = if (last.isCurve) last.control2X else last.anchorX
+                                    val cp1Y = if (last.isCurve) last.control2Y else last.anchorY
+                                    val cp2X = if (startNode.isCurve) startNode.control1X else startNode.anchorX
+                                    val cp2Y = if (startNode.isCurve) startNode.control1Y else startNode.anchorY
                                     path.cubicTo(
-                                        last.control2X, last.control2Y,
-                                        startNode.control1X, startNode.control1Y,
+                                        cp1X, cp1Y,
+                                        cp2X, cp2Y,
                                         startNode.anchorX, startNode.anchorY
                                     )
                                 } else {

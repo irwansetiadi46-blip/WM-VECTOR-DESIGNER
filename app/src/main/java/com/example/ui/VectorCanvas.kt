@@ -318,7 +318,23 @@ fun VectorCanvas(
                                                         viewModel.pushToUndoStack()
                                                     } else {
                                                         // C. Jika area kosong, bersiap BIKIN NODE BARU pada pointerup
-                                                        penDragMode = "create"
+                                                        // C. Jika area kosong, langsung bikin node baru di touch down agar bisa ditarik/drag handlesnya
+                                                         val snapRaw = viewModel.snapOffset(rawCanvasPos)
+                                                         val isCloseToStart = viewModel.activeBezierNodes.isNotEmpty() &&
+                                                                 hypot(snapRaw.x - viewModel.activeBezierNodes.first().anchorX, snapRaw.y - viewModel.activeBezierNodes.first().anchorY) < 20f / viewModel.zoomScale
+                                                         
+                                                         if (isCloseToStart) {
+                                                             viewModel.finalizeBezierPath(isClosed = true)
+                                                             isDragging = false
+                                                             change.consume()
+                                                         } else {
+                                                             viewModel.addBezierPenPointImmediately(snapRaw)
+                                                             penDragMode = "create"
+                                                             penStartX = snapRaw.x
+                                                             penStartY = snapRaw.y
+                                                             penActiveNodeIndex = viewModel.activeBezierNodes.size - 1
+                                                             viewModel.activeEditNodeIndex = penActiveNodeIndex
+                                                         }
                                                     }
                                                 }
                                             }
@@ -572,7 +588,13 @@ fun VectorCanvas(
                                                         val snapN = viewModel.snapOffsetComprehensive(rawCanvasPos, viewModel.selectedShapeId)
                                                         viewModel.updateActiveBezierNode(penActiveNodeIndex, snapN)
                                                     }
-                                                    "segment" -> {
+                                                    "create" -> {
+                                                         viewModel.updateActiveBezierNodeHandlesOnDrag(
+                                                             index = penActiveNodeIndex,
+                                                             dragPos = rawCanvasPos
+                                                         )
+                                                     }
+                                                     "segment" -> {
                                                         val dx = rawCanvasPos.x - penStartX
                                                         val dy = rawCanvasPos.y - penStartY
                                                         val nextIdx = penActiveSegmentIndex
@@ -810,6 +832,8 @@ fun VectorCanvas(
                                             // JIKA sentuhan singkat pada node dan JARI TIDAK BERGESER -> TOGGLE TYPE!
                                             viewModel.toggleNodeCurve(penActiveNodeIndex)
                                         } else if (penDragMode == "create") {
+                                             // Node already created on touch down.
+                                         } else if (false && penDragMode == "create") {
                                             // JIKA klik di area kosong -> BIKIN NODE BARU
                                             val snapE = viewModel.snapOffset(e)
                                             val isCloseToStart = viewModel.activeBezierNodes.isNotEmpty() && hypot(snapE.x - viewModel.activeBezierNodes.first().anchorX, snapE.y - viewModel.activeBezierNodes.first().anchorY) < 20f
