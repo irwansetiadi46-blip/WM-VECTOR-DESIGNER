@@ -2118,6 +2118,22 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         val originalShapeId: String,
         val isCurve: Boolean = false
     ) {
+        fun getArcLength(t0: Float = 0f, t1: Float = 1f): Float {
+            return com.example.model.CubicBezierHelper.calculateArcLength(p0, p1, p2, p3, t0, t1)
+        }
+
+        fun getCurvature(t: Float): Float {
+            return com.example.model.CubicBezierHelper.calculateCurvature(p0, p1, p2, p3, t)
+        }
+
+        fun getInflectionPoints(): List<Float> {
+            return com.example.model.CubicBezierHelper.calculateInflectionPoints(p0, p1, p2, p3)
+        }
+
+        fun getOptimalKeyPoints(angleThresholdDegrees: Float = 60f): List<Float> {
+            return com.example.model.CubicBezierHelper.findOptimalKeyPoints(p0, p1, p2, p3, angleThresholdDegrees)
+        }
+
         fun getPoint(t: Float): Offset {
             val mt = 1f - t
             val mt2 = mt * mt
@@ -2540,15 +2556,48 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             val currentSeg = reconstructedSegments[i]
             val prevSeg = reconstructedSegments[(i - 1 + n) % n]
             
+            var tIn = prevSeg.p3 - prevSeg.p2
+            if (kotlin.math.hypot(tIn.x, tIn.y) < 0.1f) {
+                tIn = prevSeg.p3 - prevSeg.p0
+            }
+            var tOut = currentSeg.p1 - currentSeg.p0
+            if (kotlin.math.hypot(tOut.x, tOut.y) < 0.1f) {
+                tOut = currentSeg.p3 - currentSeg.p0
+            }
+            
+            val lenIn = kotlin.math.hypot(tIn.x, tIn.y)
+            val lenOut = kotlin.math.hypot(tOut.x, tOut.y)
+            
+            var isCorner = false
+            if (!prevSeg.isCurve || !currentSeg.isCurve) {
+                isCorner = true
+            } else if (lenIn > 0.1f && lenOut > 0.1f) {
+                val uIn = Offset(tIn.x / lenIn, tIn.y / lenIn)
+                val uOut = Offset(tOut.x / lenOut, tOut.y / lenOut)
+                val dot = uIn.x * uOut.x + uIn.y * uOut.y
+                if (dot < 0.95f) { // Sharp corner (> ~18 degrees direction change)
+                    isCorner = true
+                }
+            } else {
+                isCorner = true
+            }
+            
+            val isCurveJunction = prevSeg.isCurve || currentSeg.isCurve
+            val nodeType = if (isCorner) "BEBAS" else "HALUS"
+            
+            val c1 = if (prevSeg.isCurve) Offset(prevSeg.p2.x, prevSeg.p2.y) else Offset(currentSeg.p0.x, currentSeg.p0.y)
+            val c2 = if (currentSeg.isCurve) Offset(currentSeg.p1.x, currentSeg.p1.y) else Offset(currentSeg.p0.x, currentSeg.p0.y)
+            
             contourNodes.add(BezierNode(
                 anchorX = currentSeg.p0.x,
                 anchorY = currentSeg.p0.y,
-                isCurve = prevSeg.isCurve,
-                control1X = prevSeg.p2.x,
-                control1Y = prevSeg.p2.y,
-                control2X = currentSeg.p1.x,
-                control2Y = currentSeg.p1.y,
-                isMoveTo = (i == 0 && !isFirstContour)
+                isCurve = isCurveJunction,
+                control1X = c1.x,
+                control1Y = c1.y,
+                control2X = c2.x,
+                control2Y = c2.y,
+                isMoveTo = (i == 0 && !isFirstContour),
+                nodeType = nodeType
             ))
         }
         return contourNodes
@@ -2599,7 +2648,15 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         val dy = pEnd.y - pStart.y
         val chordLen = kotlin.math.hypot(dx, dy)
 
-        // 1. Check if the segment is a straight line
+        // Prevent infinite fitting/NaN instability on closed loops or degenerated start/end coordinates
+        if (chordLen < 2.0f && (end - start) > 4) {
+            val midIdx = (start + end) / 2
+            val leftResult = fitCurveRecursive(points, start, midIdx, tolerance, depth + 1)
+            val rightResult = fitCurveRecursive(points, midIdx, end, tolerance, depth + 1)
+            return leftResult + rightResult
+        }
+
+        // 1. Check if the segment is a straight line - slightly wider tolerance for collinearity
         var maxDistToChord = 0f
         var worstIdx = -1
 
@@ -2618,32 +2675,88 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
-        if (maxDistToChord < 0.2f) {
+        if (maxDistToChord < 0.4f) {
             return listOf(BezierSegment(pStart, pStart + (pEnd - pStart) / 3f, pStart + (pEnd - pStart) * 2f / 3f, pEnd, "", false))
         }
 
-        // 2. Try fitting a cubic Bezier to the sub-segment
-        val step = minOf(3, end - start)
-        val qStep = points[start + step]
-        val dStart = qStep - pStart
+        // 2. Try fitting an optimized cubic Bezier using mathematical Least-Squares Handle solver with Chord Length parameterization
+        val nPoints = end - start + 1
+        
+        // Accurate chord length calculation for high geometric compatibility
+        val chordLengths = FloatArray(nPoints)
+        chordLengths[0] = 0f
+        for (i in 1 until nPoints) {
+            val d = kotlin.math.hypot(points[start + i].x - points[start + i - 1].x, points[start + i].y - points[start + i - 1].y)
+            chordLengths[i] = chordLengths[i - 1] + d
+        }
+        val totalLength = chordLengths[nPoints - 1]
+
+        // Better tangent estimations using points closer to ends to reduce multi-node oversplit bias
+        val step = minOf((end - start) / 10 + 1, 3)
+        val dStart = points[start + step] - pStart
         val lenStart = kotlin.math.hypot(dStart.x, dStart.y)
-        val uA = if (lenStart > 0.01f) Offset(dStart.x / lenStart, dStart.y / lenStart) else Offset(dx / chordLen, dy / chordLen)
-
-        val qNSub = points[end - step]
-        val dEnd = pEnd - qNSub
+        val uA = if (lenStart > 0.01f) Offset(dStart.x / lenStart, dStart.y / lenStart) else {
+            if (chordLen > 0.01f) Offset(dx / chordLen, dy / chordLen) else Offset(1f, 0f)
+        }
+        
+        val dEnd = pEnd - points[end - step]
         val lenEnd = kotlin.math.hypot(dEnd.x, dEnd.y)
-        val uB = if (lenEnd > 0.01f) Offset(dEnd.x / lenEnd, dEnd.y / lenEnd) else Offset(dx / chordLen, dy / chordLen)
+        val uB = if (lenEnd > 0.01f) Offset(dEnd.x / lenEnd, dEnd.y / lenEnd) else {
+            if (chordLen > 0.01f) Offset(dx / chordLen, dy / chordLen) else Offset(1f, 0f)
+        }
 
-        val p1 = pStart + uA * (chordLen / 3f)
-        val p2 = pEnd - uB * (chordLen / 3f)
+        var A11 = 0f
+        var A12 = 0f
+        var A22 = 0f
+        var B1 = 0f
+        var B2 = 0f
+        
+        val cosTangents = uA.x * uB.x + uA.y * uB.y
+        
+        for (i in 0 until nPoints) {
+            val idx = start + i
+            val pt = points[idx]
+            val t = if (totalLength > 0.1f) chordLengths[i] / totalLength else i.toFloat() / (nPoints - 1).toFloat()
+            val mt = 1f - t
+            
+            val f0 = mt * mt * (1f + 2f * t)
+            val f3 = t * t * (3f - 2f * t)
+            val f1 = 3f * mt * mt * t
+            val f2 = 3f * mt * t * t
+            
+            val E = Offset(pt.x - (f0 * pStart.x + f3 * pEnd.x), pt.y - (f0 * pStart.y + f3 * pEnd.y))
+            
+            A11 += f1 * f1
+            A12 -= f1 * f2 * cosTangents
+            A22 += f2 * f2
+            
+            B1 += f1 * (E.x * uA.x + E.y * uA.y)
+            B2 -= f2 * (E.x * uB.x + E.y * uB.y)
+        }
+        
+        val det = A11 * A22 - A12 * A12
+        var k1 = chordLen / 3f
+        var k2 = chordLen / 3f
+        
+        if (det > 1e-5f) {
+            val sol1 = (B1 * A22 - B2 * A12) / det
+            val sol2 = (A11 * B2 - A12 * B1) / det
+            if (sol1 in (0.01f * chordLen)..(1.5f * chordLen) && sol2 in (0.01f * chordLen)..(1.5f * chordLen)) {
+                k1 = sol1
+                k2 = sol2
+            }
+        }
+        
+        val p1 = pStart + uA * k1
+        val p2 = pEnd - uB * k2
 
-        // Verify suitability of current Bezier fit
+        // Verify suitability of current Bezier fit using chord-length parameter value for precision
         var maxBezierError = 0f
         var worstBezierIdx = -1
 
         for (i in start + 1 until end) {
             val pt = points[i]
-            val t = (i - start).toFloat() / (end - start).toFloat()
+            val t = if (totalLength > 0.1f) chordLengths[i - start] / totalLength else (i - start).toFloat() / (end - start).toFloat()
             val mt = 1f - t
             val mt2 = mt * mt
             val mt3 = mt2 * mt
@@ -2687,7 +2800,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         while (hasContour) {
             val len = pm.length
             if (len > 0.1f) {
-                val numSamples = (len / 1.5f).toInt().coerceIn(250, 600)
+                val numSamples = (len / 1.0f).toInt().coerceIn(300, 700)
                 val step = len / numSamples
                 val rawPoints = mutableListOf<Offset>()
                 val pos = FloatArray(2)
@@ -2707,10 +2820,341 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 }
 
                 if (uniquePoints.size >= 2) {
-                    val activeSegments = fitCurveRecursive(uniquePoints, 0, uniquePoints.size - 1, tolerance = 0.35f, depth = 0)
-                    val n = activeSegments.size
+                    // Match each point to original boundaries with tolerance to preserve geometric perfect curves
+                    val processedPoints = uniquePoints.map { q ->
+                        var bestSegIdx = -1
+                        var bestT = 0f
+                        var minDist = Float.MAX_VALUE
+                        for (idx in origSegments.indices) {
+                            val seg = origSegments[idx]
+                            
+                            val minX = minOf(seg.p0.x, seg.p1.x, seg.p2.x, seg.p3.x) - 4f
+                            val maxX = maxOf(seg.p0.x, seg.p1.x, seg.p2.x, seg.p3.x) + 4f
+                            val minY = minOf(seg.p0.y, seg.p1.y, seg.p2.y, seg.p3.y) - 4f
+                            val maxY = maxOf(seg.p0.y, seg.p1.y, seg.p2.y, seg.p3.y) + 4f
+                            
+                            if (q.x in minX..maxX && q.y in minY..maxY) {
+                                val (t, dist) = seg.findClosestT(q)
+                                if (dist < minDist) {
+                                    minDist = dist
+                                    bestSegIdx = idx
+                                    bestT = t
+                                }
+                            }
+                        }
+                        if (minDist < 4.0f && bestSegIdx != -1) {
+                            ProcessedPoint(q, bestSegIdx, bestT, minDist)
+                        } else {
+                            ProcessedPoint(q, -1, 0f, 1000f)
+                        }
+                    }
+
+                    // Group sequential points into blocks with sharp corner detection
+                    val blocks = mutableListOf<MutableList<ProcessedPoint>>()
+                    if (processedPoints.isNotEmpty()) {
+                        var currentBlock = mutableListOf<ProcessedPoint>()
+                        currentBlock.add(processedPoints.first())
+                        for (i in 1 until processedPoints.size) {
+                            val prev = processedPoints[i - 1]
+                            val curr = processedPoints[i]
+                            
+                            val isSameSegment = curr.segmentIndex != -1 && prev.segmentIndex != -1 && curr.segmentIndex == prev.segmentIndex
+                            
+                            // Check for sharp corner at index i in processedPoints
+                            var isSharpCorner = false
+                            if (!isSameSegment) {
+                                val kStep = 5
+                                if (i in kStep until processedPoints.size - kStep) {
+                                    val pPrev = processedPoints[i - kStep].point
+                                    val pCurr = processedPoints[i].point
+                                    val pNext = processedPoints[i + kStep].point
+                                    val v1 = pCurr - pPrev
+                                    val v2 = pNext - pCurr
+                                    val len1 = kotlin.math.hypot(v1.x, v1.y)
+                                    val len2 = kotlin.math.hypot(v2.x, v2.y)
+                                    if (len1 > 0.5f && len2 > 0.5f) {
+                                        val dot = (v1.x * v2.x + v1.y * v2.y) / (len1 * len2)
+                                        // Direction changes sharply (more than ~60 degrees)
+                                        if (dot < 0.5f) {
+                                            isSharpCorner = true
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            val canContinue = if (isSharpCorner) {
+                                false
+                            } else if (isSameSegment) {
+                                kotlin.math.abs(curr.t - prev.t) < 0.85f
+                            } else if (curr.segmentIndex == -1 && prev.segmentIndex == -1) {
+                                true
+                            } else {
+                                false
+                            }
+                            
+                            if (canContinue) {
+                                currentBlock.add(curr)
+                            } else {
+                                blocks.add(currentBlock)
+                                currentBlock = mutableListOf(curr)
+                            }
+                        }
+                        if (currentBlock.isNotEmpty()) {
+                            blocks.add(currentBlock)
+                        }
+                        
+                        // Merge wrap-around start/end blocks
+                        if (blocks.size > 1) {
+                            val firstBlock = blocks.first()
+                            val lastBlock = blocks.last()
+                            if (firstBlock.first().segmentIndex != -1 && firstBlock.first().segmentIndex == lastBlock.last().segmentIndex) {
+                                val tFirstFirst = firstBlock.first().t
+                                val tLastLast = lastBlock.last().t
+                                if (kotlin.math.abs(tFirstFirst - tLastLast) < 0.85f) {
+                                    firstBlock.addAll(0, lastBlock)
+                                    blocks.removeAt(blocks.size - 1)
+                                }
+                            }
+                        }
+                    }
+
+                    // Reconstruct perfect curves/lines from blocks
+                    val reconstructedSegments = mutableListOf<BezierSegment>()
+                    for (block in blocks) {
+                        if (block.isEmpty()) continue
+                        val first = block.first()
+                        val last = block.last()
+                        
+                        if (first.segmentIndex != -1 && block.size >= 2) {
+                            val origSeg = origSegments[first.segmentIndex]
+                            val tStart = first.t
+                            val tEnd = last.t
+                            
+                            if (kotlin.math.abs(tStart - tEnd) > 0.01f) {
+                                val splitSeg = if (tStart > tEnd) {
+                                    val spl = origSeg.split(tEnd, tStart)
+                                    BezierSegment(spl.p3, spl.p2, spl.p1, spl.p0, spl.originalShapeId, spl.isCurve)
+                                } else {
+                                    origSeg.split(tStart, tEnd)
+                                }
+                                reconstructedSegments.add(splitSeg)
+                            } else {
+                                val pStart = first.point
+                                val pEnd = last.point
+                                reconstructedSegments.add(BezierSegment(
+                                    pStart,
+                                    pStart + (pEnd - pStart) / 3f,
+                                    pStart + (pEnd - pStart) * 2f / 3f,
+                                    pEnd,
+                                    origSeg.originalShapeId,
+                                    origSeg.isCurve
+                                ))
+                            }
+                        } else {
+                            val pointsInBlock = block.map { it.point }
+                            if (pointsInBlock.size >= 2) {
+                                val fitted = fitCurveRecursive(pointsInBlock, 0, pointsInBlock.size - 1, tolerance = 1.8f, depth = 0)
+                                reconstructedSegments.addAll(fitted)
+                            }
+                        }
+                    }
+
+                    // Node Cleaning: Filter out redundant overlapping/very short segments near junctions
+                    val activeSegments = reconstructedSegments.filter { seg ->
+                        kotlin.math.hypot(seg.p3.x - seg.p0.x, seg.p3.y - seg.p0.y) > 0.15f
+                    }.toMutableList()
+
+                    // Simplify and merge adjacent segments to enforce node minimization, preventing clustering
+                    val simplifiedSegments = mutableListOf<BezierSegment>()
+                    if (activeSegments.isNotEmpty()) {
+                        var current = activeSegments[0]
+                        var i = 1
+                        while (i < activeSegments.size) {
+                            val next = activeSegments[i]
+                            
+                            val lenCurr = kotlin.math.hypot(current.p3.x - current.p0.x, current.p3.y - current.p0.y)
+                            val lenNext = kotlin.math.hypot(next.p3.x - next.p0.x, next.p3.y - next.p0.y)
+                            
+                            val isCurrTooShort = lenCurr < 2.5f
+                            val isNextTooShort = lenNext < 2.5f
+                            
+                            var isCollinear = false
+                            if (!current.isCurve && !next.isCurve) {
+                                val d1 = current.p3 - current.p0
+                                val d2 = next.p3 - next.p0
+                                val len1 = kotlin.math.hypot(d1.x, d1.y)
+                                val len2 = kotlin.math.hypot(d2.x, d2.y)
+                                if (len1 > 0.1f && len2 > 0.1f) {
+                                    val dot = (d1.x * d2.x + d1.y * d2.y) / (len1 * len2)
+                                    if (dot > 0.995f) {
+                                        isCollinear = true
+                                    }
+                                }
+                            }
+                            
+                            var isMergeableCurve = false
+                            if (current.isCurve && next.isCurve) {
+                                if (current.originalShapeId.isNotEmpty() && current.originalShapeId == next.originalShapeId) {
+                                    isMergeableCurve = true
+                                } else {
+                                    // Smooth tangent transition at the joining point!
+                                    val tIn = current.p3 - current.p2
+                                    val tOut = next.p1 - next.p0
+                                    val lenTIn = kotlin.math.hypot(tIn.x, tIn.y)
+                                    val lenTOut = kotlin.math.hypot(tOut.x, tOut.y)
+                                    if (lenTIn > 0.1f && lenTOut > 0.1f) {
+                                        val uIn = Offset(tIn.x / lenTIn, tIn.y / lenTIn)
+                                        val uOut = Offset(tOut.x / lenTOut, tOut.y / lenTOut)
+                                        val dot = uIn.x * uOut.x + uIn.y * uOut.y
+                                        if (dot > 0.94f) {
+                                            isMergeableCurve = true
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (isCurrTooShort || isNextTooShort || isCollinear || isMergeableCurve) {
+                                val mergedP0 = current.p0
+                                val mergedP3 = next.p3
+                                
+                                if (!current.isCurve && !next.isCurve && isCollinear) {
+                                    val mergedP1 = mergedP0 + (mergedP3 - mergedP0) / 3f
+                                    val mergedP2 = mergedP0 + (mergedP3 - mergedP0) * 2f / 3f
+                                    current = BezierSegment(mergedP0, mergedP1, mergedP2, mergedP3, current.originalShapeId, false)
+                                } else {
+                                    // Use least-squares fitting on sampled points to merge curves smoothly and perfectly
+                                    val kPoints = mutableListOf<Offset>()
+                                    val samples = 12
+                                    for (j in 0..samples) {
+                                        val t = j.toFloat() / samples.toFloat()
+                                        kPoints.add(current.getPoint(t))
+                                    }
+                                    for (j in 1..samples) {
+                                        val t = j.toFloat() / samples.toFloat()
+                                        kPoints.add(next.getPoint(t))
+                                    }
+                                    val fitted = fitCurveRecursive(kPoints, 0, kPoints.size - 1, tolerance = 10.0f, depth = 0)
+                                    if (fitted.size == 1) {
+                                        val bestFit = fitted[0]
+                                        current = BezierSegment(mergedP0, bestFit.p1, bestFit.p2, mergedP3, current.originalShapeId, true)
+                                    } else {
+                                        val tIn = current.p1 - current.p0
+                                        val tOut = next.p3 - next.p2
+                                        val lenTIn = kotlin.math.hypot(tIn.x, tIn.y)
+                                        val lenTOut = kotlin.math.hypot(tOut.x, tOut.y)
+                                        val uIn = if (lenTIn > 0.1f) Offset(tIn.x / lenTIn, tIn.y / lenTIn) else (mergedP3 - mergedP0) / 3f
+                                        val uOut = if (lenTOut > 0.1f) Offset(tOut.x / lenTOut, tOut.y / lenTOut) else (mergedP3 - mergedP0) / 3f
+                                        val chord = kotlin.math.hypot(mergedP3.x - mergedP0.x, mergedP3.y - mergedP0.y)
+                                        val mergedP1 = mergedP0 + uIn * (chord / 3f)
+                                        val mergedP2 = mergedP3 - uOut * (chord / 3f)
+                                        current = BezierSegment(mergedP0, mergedP1, mergedP2, mergedP3, current.originalShapeId, true)
+                                    }
+                                }
+                                i++
+                            } else {
+                                simplifiedSegments.add(current)
+                                current = next
+                                i++
+                            }
+                        }
+                        simplifiedSegments.add(current)
+                    }
+
+                    // Closed loop wrap-around simplify pass
+                    val finalSegments = simplifiedSegments.toMutableList()
+                    if (finalSegments.size > 1) {
+                        var changed = true
+                        while (changed && finalSegments.size > 1) {
+                            changed = false
+                            val last = finalSegments.last()
+                            val first = finalSegments.first()
+                            
+                            val lenLast = kotlin.math.hypot(last.p3.x - last.p0.x, last.p3.y - last.p0.y)
+                            val lenFirst = kotlin.math.hypot(first.p3.x - first.p0.x, first.p3.y - first.p0.y)
+                            
+                            val isLastTooShort = lenLast < 2.5f
+                            val isFirstTooShort = lenFirst < 2.5f
+                            
+                            var isCollinear = false
+                            if (!last.isCurve && !first.isCurve) {
+                                val d1 = last.p3 - last.p0
+                                val d2 = first.p3 - first.p0
+                                val len1 = kotlin.math.hypot(d1.x, d1.y)
+                                val len2 = kotlin.math.hypot(d2.x, d2.y)
+                                if (len1 > 0.1f && len2 > 0.1f) {
+                                    val dot = (d1.x * d2.x + d1.y * d2.y) / (len1 * len2)
+                                    if (dot > 0.995f) {
+                                        isCollinear = true
+                                    }
+                                }
+                            }
+                            
+                            var isMergeableCurve = false
+                            if (last.isCurve && first.isCurve) {
+                                if (last.originalShapeId.isNotEmpty() && last.originalShapeId == first.originalShapeId) {
+                                    isMergeableCurve = true
+                                } else {
+                                    val tIn = last.p3 - last.p2
+                                    val tOut = first.p1 - first.p0
+                                    val lenTIn = kotlin.math.hypot(tIn.x, tIn.y)
+                                    val lenTOut = kotlin.math.hypot(tOut.x, tOut.y)
+                                    if (lenTIn > 0.1f && lenTOut > 0.1f) {
+                                        val uIn = Offset(tIn.x / lenTIn, tIn.y / lenTIn)
+                                        val uOut = Offset(tOut.x / lenTOut, tOut.y / lenTOut)
+                                        val dot = uIn.x * uOut.x + uIn.y * uOut.y
+                                        if (dot > 0.94f) {
+                                            isMergeableCurve = true
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (isLastTooShort || isFirstTooShort || isCollinear || isMergeableCurve) {
+                                val mergedP0 = last.p0
+                                val mergedP3 = first.p3
+                                
+                                if (!last.isCurve && !first.isCurve && isCollinear) {
+                                    val mergedP1 = mergedP0 + (mergedP3 - mergedP0) / 3f
+                                    val mergedP2 = mergedP0 + (mergedP3 - mergedP0) * 2f / 3f
+                                    finalSegments[0] = BezierSegment(mergedP0, mergedP1, mergedP2, mergedP3, last.originalShapeId, false)
+                                } else {
+                                    // Use least-squares fitting on sampled points
+                                    val kPoints = mutableListOf<Offset>()
+                                    val samples = 12
+                                    for (j in 0..samples) {
+                                        val t = j.toFloat() / samples.toFloat()
+                                        kPoints.add(last.getPoint(t))
+                                    }
+                                    for (j in 1..samples) {
+                                        val t = j.toFloat() / samples.toFloat()
+                                        kPoints.add(first.getPoint(t))
+                                    }
+                                    val fitted = fitCurveRecursive(kPoints, 0, kPoints.size - 1, tolerance = 10.0f, depth = 0)
+                                    if (fitted.size == 1) {
+                                        val bestFit = fitted[0]
+                                        finalSegments[0] = BezierSegment(mergedP0, bestFit.p1, bestFit.p2, mergedP3, last.originalShapeId, true)
+                                    } else {
+                                        val tIn = last.p1 - last.p0
+                                        val tOut = first.p3 - first.p2
+                                        val lenTIn = kotlin.math.hypot(tIn.x, tIn.y)
+                                        val lenTOut = kotlin.math.hypot(tOut.x, tOut.y)
+                                        val uIn = if (lenTIn > 0.1f) Offset(tIn.x / lenTIn, tIn.y / lenTIn) else (mergedP3 - mergedP0) / 3f
+                                        val uOut = if (lenTOut > 0.1f) Offset(tOut.x / lenTOut, tOut.y / lenTOut) else (mergedP3 - mergedP0) / 3f
+                                        val chord = kotlin.math.hypot(mergedP3.x - mergedP0.x, mergedP3.y - mergedP0.y)
+                                        val mergedP1 = mergedP0 + uIn * (chord / 3f)
+                                        val mergedP2 = mergedP3 - uOut * (chord / 3f)
+                                        finalSegments[0] = BezierSegment(mergedP0, mergedP1, mergedP2, mergedP3, last.originalShapeId, true)
+                                    }
+                                }
+                                finalSegments.removeAt(finalSegments.size - 1)
+                                changed = true
+                            }
+                        }
+                    }
+
+                    val n = finalSegments.size
                     if (n >= 2) {
-                        val finalizedSegments = activeSegments.toMutableList()
+                        val finalizedSegments = finalSegments.toMutableList()
                         for (i in 0 until n) {
                             val current = finalizedSegments[i]
                             val next = finalizedSegments[(i + 1) % n]
@@ -2721,7 +3165,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         val contourNodes = buildNodesFromSegments(finalizedSegments, isFirstContour = isFirstMoveTo)
                         nodes.addAll(contourNodes)
                     } else if (n == 1) {
-                        val contourNodes = buildNodesFromSegments(activeSegments, isFirstContour = isFirstMoveTo)
+                        val contourNodes = buildNodesFromSegments(finalSegments, isFirstContour = isFirstMoveTo)
                         nodes.addAll(contourNodes)
                     }
                     isFirstMoveTo = false
