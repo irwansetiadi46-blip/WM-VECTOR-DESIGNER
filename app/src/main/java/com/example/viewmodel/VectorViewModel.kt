@@ -3019,21 +3019,19 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             
                             var isMergeableCurve = false
                             if (current.isCurve && next.isCurve) {
-                                if (current.originalShapeId.isNotEmpty() && current.originalShapeId == next.originalShapeId) {
-                                    isMergeableCurve = true
-                                } else {
-                                    // Smooth tangent transition at the joining point!
-                                    val tIn = current.p3 - current.p2
-                                    val tOut = next.p1 - next.p0
-                                    val lenTIn = kotlin.math.hypot(tIn.x, tIn.y)
-                                    val lenTOut = kotlin.math.hypot(tOut.x, tOut.y)
-                                    if (lenTIn > 0.1f && lenTOut > 0.1f) {
-                                        val uIn = Offset(tIn.x / lenTIn, tIn.y / lenTIn)
-                                        val uOut = Offset(tOut.x / lenTOut, tOut.y / lenTOut)
-                                        val dot = uIn.x * uOut.x + uIn.y * uOut.y
-                                        if (dot > 0.94f) {
-                                            isMergeableCurve = true
-                                        }
+                                // Instead of merging all curves from the same originalShapeId,
+                                // we only merge if the tangents match perfectly (very smooth join)
+                                val tIn = current.p3 - current.p2
+                                val tOut = next.p1 - next.p0
+                                val lenTIn = kotlin.math.hypot(tIn.x, tIn.y)
+                                val lenTOut = kotlin.math.hypot(tOut.x, tOut.y)
+                                if (lenTIn > 0.1f && lenTOut > 0.1f) {
+                                    val uIn = Offset(tIn.x / lenTIn, tIn.y / lenTIn)
+                                    val uOut = Offset(tOut.x / lenTOut, tOut.y / lenTOut)
+                                    val dot = uIn.x * uOut.x + uIn.y * uOut.y
+                                    // Only merge if extremely collinear and dot product is > 0.99
+                                    if (dot > 0.995f && isCurrTooShort && isNextTooShort) {
+                                        isMergeableCurve = true
                                     }
                                 }
                             }
@@ -3116,20 +3114,16 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             
                             var isMergeableCurve = false
                             if (last.isCurve && first.isCurve) {
-                                if (last.originalShapeId.isNotEmpty() && last.originalShapeId == first.originalShapeId) {
-                                    isMergeableCurve = true
-                                } else {
-                                    val tIn = last.p3 - last.p2
-                                    val tOut = first.p1 - first.p0
-                                    val lenTIn = kotlin.math.hypot(tIn.x, tIn.y)
-                                    val lenTOut = kotlin.math.hypot(tOut.x, tOut.y)
-                                    if (lenTIn > 0.1f && lenTOut > 0.1f) {
-                                        val uIn = Offset(tIn.x / lenTIn, tIn.y / lenTIn)
-                                        val uOut = Offset(tOut.x / lenTOut, tOut.y / lenTOut)
-                                        val dot = uIn.x * uOut.x + uIn.y * uOut.y
-                                        if (dot > 0.94f) {
-                                            isMergeableCurve = true
-                                        }
+                                val tIn = last.p3 - last.p2
+                                val tOut = first.p1 - first.p0
+                                val lenTIn = kotlin.math.hypot(tIn.x, tIn.y)
+                                val lenTOut = kotlin.math.hypot(tOut.x, tOut.y)
+                                if (lenTIn > 0.1f && lenTOut > 0.1f) {
+                                    val uIn = Offset(tIn.x / lenTIn, tIn.y / lenTIn)
+                                    val uOut = Offset(tOut.x / lenTOut, tOut.y / lenTOut)
+                                    val dot = uIn.x * uOut.x + uIn.y * uOut.y
+                                    if (dot > 0.995f && isLastTooShort && isFirstTooShort) {
+                                        isMergeableCurve = true
                                     }
                                 }
                             }
@@ -3250,7 +3244,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             strokeColorHex = targetStyleShape.strokeColorHex,
             strokeWidth = targetStyleShape.strokeWidth,
             strokeAlpha = targetStyleShape.strokeAlpha,
-            hasFill = true,
+            hasFill = targetStyleShape.hasFill,
             fillColorHex = targetStyleShape.fillColorHex,
             fillAlpha = targetStyleShape.fillAlpha,
             layerOrder = targetStyleShape.layerOrder
