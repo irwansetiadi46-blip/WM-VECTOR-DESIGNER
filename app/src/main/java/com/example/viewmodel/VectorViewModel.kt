@@ -41,6 +41,15 @@ enum class PrimitiveType {
     LINE
 }
 
+data class SmartGuideInfo(
+    val x1: Float,
+    val y1: Float,
+    val x2: Float,
+    val y2: Float,
+    val type: String, // "ALIGN_LINE", "SPACING"
+    val label: String = ""
+)
+
 class VectorViewModel(application: Application) : AndroidViewModel(application) {
     private val sharedPrefs = application.getSharedPreferences("vector_prefs", Context.MODE_PRIVATE)
 
@@ -114,6 +123,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             isCloneModeActive = false
         }
     var activePrimitiveType by mutableStateOf(PrimitiveType.RECTANGLE)
+    var isAspectLocked by mutableStateOf(true)
 
     // Style Parameters (State connected directly to both bottom sliders and color pickers)
     var currentStrokeWidth by mutableStateOf(8f)
@@ -159,6 +169,24 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 s
             }
+        }
+    }
+
+    fun bakeBezierCorners() {
+        val sId = selectedShapeId ?: return
+        var changed = false
+        shapes = shapes.map { s ->
+            if (s.id == sId && s.type == ShapeType.BEZIER_PATH && s.customCornerRadii.any { it > 0.1f }) {
+                changed = true
+                s.bakedRoundedCorners()
+            } else {
+                s
+            }
+        }
+        if (changed) {
+            pushToUndoStack()
+            selectedRoundedCornerIndex = null
+            manualCornerRadiusText = "0"
         }
     }
 
@@ -593,6 +621,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var isSnapToPointEnabled by mutableStateOf(false)
     var activeSmartGuideHorizontal by mutableStateOf<Float?>(null)
     var activeSmartGuideVertical by mutableStateOf<Float?>(null)
+    var activeSmartGuidesList by mutableStateOf<List<SmartGuideInfo>>(emptyList())
 
     // Onboarding config & Canvas custom background state
     var isSetupCompleted by mutableStateOf(false)
@@ -623,6 +652,269 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    fun snapSelectionComprehensive(
+        originalCombinedBounds: Rect,
+        totalDX: Float,
+        totalDY: Float,
+        ignoredIds: Set<String>
+    ): Offset {
+        var finalDX = totalDX
+        var finalDY = totalDY
+
+        activeSmartGuidesList = emptyList()
+        activeSmartGuideHorizontal = null
+        activeSmartGuideVertical = null
+
+        val tolerance = 15f // Snapping distance threshold in pixels
+        val canvasTolerance = tolerance / zoomScale
+
+        if (!isSnapToObjectEnabled && !isSmartGuideEnabled) {
+            return Offset(totalDX, totalDY)
+        }
+
+        val left1 = originalCombinedBounds.left + totalDX
+        val right1 = originalCombinedBounds.right + totalDX
+        val top1 = originalCombinedBounds.top + totalDY
+        val bottom1 = originalCombinedBounds.bottom + totalDY
+        val cx1 = (left1 + right1) / 2f
+        val cy1 = (top1 + bottom1) / 2f
+
+        val otherShapes = shapes.filter { !ignoredIds.contains(it.id) && it.isVisible }
+
+        var bestDiffX = Float.MAX_VALUE
+        var bestTargetX: Float? = null
+        var matchedSourceX: Float? = null // left1, cx1, or right1
+        var refShapeX: VectorShape? = null
+
+        // Canvas X candidates: Left, Center, Right
+        val canvasXCandidates = listOf(
+            0f to "CANVAS_LEFT",
+            canvasWidth / 2f to "CANVAS_CENTER",
+            canvasWidth to "CANVAS_RIGHT"
+        )
+        for (cand in canvasXCandidates) {
+            val cxVal = cand.first
+            val diffL = kotlin.math.abs(left1 - cxVal)
+            if (diffL < bestDiffX && diffL < canvasTolerance) {
+                bestDiffX = diffL
+                bestTargetX = cxVal
+                matchedSourceX = left1
+                refShapeX = null
+            }
+            val diffC = kotlin.math.abs(cx1 - cxVal)
+            if (diffC < bestDiffX && diffC < canvasTolerance) {
+                bestDiffX = diffC
+                bestTargetX = cxVal
+                matchedSourceX = cx1
+                refShapeX = null
+            }
+            val diffR = kotlin.math.abs(right1 - cxVal)
+            if (diffR < bestDiffX && diffR < canvasTolerance) {
+                bestDiffX = diffR
+                bestTargetX = cxVal
+                matchedSourceX = right1
+                refShapeX = null
+            }
+        }
+
+        // Other shapes X candidates
+        for (shape in otherShapes) {
+            val b = shape.getBoundingBox()
+            val shapeXCandidates = listOf(b.left, (b.left + b.right) / 2f, b.right)
+            for (cxVal in shapeXCandidates) {
+                val diffL = kotlin.math.abs(left1 - cxVal)
+                if (diffL < bestDiffX && diffL < canvasTolerance) {
+                    bestDiffX = diffL
+                    bestTargetX = cxVal
+                    matchedSourceX = left1
+                    refShapeX = shape
+                }
+                val diffC = kotlin.math.abs(cx1 - cxVal)
+                if (diffC < bestDiffX && diffC < canvasTolerance) {
+                    bestDiffX = diffC
+                    bestTargetX = cxVal
+                    matchedSourceX = cx1
+                    refShapeX = shape
+                }
+                val diffR = kotlin.math.abs(right1 - cxVal)
+                if (diffR < bestDiffX && diffR < canvasTolerance) {
+                    bestDiffX = diffR
+                    bestTargetX = cxVal
+                    matchedSourceX = right1
+                    refShapeX = shape
+                }
+            }
+        }
+
+        if (bestTargetX != null && matchedSourceX != null) {
+            val shiftX = bestTargetX - matchedSourceX
+            finalDX += shiftX
+            activeSmartGuideVertical = bestTargetX
+        }
+
+        var bestDiffY = Float.MAX_VALUE
+        var bestTargetY: Float? = null
+        var matchedSourceY: Float? = null // top1, cy1, or bottom1
+        var refShapeY: VectorShape? = null
+
+        // Canvas Y candidates: Top, Center, Bottom
+        val canvasYCandidates = listOf(
+            0f to "CANVAS_TOP",
+            canvasHeight / 2f to "CANVAS_CENTER",
+            canvasHeight to "CANVAS_BOTTOM"
+        )
+        for (cand in canvasYCandidates) {
+            val cyVal = cand.first
+            val diffT = kotlin.math.abs(top1 - cyVal)
+            if (diffT < bestDiffY && diffT < canvasTolerance) {
+                bestDiffY = diffT
+                bestTargetY = cyVal
+                matchedSourceY = top1
+                refShapeY = null
+            }
+            val diffC = kotlin.math.abs(cy1 - cyVal)
+            if (diffC < bestDiffY && diffC < canvasTolerance) {
+                bestDiffY = diffC
+                bestTargetY = cyVal
+                matchedSourceY = cy1
+                refShapeY = null
+            }
+            val diffB = kotlin.math.abs(bottom1 - cyVal)
+            if (diffB < bestDiffY && diffB < canvasTolerance) {
+                bestDiffY = diffB
+                bestTargetY = cyVal
+                matchedSourceY = bottom1
+                refShapeY = null
+            }
+        }
+
+        // Other shapes Y candidates
+        for (shape in otherShapes) {
+            val b = shape.getBoundingBox()
+            val shapeYCandidates = listOf(b.top, (b.top + b.bottom) / 2f, b.bottom)
+            for (cyVal in shapeYCandidates) {
+                val diffT = kotlin.math.abs(top1 - cyVal)
+                if (diffT < bestDiffY && diffT < canvasTolerance) {
+                    bestDiffY = diffT
+                    bestTargetY = cyVal
+                    matchedSourceY = top1
+                    refShapeY = shape
+                }
+                val diffC = kotlin.math.abs(cy1 - cyVal)
+                if (diffC < bestDiffY && diffC < canvasTolerance) {
+                    bestDiffY = diffC
+                    bestTargetY = cyVal
+                    matchedSourceY = cy1
+                    refShapeY = shape
+                }
+                val diffB = kotlin.math.abs(bottom1 - cyVal)
+                if (diffB < bestDiffY && diffB < canvasTolerance) {
+                    bestDiffY = diffB
+                    bestTargetY = cyVal
+                    matchedSourceY = bottom1
+                    refShapeY = shape
+                }
+            }
+        }
+
+        if (bestTargetY != null && matchedSourceY != null) {
+            val shiftY = bestTargetY - matchedSourceY
+            finalDY += shiftY
+            activeSmartGuideHorizontal = bestTargetY
+        }
+
+        val guides = mutableListOf<SmartGuideInfo>()
+
+        if (isSmartGuideEnabled) {
+            if (bestTargetY != null) {
+                val yVal = bestTargetY
+                var minXVal = 0f
+                var maxXVal = canvasWidth
+                if (refShapeY != null) {
+                    val rb = refShapeY.getBoundingBox()
+                    minXVal = minOf(rb.left, originalCombinedBounds.left + finalDX)
+                    maxXVal = maxOf(rb.right, originalCombinedBounds.right + finalDX)
+                }
+                guides.add(SmartGuideInfo(minXVal, yVal, maxXVal, yVal, "ALIGN_LINE"))
+            }
+
+            if (bestTargetX != null) {
+                val xVal = bestTargetX
+                var minYVal = 0f
+                var maxYVal = canvasHeight
+                if (refShapeX != null) {
+                    val rb = refShapeX.getBoundingBox()
+                    minYVal = minOf(rb.top, originalCombinedBounds.top + finalDY)
+                    maxYVal = maxOf(rb.bottom, originalCombinedBounds.bottom + finalDY)
+                }
+                guides.add(SmartGuideInfo(xVal, minYVal, xVal, maxYVal, "ALIGN_LINE"))
+            }
+
+            // Spacing guides
+            if (otherShapes.size >= 2) {
+                val currentLeft = originalCombinedBounds.left + finalDX
+                val currentRight = originalCombinedBounds.right + finalDX
+                val currentTop = originalCombinedBounds.top + finalDY
+                val currentBottom = originalCombinedBounds.bottom + finalDY
+                val currentWidth = originalCombinedBounds.width
+                val currentHeight = originalCombinedBounds.height
+
+                val sortedH = otherShapes.map { it.getBoundingBox() }.sortedBy { it.left }
+                for (i in 0 until sortedH.size - 1) {
+                    val s1 = sortedH[i]
+                    val s2 = sortedH[i + 1]
+                    val gap = s2.left - s1.right
+                    if (gap > 4f) {
+                        val targetLeft = s2.right + gap
+                        if (kotlin.math.abs(currentLeft - targetLeft) < canvasTolerance) {
+                            val snapShiftX = targetLeft - currentLeft
+                            finalDX += snapShiftX
+                            guides.add(SmartGuideInfo(s1.right, (s1.top + s1.bottom) / 2f, s2.left, (s2.top + s2.bottom) / 2f, "SPACING", "${gap.toInt()} px"))
+                            guides.add(SmartGuideInfo(s2.right, (s2.top + s2.bottom) / 2f, targetLeft, (originalCombinedBounds.top + originalCombinedBounds.bottom) / 2f + finalDY, "SPACING", "${gap.toInt()} px"))
+                            break
+                        }
+                        val targetLeft2 = s1.left - gap - currentWidth
+                        if (kotlin.math.abs(currentLeft - targetLeft2) < canvasTolerance) {
+                            val snapShiftX = targetLeft2 - currentLeft
+                            finalDX += snapShiftX
+                            guides.add(SmartGuideInfo(s1.right, (s1.top + s1.bottom) / 2f, s2.left, (s2.top + s2.bottom) / 2f, "SPACING", "${gap.toInt()} px"))
+                            guides.add(SmartGuideInfo(targetLeft2 + currentWidth, (originalCombinedBounds.top + originalCombinedBounds.bottom) / 2f + finalDY, s1.left, (s1.top + s1.bottom) / 2f, "SPACING", "${gap.toInt()} px"))
+                            break
+                        }
+                    }
+                }
+
+                val sortedV = otherShapes.map { it.getBoundingBox() }.sortedBy { it.top }
+                for (i in 0 until sortedV.size - 1) {
+                    val s1 = sortedV[i]
+                    val s2 = sortedV[i + 1]
+                    val gap = s2.top - s1.bottom
+                    if (gap > 4f) {
+                        val targetTop = s2.bottom + gap
+                        if (kotlin.math.abs(currentTop - targetTop) < canvasTolerance) {
+                            val snapShiftY = targetTop - currentTop
+                            finalDY += snapShiftY
+                            guides.add(SmartGuideInfo((s1.left + s1.right) / 2f, s1.bottom, (s2.left + s2.right) / 2f, s2.top, "SPACING", "${gap.toInt()} px"))
+                            guides.add(SmartGuideInfo((s2.left + s2.right) / 2f, s2.bottom, (originalCombinedBounds.left + originalCombinedBounds.right) / 2f + finalDX, targetTop, "SPACING", "${gap.toInt()} px"))
+                            break
+                        }
+                        val targetTop2 = s1.top - gap - currentHeight
+                        if (kotlin.math.abs(currentTop - targetTop2) < canvasTolerance) {
+                            val snapShiftY = targetTop2 - currentTop
+                            finalDY += snapShiftY
+                            guides.add(SmartGuideInfo((s1.left + s1.right) / 2f, s1.bottom, (s2.left + s2.right) / 2f, s2.top, "SPACING", "${gap.toInt()} px"))
+                            guides.add(SmartGuideInfo((originalCombinedBounds.left + originalCombinedBounds.right) / 2f + finalDX, targetTop2 + currentHeight, (s1.left + s1.right) / 2f, s1.top, "SPACING", "${gap.toInt()} px"))
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        activeSmartGuidesList = guides
+        return Offset(finalDX, finalDY)
     }
 
     fun snapOffsetComprehensive(pos: Offset, ignoreId: String? = null): Offset {
@@ -883,10 +1175,12 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         
         val newShape = when (activePrimitiveType) {
             PrimitiveType.RECTANGLE -> {
-                val left = minOf(snappedStart.x, snappedEnd.x)
-                val top = minOf(snappedStart.y, snappedEnd.y)
-                val w = maxOf(4f, kotlin.math.abs(snappedEnd.x - snappedStart.x))
-                val h = maxOf(4f, kotlin.math.abs(snappedEnd.y - snappedStart.y))
+                val rw = maxOf(4f, kotlin.math.abs(snappedEnd.x - snappedStart.x))
+                val rh = maxOf(4f, kotlin.math.abs(snappedEnd.y - snappedStart.y))
+                val w = if (isAspectLocked) maxOf(rw, rh) else rw
+                val h = if (isAspectLocked) maxOf(rw, rh) else rh
+                val left = if (snappedEnd.x >= snappedStart.x) snappedStart.x else snappedStart.x - w
+                val top = if (snappedEnd.y >= snappedStart.y) snappedStart.y else snappedStart.y - h
                 VectorShape(
                     id = id,
                     name = "Rectangle ${shapes.size + 1}",
@@ -912,14 +1206,16 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val centerY = snappedStart.y
                 val rx = maxOf(4f, kotlin.math.abs(snappedEnd.x - snappedStart.x))
                 val ry = maxOf(4f, kotlin.math.abs(snappedEnd.y - snappedStart.y))
+                val w = if (isAspectLocked) maxOf(rx, ry) else rx
+                val h = if (isAspectLocked) maxOf(rx, ry) else ry
                 VectorShape(
                     id = id,
                     name = "Ellipse ${shapes.size + 1}",
                     type = ShapeType.ELLIPSE,
                     x = centerX,
                     y = centerY,
-                    width = rx,
-                    height = ry,
+                    width = w,
+                    height = h,
                     strokeColorHex = currentStrokeColorHex,
                     strokeWidth = currentStrokeWidth,
                     strokeAlpha = currentStrokeAlpha,
@@ -937,14 +1233,16 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val centerY = snappedStart.y
                 val rx = maxOf(4f, kotlin.math.abs(snappedEnd.x - snappedStart.x))
                 val ry = maxOf(4f, kotlin.math.abs(snappedEnd.y - snappedStart.y))
+                val w = if (isAspectLocked) maxOf(rx, ry) else rx
+                val h = if (isAspectLocked) maxOf(rx, ry) else ry
                 VectorShape(
                     id = id,
                     name = "Polygon (${currentPolygonSides}s) ${shapes.size + 1}",
                     type = ShapeType.POLYGON,
                     x = centerX,
                     y = centerY,
-                    width = rx,
-                    height = ry,
+                    width = w,
+                    height = h,
                     polygonSides = currentPolygonSides,
                     strokeColorHex = currentStrokeColorHex,
                     strokeWidth = currentStrokeWidth,
@@ -963,14 +1261,16 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val centerY = snappedStart.y
                 val rx = maxOf(4f, kotlin.math.abs(snappedEnd.x - snappedStart.x))
                 val ry = maxOf(4f, kotlin.math.abs(snappedEnd.y - snappedStart.y))
+                val w = if (isAspectLocked) maxOf(rx, ry) else rx
+                val h = if (isAspectLocked) maxOf(rx, ry) else ry
                 VectorShape(
                     id = id,
                     name = "Star (${currentStarPoints}p) ${shapes.size + 1}",
                     type = ShapeType.STAR,
                     x = centerX,
                     y = centerY,
-                    width = rx,
-                    height = ry,
+                    width = w,
+                    height = h,
                     starPoints = currentStarPoints,
                     strokeColorHex = currentStrokeColorHex,
                     strokeWidth = currentStrokeWidth,
@@ -989,14 +1289,16 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val centerY = snappedStart.y
                 val rx = maxOf(4f, kotlin.math.abs(snappedEnd.x - snappedStart.x))
                 val ry = maxOf(4f, kotlin.math.abs(snappedEnd.y - snappedStart.y))
+                val w = if (isAspectLocked) maxOf(rx, ry) else rx
+                val h = if (isAspectLocked) maxOf(rx, ry) else ry
                 VectorShape(
                     id = id,
                     name = "Triangle ${shapes.size + 1}",
                     type = ShapeType.POLYGON,
                     x = centerX,
                     y = centerY,
-                    width = rx,
-                    height = ry,
+                    width = w,
+                    height = h,
                     polygonSides = 3,
                     strokeColorHex = currentStrokeColorHex,
                     strokeWidth = currentStrokeWidth,
@@ -1665,62 +1967,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun strokeToPath() {
-        val activeId = selectedShapeId ?: return
-        val shape = shapes.find { it.id == activeId } ?: return
-        pushToUndoStack()
-        
-        val newShapesList = shapes.toMutableList()
-        val index = newShapesList.indexOf(shape)
-        if (index == -1) return
-        
-        val newId = UUID.randomUUID().toString()
-        
-        // 1. Get the shape's vector path as a Compose path
-        val composePath = shape.asComposePath()
-        val androidPath = composePath.asAndroidPath()
-        
-        // 2. Use Android Paint to get the filled stroke outline path
-        val strokePaint = android.graphics.Paint().apply {
-            style = android.graphics.Paint.Style.STROKE
-            strokeWidth = shape.strokeWidth
-            strokeCap = when (shape.strokeCap) {
-                "BUTT" -> android.graphics.Paint.Cap.BUTT
-                "SQUARE" -> android.graphics.Paint.Cap.SQUARE
-                else -> android.graphics.Paint.Cap.ROUND
-            }
-            strokeJoin = when (shape.strokeJoin) {
-                "MITER" -> android.graphics.Paint.Join.MITER
-                "BEVEL" -> android.graphics.Paint.Join.BEVEL
-                else -> android.graphics.Paint.Join.ROUND
-            }
-        }
-        val outlinePath = android.graphics.Path()
-        strokePaint.getFillPath(androidPath, outlinePath)
-        
-        // 3. For stroke to path, reconstruct nodes directly from the outline without snapping to the internal skeleton segments
-        val nodes = reconstructBezierNodesFromAndroidPath(outlinePath, emptyList())
-        
-        val strokePathShape = VectorShape(
-            id = newId,
-            name = "${shape.name} Stroke-Path",
-            type = ShapeType.BEZIER_PATH,
-            bezierNodes = nodes,
-            isPathClosed = true,
-            strokeColorHex = "#333333",
-            strokeWidth = 0f,
-            hasFill = true,
-            fillColorHex = shape.strokeColorHex,
-            fillAlpha = shape.strokeAlpha,
-            layerOrder = shape.layerOrder
-        )
-        
-        newShapesList[index] = strokePathShape
-        shapes = newShapesList
-        selectedShapeId = newId
-        selectedShapeIds = setOf(newId)
-    }
-
     // Layer Stack Management (Row 2, Button 4: Layer ordering & Duplication)
     fun bringToFront() {
         val id = selectedShapeId ?: return
@@ -2022,6 +2268,14 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
+        if (isAspectLocked) {
+            val scale = if (handleName == "T" || handleName == "B") scaleY else if (handleName == "L" || handleName == "R") scaleX else {
+                if (kotlin.math.abs(scaleX - 1f) > kotlin.math.abs(scaleY - 1f)) scaleX else scaleY
+            }
+            scaleX = scale
+            scaleY = scale
+        }
+
         shapes = dragStartShapes.map { s ->
             if (activeIds.contains(s.id)) {
                 if (s.isLocked) s else s.copyWithScale(scaleX, scaleY, px, py)
@@ -2124,6 +2378,14 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             else -> {
                 return
             }
+        }
+
+        if (isAspectLocked) {
+            val scale = if (handleName == "T" || handleName == "B") scaleY else if (handleName == "L" || handleName == "R") scaleX else {
+                if (kotlin.math.abs(scaleX - 1f) > kotlin.math.abs(scaleY - 1f)) scaleX else scaleY
+            }
+            scaleX = scale
+            scaleY = scale
         }
 
         shapes = shapes.map { s ->
@@ -3201,7 +3463,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         pushToUndoStack()
 
         // Keeps sorting matching the layout stack order
-        val sortedSelected = shapes.filter { selected.any { sel -> sel.id == it.id } }
+        val sortedSelected = shapes.filter { selected.any { sel -> sel.id == it.id } }.map { it.bakedRoundedCorners() }
         
         var compositePath = preparePathForBoolean(sortedSelected[0].asComposePath())
         

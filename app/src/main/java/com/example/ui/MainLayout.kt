@@ -598,6 +598,72 @@ fun MainLayout(viewModel: VectorViewModel) {
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // Lock / Unlock aspect ratio selector
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Shape Aspect:",
+                                color = Color.White,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            // Lock Button (default)
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (viewModel.isAspectLocked) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                    .border(1.dp, if (viewModel.isAspectLocked) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        viewModel.isAspectLocked = true
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Lock,
+                                    contentDescription = "Lock",
+                                    tint = if (viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Lock",
+                                    color = if (viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
+                                )
+                            }
+
+                            // Unlock Button
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (!viewModel.isAspectLocked) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                    .border(1.dp, if (!viewModel.isAspectLocked) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        viewModel.isAspectLocked = false
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.LockOpen,
+                                    contentDescription = "Unlock",
+                                    tint = if (!viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Unlock",
+                                    color = if (!viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+
                         // Primitive list with previews!
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1194,6 +1260,9 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                 viewModel.updateSelectedShapeCornerRadius(radius)
                                             }
                                         },
+                                        onValueChangeFinished = {
+                                            viewModel.bakeBezierCorners()
+                                        },
                                         valueRange = 0f..250f,
                                         colors = SliderDefaults.colors(
                                             thumbColor = Color(0xFFFF5722),
@@ -1208,6 +1277,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
+                                    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
                                     Text("Radius:", color = Color.Gray, fontSize = 11.sp)
                                     val textVal = viewModel.manualCornerRadiusText
                                     androidx.compose.foundation.text.BasicTextField(
@@ -1222,6 +1292,11 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                 viewModel.updateSelectedShapeCornerRadius(radius)
                                             }
                                         },
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { 
+                                            viewModel.bakeBezierCorners()
+                                            focusManager.clearFocus()
+                                        }),
                                         textStyle = androidx.compose.ui.text.TextStyle(
                                             color = Color(0xFFFF5722),
                                             fontSize = 12.sp,
@@ -1557,16 +1632,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                             label = "Boolean",
                             onClick = {
                                 showBooleanInBottomScope = !showBooleanInBottomScope
-                            }
-                        )
-
-                        // 2. Stroke to Path
-                        IconButtonWithLabel(
-                            icon = Icons.Default.LinearScale,
-                            label = "StrokeToPath",
-                            onClick = {
-                                viewModel.strokeToPath()
-                                Toast.makeText(context, "Stroke converted to Path object!", Toast.LENGTH_SHORT).show()
                             }
                         )
 

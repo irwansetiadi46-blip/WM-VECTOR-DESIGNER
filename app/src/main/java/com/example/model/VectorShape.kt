@@ -212,6 +212,14 @@ data class VectorShape(
         }
     }
 
+    fun getRotatedBounds(): Rect {
+        if (type == ShapeType.TEXT) {
+            val estWidth = textContent.length * fontSize * 0.6f
+            return Rect(x, y - fontSize, x + estWidth, y + fontSize * 0.2f)
+        }
+        return asComposePath().getBounds()
+    }
+
     // Easy collision test: check if a point (mouse/finger touch) strikes the shape
     fun isPointInside(ptX: Float, ptY: Float): Boolean {
         if (!isVisible) return false
@@ -469,6 +477,111 @@ data class VectorShape(
             }
         }
         return customCornerRadii.getOrNull(index) ?: 0f
+    }
+
+    fun bakedRoundedCorners(): VectorShape {
+        if (type != ShapeType.BEZIER_PATH || customCornerRadii.none { it > 0.1f }) {
+            return this
+        }
+        val vertices = getCornerPoints()
+        if (vertices.isEmpty()) return this
+        
+        val n = vertices.size
+        val drawAsArc = BooleanArray(n)
+        val arcStarts = Array(n) { Offset.Zero }
+        val arcEnds = Array(n) { Offset.Zero }
+        val arcC1 = Array(n) { Offset.Zero }
+        val arcC2 = Array(n) { Offset.Zero }
+        
+        for (i in 0 until n) {
+            val pi = vertices[i]
+            val prevIndex = if (i > 0) i - 1 else n - 1
+            val nextIndex = if (i < n - 1) i + 1 else 0
+            
+            val pPrev = vertices[prevIndex]
+            val pNext = vertices[nextIndex]
+            
+            val r = customCornerRadii.getOrNull(i) ?: 0f
+            if (r > 0.1f) {
+                val v1 = pPrev - pi
+                val v2 = pNext - pi
+                val L1 = hypot(v1.x, v1.y)
+                val L2 = hypot(v2.x, v2.y)
+                if (L1 > 0.1f && L2 > 0.1f) {
+                    val u1 = Offset(v1.x / L1, v1.y / L1)
+                    val u2 = Offset(v2.x / L2, v2.y / L2)
+                    
+                    val c = u1.x * u2.x + u1.y * u2.y
+                    if (c < 0.99f && c > -0.99f) {
+                        val dReq = r * kotlin.math.sqrt((1f + c) / (1f - c))
+                        val dMax = minOf(L1, L2) / 2f
+                        val D = minOf(dReq, dMax)
+                        
+                        if (D > 0.1f) {
+                            val k = kotlin.math.sqrt((1f - c) / 2f)
+                            val f = (4f * k) / (3f * (1f + k))
+                            val L = f * D
+                            
+                            drawAsArc[i] = true
+                            arcStarts[i] = pi + u1 * D
+                            arcEnds[i] = pi + u2 * D
+                            arcC1[i] = arcStarts[i] - u1 * L
+                            arcC2[i] = arcEnds[i] - u2 * L
+                            continue
+                        }
+                    }
+                }
+            }
+            drawAsArc[i] = false
+        }
+        
+        val newNodes = mutableListOf<BezierNode>()
+        for (i in 0 until n) {
+            val nodePos = vertices[i]
+            val originalNode = bezierNodes.getOrNull(i) ?: BezierNode(
+                anchorX = nodePos.x, anchorY = nodePos.y, 
+                control1X = nodePos.x, control1Y = nodePos.y, 
+                control2X = nodePos.x, control2Y = nodePos.y
+            )
+            val isFirst = (i == 0)
+            if (drawAsArc[i]) {
+                newNodes.add(
+                    BezierNode(
+                        anchorX = arcStarts[i].x,
+                        anchorY = arcStarts[i].y,
+                        control1X = arcStarts[i].x,
+                        control1Y = arcStarts[i].y,
+                        control2X = arcStarts[i].x,
+                        control2Y = arcStarts[i].y,
+                        isCurve = false,
+                        isMoveTo = isFirst && (!isPathClosed || !drawAsArc[n-1])
+                    )
+                )
+                newNodes.add(
+                    BezierNode(
+                        anchorX = arcEnds[i].x,
+                        anchorY = arcEnds[i].y,
+                        control1X = arcC1[i].x,
+                        control1Y = arcC1[i].y,
+                        control2X = arcC2[i].x,
+                        control2Y = arcC2[i].y,
+                        isCurve = true,
+                        isMoveTo = false
+                    )
+                )
+            } else {
+                newNodes.add(
+                    originalNode.copy(
+                        isMoveTo = isFirst && (!isPathClosed || !drawAsArc[n-1])
+                    )
+                )
+            }
+        }
+        
+        return copy(
+            bezierNodes = newNodes,
+            customCornerRadii = emptyList()
+        )
     }
 
     fun buildRoundedVertexPath(vertices: List<Offset>, radii: List<Float>): Path {

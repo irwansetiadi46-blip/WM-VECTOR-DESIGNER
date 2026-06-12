@@ -60,7 +60,24 @@ private fun mapStrokeCap(capStr: String): StrokeCap {
     }
 }
 
-private fun getCombinedBoundingBox(shapeIds: Set<String>, list: List<VectorShape>): Rect? {
+private fun getRotatedCombinedBoundingBox(shapeIds: Set<String>, list: List<VectorShape>): Rect? {
+    val selectedShapes = list.filter { shapeIds.contains(it.id) }
+    if (selectedShapes.isEmpty()) return null
+    var minX = Float.MAX_VALUE
+    var minY = Float.MAX_VALUE
+    var maxX = -Float.MAX_VALUE
+    var maxY = -Float.MAX_VALUE
+    for (shape in selectedShapes) {
+        val b = shape.getRotatedBounds()
+        if (b.left < minX) minX = b.left
+        if (b.top < minY) minY = b.top
+        if (b.right > maxX) maxX = b.right
+        if (b.bottom > maxY) maxY = b.bottom
+    }
+    return Rect(minX, minY, maxX, maxY)
+}
+
+private fun getUnrotatedCombinedBoundingBox(shapeIds: Set<String>, list: List<VectorShape>): Rect? {
     val selectedShapes = list.filter { shapeIds.contains(it.id) }
     if (selectedShapes.isEmpty()) return null
     var minX = Float.MAX_VALUE
@@ -355,21 +372,27 @@ fun VectorCanvas(
                                                     activeDragHandle = "MARQUEE_SELECT"
                                                 }
                                             } else if (true) {
-                                            val bounds = getCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
-                                            val hSize = 25f / viewModel.zoomScale
-                                            val clickT = 32f / viewModel.zoomScale
+                                            val singleIdTemp = viewModel.selectedShapeIds.firstOrNull()
+                                            val bounds = if (viewModel.selectedShapeIds.size == 1 && singleIdTemp != null) {
+                                                getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                                            } else {
+                                                getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                                            }
+                                            val hSize = 30f / viewModel.zoomScale
+                                            val clickT = 38f / viewModel.zoomScale
 
                                             if (bounds != null) {
-                                                val centerX = (bounds.left + bounds.right) / 2f
-                                                val centerY = (bounds.top + bounds.bottom) / 2f
-                                                val topB = bounds.top - 46f / viewModel.zoomScale
-                                                val botB = bounds.bottom + 46f / viewModel.zoomScale
+                                                val b = bounds
+                                                val centerX = (b.left + b.right) / 2f
+                                                val centerY = (b.top + b.bottom) / 2f
+                                                val topB = b.top - 54f / viewModel.zoomScale
+                                                val botB = b.bottom + 54f / viewModel.zoomScale
                                                 
-                                                val delPos = Offset(centerX - 34f / viewModel.zoomScale, topB)
-                                                val dupPos = Offset(centerX + 34f / viewModel.zoomScale, topB)
-                                                val rotPos = Offset(centerX - 56f / viewModel.zoomScale, botB)
+                                                val delPos = Offset(centerX - 42f / viewModel.zoomScale, topB)
+                                                val dupPos = Offset(centerX + 42f / viewModel.zoomScale, topB)
+                                                val rotPos = Offset(centerX - 70f / viewModel.zoomScale, botB)
                                                 val movPos = Offset(centerX, botB)
-                                                val sclPos = Offset(centerX + 56f / viewModel.zoomScale, botB)
+                                                val sclPos = Offset(centerX + 70f / viewModel.zoomScale, botB)
 
                                                 val singleId = viewModel.selectedShapeIds.firstOrNull()
                                                 val rotationAngle = if (viewModel.selectedShapeIds.size == 1 && singleId != null) {
@@ -397,17 +420,20 @@ fun VectorCanvas(
                                                     hypot(localPos.x - dupPos.x, localPos.y - dupPos.y) < clickT -> activeDragHandle = "DUPLICATE_HOTSPOT"
                                                     hypot(localPos.x - rotPos.x, localPos.y - rotPos.y) < clickT -> activeDragHandle = "ROTATE_HOTSPOT"
                                                     hypot(localPos.x - movPos.x, localPos.y - movPos.y) < clickT -> activeDragHandle = "MOVE"
-                                                    hypot(localPos.x - sclPos.x, localPos.y - sclPos.y) < clickT -> activeDragHandle = "BR"
+                                                    hypot(localPos.x - sclPos.x, localPos.y - sclPos.y) < clickT -> {
+                                                        viewModel.isAspectLocked = !viewModel.isAspectLocked
+                                                        activeDragHandle = "LOCK_TOGGLE_HOTSPOT"
+                                                    }
                                                     
-                                                    hypot(localPos.x - bounds.left, localPos.y - bounds.top) < hSize * 2 -> activeDragHandle = "TL"
-                                                    hypot(localPos.x - bounds.right, localPos.y - bounds.top) < hSize * 2 -> activeDragHandle = "TR"
-                                                    hypot(localPos.x - bounds.left, localPos.y - bounds.bottom) < hSize * 2 -> activeDragHandle = "BL"
-                                                    hypot(localPos.x - bounds.right, localPos.y - bounds.bottom) < hSize * 2 -> activeDragHandle = "BR"
+                                                    hypot(localPos.x - b.left, localPos.y - b.top) < hSize * 2 -> activeDragHandle = "TL"
+                                                    hypot(localPos.x - b.right, localPos.y - b.top) < hSize * 2 -> activeDragHandle = "TR"
+                                                    hypot(localPos.x - b.left, localPos.y - b.bottom) < hSize * 2 -> activeDragHandle = "BL"
+                                                    hypot(localPos.x - b.right, localPos.y - b.bottom) < hSize * 2 -> activeDragHandle = "BR"
 
-                                                    hypot(localPos.x - centerX, localPos.y - bounds.top) < hSize * 2 -> activeDragHandle = "T"
-                                                    hypot(localPos.x - centerX, localPos.y - bounds.bottom) < hSize * 2 -> activeDragHandle = "B"
-                                                    hypot(localPos.x - bounds.left, localPos.y - ((bounds.top + bounds.bottom)/2f)) < hSize * 2 -> activeDragHandle = "L"
-                                                    hypot(localPos.x - bounds.right, localPos.y - ((bounds.top + bounds.bottom)/2f)) < hSize * 2 -> activeDragHandle = "R"
+                                                    hypot(localPos.x - centerX, localPos.y - b.top) < hSize * 2 -> activeDragHandle = "T"
+                                                    hypot(localPos.x - centerX, localPos.y - b.bottom) < hSize * 2 -> activeDragHandle = "B"
+                                                    hypot(localPos.x - b.left, localPos.y - ((b.top + b.bottom)/2f)) < hSize * 2 -> activeDragHandle = "L"
+                                                    hypot(localPos.x - b.right, localPos.y - ((b.top + b.bottom)/2f)) < hSize * 2 -> activeDragHandle = "R"
 
                                                     viewModel.shapes.any { s -> viewModel.selectedShapeIds.contains(s.id) && s.isPointInside(rawCanvasPos.x, rawCanvasPos.y) } -> activeDragHandle = "MOVE"
                                                     else -> {
@@ -646,22 +672,32 @@ fun VectorCanvas(
                                                             val primaryId = viewModel.selectedShapeId ?: viewModel.selectedShapeIds.firstOrNull()
                                                             val primaryShape = startShapes.find { it.id == primaryId }
                                                             if (primaryShape != null) {
-                                                                val originalAnchor = getPrimaryAnchor(primaryShape)
-                                                                val targetUnsnappedX = originalAnchor.x + totalDX
-                                                                val targetUnsnappedY = originalAnchor.y + totalDY
-                                                                val targetSnapped = if (viewModel.isSnapToGrid) {
-                                                                    val gridX = kotlin.math.round(targetUnsnappedX / viewModel.gridSize) * viewModel.gridSize
-                                                                    val gridY = kotlin.math.round(targetUnsnappedY / viewModel.gridSize) * viewModel.gridSize
-                                                                    Offset(gridX, gridY)
+                                                                val activeIds = viewModel.selectedShapeIds.ifEmpty { setOfNotNull(primaryId) }
+                                                                val selBounds = getUnrotatedCombinedBoundingBox(activeIds, startShapes)
+                                                                val finalDX: Float
+                                                                val finalDY: Float
+                                                                if (selBounds != null && !viewModel.isSnapToGrid) {
+                                                                    val snappedDisplacement = viewModel.snapSelectionComprehensive(selBounds, totalDX, totalDY, activeIds)
+                                                                    finalDX = snappedDisplacement.x
+                                                                    finalDY = snappedDisplacement.y
                                                                 } else {
-                                                                    viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = primaryId)
+                                                                    val originalAnchor = getPrimaryAnchor(primaryShape)
+                                                                    val targetUnsnappedX = originalAnchor.x + totalDX
+                                                                    val targetUnsnappedY = originalAnchor.y + totalDY
+                                                                    val targetSnapped = if (viewModel.isSnapToGrid) {
+                                                                        val gridX = kotlin.math.round(targetUnsnappedX / viewModel.gridSize) * viewModel.gridSize
+                                                                        val gridY = kotlin.math.round(targetUnsnappedY / viewModel.gridSize) * viewModel.gridSize
+                                                                        Offset(gridX, gridY)
+                                                                    } else {
+                                                                        viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = primaryId)
+                                                                    }
+                                                                    finalDX = targetSnapped.x - originalAnchor.x
+                                                                    finalDY = targetSnapped.y - originalAnchor.y
                                                                 }
-                                                                val finalDX = targetSnapped.x - originalAnchor.x
-                                                                val finalDY = targetSnapped.y - originalAnchor.y
-                                                                viewModel.translateShapesAbsolute(startShapes, viewModel.selectedShapeIds.ifEmpty { setOfNotNull(primaryId) }, finalDX, finalDY)
+                                                                viewModel.translateShapesAbsolute(startShapes, activeIds, finalDX, finalDY)
                                                             }
                                                         } else if (handle == "ROTATE_HOTSPOT") {
-                                                            val bounds = getCombinedBoundingBox(viewModel.selectedShapeIds, dragStartShapes ?: viewModel.shapes)
+                                                            val bounds = getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, dragStartShapes ?: viewModel.shapes)
                                                             if (bounds != null && initialTouchCanvasPos != null && dragStartShapes != null) {
                                                                 val center = Offset((bounds.left + bounds.right) / 2f, (bounds.top + bounds.bottom) / 2f)
                                                                 val startVec = initialTouchCanvasPos!! - center
@@ -676,7 +712,11 @@ fun VectorCanvas(
                                                         } else {
                                                             // Absolute resize snapping logic
                                                             val activeIds = if (viewModel.selectedShapeIds.contains(id)) viewModel.selectedShapeIds else setOf(id)
-                                                            val bounds = getCombinedBoundingBox(activeIds, startShapes)
+                                                            val bounds = if (activeIds.size == 1) {
+                                                                getUnrotatedCombinedBoundingBox(activeIds, startShapes)
+                                                            } else {
+                                                                getRotatedCombinedBoundingBox(activeIds, startShapes)
+                                                            }
                                                             if (bounds != null) {
                                                                 val startHandlePos = getHandleStartPos(bounds, handle)
                                                                 val singleId = activeIds.firstOrNull()
@@ -775,19 +815,29 @@ fun VectorCanvas(
                                                             val totalDY = rawCanvasPos.y - initialTouchCanvasPos!!.y
                                                             val primaryShape = dragStartShapes!!.find { it.id == id }
                                                             if (primaryShape != null) {
+                                                                val activeIds = if (viewModel.selectedShapeIds.contains(id)) viewModel.selectedShapeIds else setOf(id)
+                                                                val selBounds = getUnrotatedCombinedBoundingBox(activeIds, dragStartShapes!!)
                                                                 val originalAnchor = getPrimaryAnchor(primaryShape)
                                                                 val targetUnsnappedX = originalAnchor.x + totalDX
                                                                 val targetUnsnappedY = originalAnchor.y + totalDY
-                                                                val targetSnapped = if (viewModel.isSnapToGrid) {
-                                                                    val gridX = kotlin.math.round(targetUnsnappedX / viewModel.gridSize) * viewModel.gridSize
-                                                                    val gridY = kotlin.math.round(targetUnsnappedY / viewModel.gridSize) * viewModel.gridSize
-                                                                    Offset(gridX, gridY)
+                                                                val finalDX: Float
+                                                                val finalDY: Float
+                                                                if (selBounds != null && !viewModel.isSnapToGrid) {
+                                                                    val snappedDisplacement = viewModel.snapSelectionComprehensive(selBounds, totalDX, totalDY, activeIds)
+                                                                    finalDX = snappedDisplacement.x
+                                                                    finalDY = snappedDisplacement.y
                                                                 } else {
-                                                                    viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = id)
+                                                                    val targetSnapped = if (viewModel.isSnapToGrid) {
+                                                                        val gridX = kotlin.math.round(targetUnsnappedX / viewModel.gridSize) * viewModel.gridSize
+                                                                        val gridY = kotlin.math.round(targetUnsnappedY / viewModel.gridSize) * viewModel.gridSize
+                                                                        Offset(gridX, gridY)
+                                                                    } else {
+                                                                        viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = id)
+                                                                    }
+                                                                    finalDX = targetSnapped.x - originalAnchor.x
+                                                                    finalDY = targetSnapped.y - originalAnchor.y
                                                                 }
-                                                                val finalDX = targetSnapped.x - originalAnchor.x
-                                                                val finalDY = targetSnapped.y - originalAnchor.y
-                                                                viewModel.translateShapesAbsolute(dragStartShapes!!, setOf(id), finalDX, finalDY)
+                                                                viewModel.translateShapesAbsolute(dragStartShapes!!, activeIds, finalDX, finalDY)
                                                             }
                                                         }
                                                     }
@@ -845,18 +895,26 @@ fun VectorCanvas(
                                             if (hypot(e.x - s.x, e.y - s.y) > 10f / viewModel.zoomScale) viewModel.addPrimitiveShape(s, e)
                                         } else if (viewModel.currentTool == VectorTool.POINTER) {
                                             if (hypot(e.x - s.x, e.y - s.y) < 6f) {
-                                                val bounds = getCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
-                                                val clickT = 32f / viewModel.zoomScale
+                                                val bounds = if (viewModel.selectedShapeIds.size == 1) {
+                                                    getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                                                } else {
+                                                    getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                                                }
+                                                val clickT = 40f / viewModel.zoomScale
                                                 var triggeredTab = false
                                                 if (bounds != null) {
                                                     val centerX = (bounds.left + bounds.right) / 2f
-                                                    val topB = bounds.top - 46f / viewModel.zoomScale
-                                                    val delPos = Offset(centerX - 34f / viewModel.zoomScale, topB)
-                                                    val dupPos = Offset(centerX + 34f / viewModel.zoomScale, topB)
+                                                    val topB = bounds.top - 54f / viewModel.zoomScale
+                                                    val delPos = Offset(centerX - 42f / viewModel.zoomScale, topB)
+                                                    val dupPos = Offset(centerX + 42f / viewModel.zoomScale, topB)
                                                     if (hypot(e.x - delPos.x, e.y - delPos.y) < clickT) {
                                                         viewModel.deleteSelectedShape()
                                                         triggeredTab = true
                                                     } else if (hypot(e.x - dupPos.x, e.y - dupPos.y) < clickT) {
+                                                         triggeredTab = true
+                                                     } else if (hypot(e.x - (centerX + 70f / viewModel.zoomScale), e.y - (bounds.bottom + 54f / viewModel.zoomScale)) < clickT) { triggeredTab = true } else if (hypot(e.x - dupPos.x, e.y - dupPos.y) < clickT) { viewModel.duplicateSelected(); triggeredTab = true } else if (false) {
+                                                         triggeredTab = true
+                                                     } else if (hypot(e.x - dupPos.x, e.y - dupPos.y) < clickT) {
                                                         viewModel.duplicateSelected()
                                                         triggeredTab = true
                                                     }
@@ -879,6 +937,9 @@ fun VectorCanvas(
                                                 viewModel.selectedShapeIds = matchingShapeIds
                                                 viewModel.selectedShapeId = matchingShapeIds.firstOrNull()
                                             } else {
+                                                if (activeDragHandle == "ROUNDED_CORNER" || activeDragHandle == "ROUNDED_CORNER_ALL") {
+                                                    viewModel.bakeBezierCorners()
+                                                }
                                                 viewModel.finishTransformation()
                                             }
                                         } else if (viewModel.currentTool == VectorTool.BRUSH) {
@@ -926,7 +987,7 @@ fun VectorCanvas(
                                 }
                             }
                             
-                            viewModel.activeSmartGuideHorizontal = null
+                            viewModel.activeSmartGuideHorizontal = null; viewModel.activeSmartGuidesList = emptyList()
                             viewModel.activeSmartGuideVertical = null
                             
                             if (viewModel.currentTool == VectorTool.PEN) {
@@ -984,22 +1045,123 @@ fun VectorCanvas(
 
                 viewModel.activeSmartGuideHorizontal?.let { y ->
                     drawLine(
-                        color = Color(0xFFFF5252),
+                        color = Color(0xFFFF007F),
                         start = Offset(0f, y),
                         end = Offset(canvasWidthVal, y),
-                        strokeWidth = 2f / viewModel.zoomScale,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f / viewModel.zoomScale, 6f / viewModel.zoomScale), 0f)
+                        strokeWidth = 1.5f / viewModel.zoomScale,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f / viewModel.zoomScale, 5f / viewModel.zoomScale), 0f)
                     )
                 }
 
                 viewModel.activeSmartGuideVertical?.let { x ->
                     drawLine(
-                        color = Color(0xFFFF5252),
+                        color = Color(0xFFFF007F),
                         start = Offset(x, 0f),
                         end = Offset(x, canvasHeightVal),
-                        strokeWidth = 2f / viewModel.zoomScale,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f / viewModel.zoomScale, 6f / viewModel.zoomScale), 0f)
+                        strokeWidth = 1.5f / viewModel.zoomScale,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f / viewModel.zoomScale, 5f / viewModel.zoomScale), 0f)
                     )
+                }
+
+                // Draw refined alignment and spacing guides
+                viewModel.activeSmartGuidesList.forEach { guide ->
+                    if (guide.type == "ALIGN_LINE") {
+                        // Figma-style high-clarity alignment lines (magenta dash)
+                        drawLine(
+                            color = Color(0xFFFF007F), // Pro magenta color
+                            start = Offset(guide.x1, guide.y1),
+                            end = Offset(guide.x2, guide.y2),
+                            strokeWidth = 2f / viewModel.zoomScale,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f / viewModel.zoomScale, 5f / viewModel.zoomScale), 0f)
+                        )
+                        // Little anchoring squares at the ends to show precision
+                        val dotRadius = 3f / viewModel.zoomScale
+                        drawRect(
+                            color = Color(0xFFFF007F),
+                            topLeft = Offset(guide.x1 - dotRadius, guide.y1 - dotRadius),
+                            size = Size(dotRadius * 2f, dotRadius * 2f)
+                        )
+                        drawRect(
+                            color = Color(0xFFFF007F),
+                            topLeft = Offset(guide.x2 - dotRadius, guide.y2 - dotRadius),
+                            size = Size(dotRadius * 2f, dotRadius * 2f)
+                        )
+                    } else if (guide.type == "SPACING") {
+                        // Equal spacing visual guides!
+                        // 1. Draw connecting solid line
+                        drawLine(
+                            color = Color(0xFF00BFA5), // Teal/Cyan for spacing!
+                            start = Offset(guide.x1, guide.y1),
+                            end = Offset(guide.x2, guide.y2),
+                            strokeWidth = 1.5f / viewModel.zoomScale
+                        )
+                        // 2. Draw T-bar brackets at the ends of the gap
+                        val bracketSize = 6f / viewModel.zoomScale
+                        val isHorizontal = kotlin.math.abs(guide.y1 - guide.y2) < 1f
+                        if (isHorizontal) {
+                            drawLine(
+                                color = Color(0xFF00BFA5),
+                                start = Offset(guide.x1, guide.y1 - bracketSize),
+                                end = Offset(guide.x1, guide.y1 + bracketSize),
+                                strokeWidth = 1.5f / viewModel.zoomScale
+                            )
+                            drawLine(
+                                color = Color(0xFF00BFA5),
+                                start = Offset(guide.x2, guide.y2 - bracketSize),
+                                end = Offset(guide.x2, guide.y2 + bracketSize),
+                                strokeWidth = 1.5f / viewModel.zoomScale
+                            )
+                        } else {
+                            drawLine(
+                                color = Color(0xFF00BFA5),
+                                start = Offset(guide.x1 - bracketSize, guide.y1),
+                                end = Offset(guide.x1 + bracketSize, guide.y1),
+                                strokeWidth = 1.5f / viewModel.zoomScale
+                            )
+                            drawLine(
+                                color = Color(0xFF00BFA5),
+                                start = Offset(guide.x2 - bracketSize, guide.y2),
+                                end = Offset(guide.x2 + bracketSize, guide.y2),
+                                strokeWidth = 1.5f / viewModel.zoomScale
+                            )
+                        }
+                        // 3. Draw spacing label text inside a nice bubble!
+                        if (guide.label.isNotEmpty()) {
+                            val midX = (guide.x1 + guide.x2) / 2f
+                            val midY = (guide.y1 + guide.y2) / 2f
+                            
+                            val textPaint = android.graphics.Paint().apply {
+                                color = android.graphics.Color.WHITE
+                                textSize = 11f / viewModel.zoomScale
+                                textAlign = android.graphics.Paint.Align.CENTER
+                                isAntiAlias = true
+                                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+                            }
+                            
+                            val rectBounds = android.graphics.Rect()
+                            textPaint.getTextBounds(guide.label, 0, guide.label.length, rectBounds)
+                            
+                            val paddingX = 6f / viewModel.zoomScale
+                            val paddingY = 4f / viewModel.zoomScale
+                            val bubbleW = rectBounds.width() / viewModel.zoomScale + paddingX * 2f
+                            val bubbleH = rectBounds.height() / viewModel.zoomScale + paddingY * 2f
+                            
+                            drawRect(
+                                color = Color(0xFF00BFA5),
+                                topLeft = Offset(midX - bubbleW / 2f, midY - bubbleH / 2f),
+                                size = Size(bubbleW, bubbleH),
+                                style = androidx.compose.ui.graphics.drawscope.Fill
+                            )
+                            
+                            // Native text drawing
+                            drawContext.canvas.nativeCanvas.drawText(
+                                guide.label,
+                                midX,
+                                midY + (rectBounds.height() / 2f) / viewModel.zoomScale,
+                                textPaint
+                            )
+                        }
+                    }
                 }
 
                 val activeTracer = viewModel.activeTracerImageIndex
@@ -1342,25 +1504,28 @@ fun VectorCanvas(
                     val outlineColor = Color(android.graphics.Color.parseColor(viewModel.currentStrokeColorHex))
                     val previewWidth = viewModel.currentStrokeWidth
                     val fillC = Color(android.graphics.Color.parseColor(viewModel.currentFillColorHex)).copy(alpha = 0.4f)
+                    val isAspectLocked = viewModel.isAspectLocked
 
                     when (viewModel.activePrimitiveType) {
                         PrimitiveType.RECTANGLE -> {
-                            val rx = minOf(s.x, e.x)
-                            val ry = minOf(s.y, e.y)
                             val rw = abs(e.x - s.x)
                             val rh = abs(e.y - s.y)
+                            val w = if (isAspectLocked) maxOf(rw, rh) else rw
+                            val h = if (isAspectLocked) maxOf(rw, rh) else rh
+                            val rx = if (e.x >= s.x) s.x else s.x - w
+                            val ry = if (e.y >= s.y) s.y else s.y - h
                             
                             if (viewModel.hasFillEnabled) {
                                 drawRect(
                                     color = fillC,
                                     topLeft = Offset(rx, ry),
-                                    size = Size(rw, rh)
+                                    size = Size(w, h)
                                 )
                             }
                             drawRect(
                                 color = outlineColor,
                                 topLeft = Offset(rx, ry),
-                                size = Size(rw, rh),
+                                size = Size(w, h),
                                 style = Stroke(
                                     width = previewWidth
                                 )
@@ -1369,17 +1534,19 @@ fun VectorCanvas(
                         PrimitiveType.ELLIPSE -> {
                             val rx = abs(e.x - s.x)
                             val ry = abs(e.y - s.y)
+                            val w = if (isAspectLocked) maxOf(rx, ry) else rx
+                            val h = if (isAspectLocked) maxOf(rx, ry) else ry
                             if (viewModel.hasFillEnabled) {
                                 drawOval(
                                     color = fillC,
-                                    topLeft = Offset(s.x - rx, s.y - ry),
-                                    size = Size(rx * 2f, ry * 2f)
+                                    topLeft = Offset(s.x - w, s.y - h),
+                                    size = Size(w * 2f, h * 2f)
                                 )
                             }
                             drawOval(
                                 color = outlineColor,
-                                topLeft = Offset(s.x - rx, s.y - ry),
-                                size = Size(rx * 2f, ry * 2f),
+                                topLeft = Offset(s.x - w, s.y - h),
+                                size = Size(w * 2f, h * 2f),
                                 style = Stroke(
                                     width = previewWidth
                                 )
@@ -1397,9 +1564,11 @@ fun VectorCanvas(
                             val path = Path().apply {
                                 val rx = abs(e.x - s.x)
                                 val ry = abs(e.y - s.y)
-                                moveTo(s.x, s.y - ry)
-                                lineTo(s.x + rx, s.y + ry)
-                                lineTo(s.x - rx, s.y + ry)
+                                val w = if (isAspectLocked) maxOf(rx, ry) else rx
+                                val h = if (isAspectLocked) maxOf(rx, ry) else ry
+                                moveTo(s.x, s.y - h)
+                                lineTo(s.x + w, s.y + h)
+                                lineTo(s.x - w, s.y + h)
                                 close()
                             }
                             if (viewModel.hasFillEnabled) {
@@ -1418,10 +1587,12 @@ fun VectorCanvas(
                             val path = Path().apply {
                                 val rx = abs(e.x - s.x)
                                 val ry = abs(e.y - s.y)
+                                val w = if (isAspectLocked) maxOf(rx, ry) else rx
+                                val h = if (isAspectLocked) maxOf(rx, ry) else ry
                                 for (i in 0 until sides) {
                                     val angle = i * 2 * Math.PI / sides - Math.PI / 2
-                                    val px = s.x + rx * kotlin.math.cos(angle).toFloat()
-                                    val py = s.y + ry * kotlin.math.sin(angle).toFloat()
+                                    val px = s.x + w * kotlin.math.cos(angle).toFloat()
+                                    val py = s.y + h * kotlin.math.sin(angle).toFloat()
                                     if (i == 0) moveTo(px, py)
                                     else lineTo(px, py)
                                 }
@@ -1443,13 +1614,15 @@ fun VectorCanvas(
                             val path = Path().apply {
                                 val rx = abs(e.x - s.x)
                                 val ry = abs(e.y - s.y)
-                                val innerRx = rx * 0.4f
-                                val innerRy = ry * 0.4f
+                                val w = if (isAspectLocked) maxOf(rx, ry) else rx
+                                val h = if (isAspectLocked) maxOf(rx, ry) else ry
+                                val innerRx = w * 0.4f
+                                val innerRy = h * 0.4f
                                 val totalPoints = pts * 2
                                 for (i in 0 until totalPoints) {
                                     val angle = i * Math.PI / pts - Math.PI / 2
-                                    val rXFactor = if (i % 2 == 0) rx else innerRx
-                                    val rYFactor = if (i % 2 == 0) ry else innerRy
+                                    val rXFactor = if (i % 2 == 0) w else innerRx
+                                    val rYFactor = if (i % 2 == 0) h else innerRy
                                     val px = s.x + rXFactor * kotlin.math.cos(angle).toFloat()
                                     val py = s.y + rYFactor * kotlin.math.sin(angle).toFloat()
                                     if (i == 0) moveTo(px, py)
@@ -1498,11 +1671,31 @@ fun VectorCanvas(
                 }
 
                 if (viewModel.currentTool == VectorTool.POINTER && viewModel.selectedShapeIds.isNotEmpty()) {
-                    val bounds = getCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
-                    if (bounds != null) {
+                    var bAngle = 0f
+                    val bounds = if (viewModel.selectedShapeIds.size == 1) {
                         val singleId = viewModel.selectedShapeIds.firstOrNull()
-                        val singleShape = if (viewModel.selectedShapeIds.size == 1) viewModel.shapes.find { it.id == singleId } else null
-                        val bAngle = singleShape?.rotationAngle ?: 0f
+                        val singleShape = viewModel.shapes.find { it.id == singleId }
+                        bAngle = singleShape?.rotationAngle ?: 0f
+                        getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                    } else if (activeDragHandle == "ROTATE_HOTSPOT" && dragStartShapes != null && initialTouchCanvasPos != null && currentTouchPos != null) {
+                        val startingBounds = getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, dragStartShapes!!)
+                        if (startingBounds != null) {
+                            val center = Offset((startingBounds.left + startingBounds.right) / 2f, (startingBounds.top + startingBounds.bottom) / 2f)
+                            val startVec = initialTouchCanvasPos!! - center
+                            val currentVec = currentTouchPos!! - center
+                            val startAngle = Math.toDegrees(Math.atan2(startVec.y.toDouble(), startVec.x.toDouble())).toFloat()
+                            val currentAngle = Math.toDegrees(Math.atan2(currentVec.y.toDouble(), currentVec.x.toDouble())).toFloat()
+                            var diff = currentAngle - startAngle
+                            if (diff < -180f) diff += 360f
+                            if (diff > 180f) diff -= 360f
+                            bAngle = diff
+                        }
+                        startingBounds
+                    } else {
+                        getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                    }
+
+                    if (bounds != null) {
                         val cX = (bounds.left + bounds.right) / 2f
                         val cY = (bounds.top + bounds.bottom) / 2f
                         if (bAngle != 0f) {
@@ -1519,7 +1712,7 @@ fun VectorCanvas(
                         )
 
                         // 2. Draw beautifully larger white-filled rounded corner handles with purple borders
-                        val hRad = 8.5f / viewModel.zoomScale
+                        val hRad = 12f / viewModel.zoomScale
                         val borderW = 1.8f / viewModel.zoomScale
                         val cornerPoints = listOf(
                             Offset(bounds.left, bounds.top),
@@ -1542,8 +1735,8 @@ fun VectorCanvas(
                         }
 
                         // 3. Draw 4 larger elongated side pills (untuk mempermudah resize sisi) dengan fill putih & border ungu
-                        val pillW = 22f / viewModel.zoomScale
-                        val pillH = 8f / viewModel.zoomScale
+                        val pillW = 28f / viewModel.zoomScale
+                        val pillH = 12f / viewModel.zoomScale
                         val centerX = (bounds.left + bounds.right) / 2f
                         val centerY = (bounds.top + bounds.bottom) / 2f
 
@@ -1605,16 +1798,16 @@ fun VectorCanvas(
                         )
 
                         // 4. Draw action buttons (centered floating further out & much larger with high-contrast borders)
-                        val topB = bounds.top - 46f / viewModel.zoomScale
-                        val botB = bounds.bottom + 46f / viewModel.zoomScale
+                        val topB = bounds.top - 54f / viewModel.zoomScale
+                        val botB = bounds.bottom + 54f / viewModel.zoomScale
 
-                        val delPos = Offset(centerX - 34f / viewModel.zoomScale, topB)
-                        val dupPos = Offset(centerX + 34f / viewModel.zoomScale, topB)
-                        val rotPos = Offset(centerX - 56f / viewModel.zoomScale, botB)
+                        val delPos = Offset(centerX - 42f / viewModel.zoomScale, topB)
+                        val dupPos = Offset(centerX + 42f / viewModel.zoomScale, topB)
+                        val rotPos = Offset(centerX - 70f / viewModel.zoomScale, botB)
                         val movPos = Offset(centerX, botB)
-                        val sclPos = Offset(centerX + 56f / viewModel.zoomScale, botB)
+                        val sclPos = Offset(centerX + 70f / viewModel.zoomScale, botB)
 
-                        val bRadius = 19f / viewModel.zoomScale
+                        val bRadius = 24f / viewModel.zoomScale
                         val strokeW = 1.8f / viewModel.zoomScale
 
                         val drawIconCircle: (Offset, String) -> Unit = { centerPt, iconType ->
@@ -1631,103 +1824,266 @@ fun VectorCanvas(
                             )
                             when (iconType) {
                                 "DELETE" -> {
-                                    val w = 11f / viewModel.zoomScale
-                                    val h = 13f / viewModel.zoomScale
+                                    val w = 12f / viewModel.zoomScale
+                                    val h = 14f / viewModel.zoomScale
+                                    val lidY = centerPt.y - h/2f + 3f/viewModel.zoomScale
+                                    
+                                    // 1. Lid handle (top)
+                                    drawRoundRect(
+                                        color = Color.White,
+                                        topLeft = Offset(centerPt.x - 3f/viewModel.zoomScale, centerPt.y - h/2f + 0.5f/viewModel.zoomScale),
+                                        size = Size(6f/viewModel.zoomScale, 3f/viewModel.zoomScale),
+                                        cornerRadius = CornerRadius(1f/viewModel.zoomScale, 1f/viewModel.zoomScale),
+                                        style = Stroke(width = strokeW)
+                                    )
+                                    
+                                    // 2. Lid/rim line
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(centerPt.x - w/2f, centerPt.y - h/2f + 2f/viewModel.zoomScale),
-                                        end = Offset(centerPt.x + w/2f, centerPt.y - h/2f + 2f/viewModel.zoomScale),
+                                        start = Offset(centerPt.x - w/2f - 1.5f/viewModel.zoomScale, lidY),
+                                        end = Offset(centerPt.x + w/2f + 1.5f/viewModel.zoomScale, lidY),
+                                        strokeWidth = strokeW
+                                    )
+                                    
+                                    // 3. Body of the bin
+                                    val binLeftTop = centerPt.x - w/2f + 1f/viewModel.zoomScale
+                                    val binRightTop = centerPt.x + w/2f - 1f/viewModel.zoomScale
+                                    val binLeftBot = centerPt.x - w/2f + 2f/viewModel.zoomScale
+                                    val binRightBot = centerPt.x + w/2f - 2f/viewModel.zoomScale
+                                    val binBottomY = centerPt.y + h/2f
+                                    
+                                    // Bottom line
+                                    drawLine(
+                                        color = Color.White,
+                                        start = Offset(binLeftBot, binBottomY),
+                                        end = Offset(binRightBot, binBottomY),
+                                        strokeWidth = strokeW
+                                    )
+                                    // Left border
+                                    drawLine(
+                                        color = Color.White,
+                                        start = Offset(binLeftTop, lidY),
+                                        end = Offset(binLeftBot, binBottomY),
+                                        strokeWidth = strokeW
+                                    )
+                                    // Right border
+                                    drawLine(
+                                        color = Color.White,
+                                        start = Offset(binRightTop, lidY),
+                                        end = Offset(binRightBot, binBottomY),
+                                        strokeWidth = strokeW
+                                    )
+                                    
+                                    // 4. Vertical stripes inside the bin
+                                    val stripeYStart = lidY + 3f/viewModel.zoomScale
+                                    val stripeYEnd = binBottomY - 2.5f/viewModel.zoomScale
+                                    drawLine(
+                                        color = Color.White,
+                                        start = Offset(centerPt.x - 2f/viewModel.zoomScale, stripeYStart),
+                                        end = Offset(centerPt.x - 2f/viewModel.zoomScale, stripeYEnd),
                                         strokeWidth = strokeW
                                     )
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(centerPt.x - w/4f, centerPt.y - h/2f),
-                                        end = Offset(centerPt.x + w/4f, centerPt.y - h/2f),
-                                        strokeWidth = strokeW
-                                    )
-                                    drawLine(
-                                        color = Color.White,
-                                        start = Offset(centerPt.x - w/3f, centerPt.y - h/2f + 2f/viewModel.zoomScale),
-                                        end = Offset(centerPt.x - w/3f, centerPt.y + h/2f),
-                                        strokeWidth = strokeW
-                                    )
-                                    drawLine(
-                                        color = Color.White,
-                                        start = Offset(centerPt.x + w/3f, centerPt.y - h/2f + 2f/viewModel.zoomScale),
-                                        end = Offset(centerPt.x + w/3f, centerPt.y + h/2f),
-                                        strokeWidth = strokeW
-                                    )
-                                    drawLine(
-                                        color = Color.White,
-                                        start = Offset(centerPt.x - w/3f, centerPt.y + h/2f),
-                                        end = Offset(centerPt.x + w/3f, centerPt.y + h/2f),
+                                        start = Offset(centerPt.x + 2f/viewModel.zoomScale, stripeYStart),
+                                        end = Offset(centerPt.x + 2f/viewModel.zoomScale, stripeYEnd),
                                         strokeWidth = strokeW
                                     )
                                 }
                                 "DUPLICATE" -> {
-                                    val sz = 8f / viewModel.zoomScale
-                                    drawRect(
+                                    val w = 10f / viewModel.zoomScale
+                                    val h = 13f / viewModel.zoomScale
+                                    val rCorner = 1.8f / viewModel.zoomScale
+                                    val shift = 3.5f / viewModel.zoomScale
+                                    
+                                    // Back document
+                                    drawRoundRect(
                                         color = Color.White,
-                                        topLeft = Offset(centerPt.x - sz + 1.5f/viewModel.zoomScale, centerPt.y - sz + 1.5f/viewModel.zoomScale),
-                                        size = Size(sz, sz),
+                                        topLeft = Offset(centerPt.x - w/2f - shift/2f, centerPt.y - h/2f - shift/2f),
+                                        size = Size(w, h),
+                                        cornerRadius = CornerRadius(rCorner, rCorner),
                                         style = Stroke(width = strokeW)
                                     )
-                                    drawRect(
+                                    // Front document fill (obscuring underlying lines)
+                                    drawRoundRect(
+                                        color = Color(0xFF7C4C90),
+                                        topLeft = Offset(centerPt.x - w/2f + shift/2f, centerPt.y - h/2f + shift/2f),
+                                        size = Size(w, h),
+                                        cornerRadius = CornerRadius(rCorner, rCorner)
+                                    )
+                                    // Front document stroke
+                                    drawRoundRect(
                                         color = Color.White,
-                                        topLeft = Offset(centerPt.x - 1.5f/viewModel.zoomScale, centerPt.y - 1.5f/viewModel.zoomScale),
-                                        size = Size(sz, sz),
+                                        topLeft = Offset(centerPt.x - w/2f + shift/2f, centerPt.y - h/2f + shift/2f),
+                                        size = Size(w, h),
+                                        cornerRadius = CornerRadius(rCorner, rCorner),
                                         style = Stroke(width = strokeW)
                                     )
                                 }
                                 "ROTATE" -> {
-                                    val r = 6f / viewModel.zoomScale
+                                    val r = 6.5f / viewModel.zoomScale
+                                    
+                                    // Arc 1: Top-Left to Top-Right
                                     drawArc(
                                         color = Color.White,
-                                        startAngle = 45f,
-                                        sweepAngle = 270f,
+                                        startAngle = 190f,
+                                        sweepAngle = 140f,
                                         useCenter = false,
                                         topLeft = Offset(centerPt.x - r, centerPt.y - r),
                                         size = Size(r*2f, r*2f),
                                         style = Stroke(width = strokeW)
                                     )
+                                    
+                                    // Arc 2: Bottom-Right to Bottom-Left
+                                    drawArc(
+                                        color = Color.White,
+                                        startAngle = 10f,
+                                        sweepAngle = 140f,
+                                        useCenter = false,
+                                        topLeft = Offset(centerPt.x - r, centerPt.y - r),
+                                        size = Size(r*2f, r*2f),
+                                        style = Stroke(width = strokeW)
+                                    )
+                                    
+                                    // Arrowhead 1 at tip of Arc 1 (which ends at 190 + 140 = 330 degrees)
+                                    val t1Rad = Math.toRadians(330.0)
+                                    val cosT1 = kotlin.math.cos(t1Rad).toFloat()
+                                    val sinT1 = kotlin.math.sin(t1Rad).toFloat()
+                                    val tip1X = centerPt.x + r * cosT1
+                                    val tip1Y = centerPt.y + r * sinT1
+                                    val arrLen = 3.5f / viewModel.zoomScale
+                                    
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(centerPt.x + r - 2f/viewModel.zoomScale, centerPt.y + 0.5f/viewModel.zoomScale),
-                                        end = Offset(centerPt.x + r + 2f/viewModel.zoomScale, centerPt.y + 3f/viewModel.zoomScale),
+                                        start = Offset(tip1X, tip1Y),
+                                        end = Offset(tip1X - arrLen * cosT1, tip1Y - arrLen * sinT1),
+                                        strokeWidth = strokeW
+                                    )
+                                    drawLine(
+                                        color = Color.White,
+                                        start = Offset(tip1X, tip1Y),
+                                        end = Offset(tip1X + arrLen * sinT1, tip1Y - arrLen * cosT1),
+                                        strokeWidth = strokeW
+                                    )
+                                    
+                                    // Arrowhead 2 at tip of Arc 2 (which ends at 10 + 140 = 150 degrees)
+                                    val t2Rad = Math.toRadians(150.0)
+                                    val cosT2 = kotlin.math.cos(t2Rad).toFloat()
+                                    val sinT2 = kotlin.math.sin(t2Rad).toFloat()
+                                    val tip2X = centerPt.x + r * cosT2
+                                    val tip2Y = centerPt.y + r * sinT2
+                                    
+                                    drawLine(
+                                        color = Color.White,
+                                        start = Offset(tip2X, tip2Y),
+                                        end = Offset(tip2X - arrLen * cosT2, tip2Y - arrLen * sinT2),
+                                        strokeWidth = strokeW
+                                    )
+                                    drawLine(
+                                        color = Color.White,
+                                        start = Offset(tip2X, tip2Y),
+                                        end = Offset(tip2X + arrLen * sinT2, tip2Y - arrLen * cosT2),
                                         strokeWidth = strokeW
                                     )
                                 }
                                 "MOVE" -> {
-                                    val len = 7f / viewModel.zoomScale
+                                    val len = 8.5f / viewModel.zoomScale
+                                    val arrSize = 2.8f / viewModel.zoomScale
+                                    
+                                    // Horizontal Line
                                     drawLine(
                                         color = Color.White,
                                         start = Offset(centerPt.x - len, centerPt.y),
-                                        end = Offset(centerPt.x, centerPt.y),
+                                        end = Offset(centerPt.x + len, centerPt.y),
                                         strokeWidth = strokeW
                                     )
+                                    // Vertical Line
                                     drawLine(
                                         color = Color.White,
                                         start = Offset(centerPt.x, centerPt.y - len),
                                         end = Offset(centerPt.x, centerPt.y + len),
                                         strokeWidth = strokeW
                                     )
-                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y), end = Offset(centerPt.x - len + 2.5f/viewModel.zoomScale, centerPt.y - 2.5f/viewModel.zoomScale), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y), end = Offset(centerPt.x - len + 2.5f/viewModel.zoomScale, centerPt.y + 2.5f/viewModel.zoomScale), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y), end = Offset(centerPt.x + len - 2.5f/viewModel.zoomScale, centerPt.y - 2.5f/viewModel.zoomScale), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y), end = Offset(centerPt.x + len - 2.5f/viewModel.zoomScale, centerPt.y + 2.5f/viewModel.zoomScale), strokeWidth = strokeW)
+                                    
+                                    // Left arrowhead
+                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y), end = Offset(centerPt.x - len + arrSize, centerPt.y - arrSize), strokeWidth = strokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y), end = Offset(centerPt.x - len + arrSize, centerPt.y + arrSize), strokeWidth = strokeW)
+                                    
+                                    // Right arrowhead
+                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y), end = Offset(centerPt.x + len - arrSize, centerPt.y - arrSize), strokeWidth = strokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y), end = Offset(centerPt.x + len - arrSize, centerPt.y + arrSize), strokeWidth = strokeW)
+                                    
+                                    // Top arrowhead
+                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y - len), end = Offset(centerPt.x - arrSize, centerPt.y - len + arrSize), strokeWidth = strokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y - len), end = Offset(centerPt.x + arrSize, centerPt.y - len + arrSize), strokeWidth = strokeW)
+                                    
+                                    // Bottom arrowhead
+                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y + len), end = Offset(centerPt.x - arrSize, centerPt.y + len - arrSize), strokeWidth = strokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y + len), end = Offset(centerPt.x + arrSize, centerPt.y + len - arrSize), strokeWidth = strokeW)
                                 }
-                                "SCALE" -> {
-                                    val len = 6.5f / viewModel.zoomScale
+                                "LOCK_CLOSED" -> {
+                                    val w = 11f / viewModel.zoomScale
+                                    val h = 9f / viewModel.zoomScale
+                                    // Lock body
+                                    drawRoundRect(
+                                        color = Color.White,
+                                        topLeft = Offset(centerPt.x - w / 2f, centerPt.y - h / 2f + 2f / viewModel.zoomScale),
+                                        size = Size(w, h),
+                                        cornerRadius = CornerRadius(2f / viewModel.zoomScale, 2f / viewModel.zoomScale),
+                                        style = Stroke(width = strokeW)
+                                    )
+                                    // Shackle (gagang)
+                                    val r = 3.2f / viewModel.zoomScale
+                                    drawArc(
+                                        color = Color.White,
+                                        startAngle = 180f,
+                                        sweepAngle = 180f,
+                                        useCenter = false,
+                                        topLeft = Offset(centerPt.x - r, centerPt.y - h / 2f - r + 3f / viewModel.zoomScale),
+                                        size = Size(r * 2f, r * 2f),
+                                        style = Stroke(width = strokeW)
+                                    )
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(centerPt.x - len, centerPt.y + len),
-                                        end = Offset(centerPt.x + len, centerPt.y - len),
+                                        start = Offset(centerPt.x - r, centerPt.y - h / 2f + 3f / viewModel.zoomScale),
+                                        end = Offset(centerPt.x - r, centerPt.y - h / 2f + 1f / viewModel.zoomScale),
                                         strokeWidth = strokeW
                                     )
-                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y - len), end = Offset(centerPt.x + len - 3f/viewModel.zoomScale, centerPt.y - len), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y - len), end = Offset(centerPt.x + len, centerPt.y - len + 3f/viewModel.zoomScale), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y + len), end = Offset(centerPt.x - len + 3f/viewModel.zoomScale, centerPt.y + len), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y + len), end = Offset(centerPt.x - len, centerPt.y + len - 3f/viewModel.zoomScale), strokeWidth = strokeW)
+                                    drawLine(
+                                        color = Color.White,
+                                        start = Offset(centerPt.x + r, centerPt.y - h / 2f + 3f / viewModel.zoomScale),
+                                        end = Offset(centerPt.x + r, centerPt.y - h / 2f + 1f / viewModel.zoomScale),
+                                        strokeWidth = strokeW
+                                    )
+                                }
+                                "LOCK_OPEN" -> {
+                                    val w = 11f / viewModel.zoomScale
+                                    val h = 9f / viewModel.zoomScale
+                                    // Lock body
+                                    drawRoundRect(
+                                        color = Color.White,
+                                        topLeft = Offset(centerPt.x - w / 2f, centerPt.y - h / 2f + 2f / viewModel.zoomScale),
+                                        size = Size(w, h),
+                                        cornerRadius = CornerRadius(2f / viewModel.zoomScale, 2f / viewModel.zoomScale),
+                                        style = Stroke(width = strokeW)
+                                    )
+                                    // Shackle (unlocked/open)
+                                    val r = 3.2f / viewModel.zoomScale
+                                    drawArc(
+                                        color = Color.White,
+                                        startAngle = 180f,
+                                        sweepAngle = 180f,
+                                        useCenter = false,
+                                        topLeft = Offset(centerPt.x - r, centerPt.y - h / 2f - r - 1f / viewModel.zoomScale),
+                                        size = Size(r * 2f, r * 2f),
+                                        style = Stroke(width = strokeW)
+                                    )
+                                    drawLine(
+                                        color = Color.White,
+                                        start = Offset(centerPt.x - r, centerPt.y - h / 2f - 1f / viewModel.zoomScale),
+                                        end = Offset(centerPt.x - r, centerPt.y - h / 2f + 1f / viewModel.zoomScale),
+                                        strokeWidth = strokeW
+                                    )
                                 }
                             }
                         }
@@ -1736,7 +2092,7 @@ fun VectorCanvas(
                         drawIconCircle(dupPos, "DUPLICATE")
                         drawIconCircle(rotPos, "ROTATE")
                         drawIconCircle(movPos, "MOVE")
-                        drawIconCircle(sclPos, "SCALE")
+                        drawIconCircle(sclPos, if (viewModel.isAspectLocked) "LOCK_CLOSED" else "LOCK_OPEN")
 
                         if (viewModel.shapes.any { viewModel.selectedShapeIds.contains(it.id) && it.isLocked }) {
                             val paintIndicator = Paint().apply {
