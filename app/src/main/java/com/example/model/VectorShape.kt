@@ -63,10 +63,10 @@ fun calculateLiveCorner(
     if (tanHalf < 0.001f) return null
     val dBase = radius / tanHalf
 
-    // 7. Safety Constraints: Clamp the tangent distance to a maximum of 48% of the shorter line segment.
+    // 7. Safety Constraints: Clamp the tangent distance to a maximum of 50% of the shorter line segment.
     // This dynamically scales down the corner radius if the available segment lengths are too short,
     // thereby preventing overlapping curves and rendering artifacts at extreme angles.
-    val dMax = minOf(L1, L2) * 0.48f
+    val dMax = minOf(L1, L2) * 0.50f
     val D = minOf(dBase, dMax)
     
     // Compute the dynamically scaled actual nominal radius
@@ -80,8 +80,10 @@ fun calculateLiveCorner(
 
     // 9. Bezier Control Handle Derivation with Curvature Smoothing:
     // Calculate bezier handle lengths (p1 and p2) using the standard corner-angle Kappa formula:
-    // handleLength = radius * (4.0 / 3.0) * tan(theta / 4.0)
-    val L_handle = actualRadius * (4f / 3f) * kotlin.math.tan(theta / 4f)
+    // sweepAngle of the circular arc is (PI - theta).
+    // handleLength = radius * (4.0 / 3.0) * tan(sweepAngle / 4.0)
+    val sweepAngle = kotlin.math.PI.toFloat() - theta
+    val L_handle = actualRadius * (4f / 3f) * kotlin.math.tan(sweepAngle / 4f)
 
     // 10. Control Points Projection: Project handles collinear along their respective tangents to guarantee G1 visual smoothness
     // P1 extends from P0 towards the vertex B
@@ -604,7 +606,7 @@ data class VectorShape(
                     val r = getCornerRadius(i)
                     // Visual position: place it along the bisector
                     // Distance is proportional to radius, with a minimum inset of 16px to always remain visible
-                    val maxD = minOf(L1, L2) * 0.45f
+                    val maxD = minOf(L1, L2) * 0.50f
                     val d = minOf(r * 1.1f + 16f, maxD)
                     list.add(pi + uBisect * d)
                 } else {
@@ -720,16 +722,13 @@ data class VectorShape(
         val arcC2 = Array(n) { Offset.Zero }
         
         for (i in 0 until n) {
-            val pi = vertices[i]
-            val prevIndex = if (i > 0) i - 1 else n - 1
-            val nextIndex = if (i < n - 1) i + 1 else 0
-            
-            val pPrev = vertices[prevIndex]
-            val pNext = vertices[nextIndex]
+            val pointB = vertices[i]
+            val pointA = vertices[(i - 1 + n) % n]
+            val pointC = vertices[(i + 1) % n]
             
             val rRaw = getCornerRadius(i)
-            val r = minOf(rRaw, maxW, maxH)
-            val solver = if (r > 0.1f) calculateLiveCorner(pPrev, pi, pNext, r) else null
+            val r = if (type == ShapeType.RECTANGLE) minOf(rRaw, maxW, maxH) else rRaw
+            val solver = if (r > 0.1f) calculateLiveCorner(pointA, pointB, pointC, r) else null
             if (solver != null) {
                 solvers[i] = solver
                 drawAsArc[i] = true
@@ -739,10 +738,10 @@ data class VectorShape(
                 arcC2[i] = solver.p2
             } else {
                 drawAsArc[i] = false
-                arcStarts[i] = pi
-                arcEnds[i] = pi
-                arcC1[i] = pi
-                arcC2[i] = pi
+                arcStarts[i] = pointB
+                arcEnds[i] = pointB
+                arcC1[i] = pointB
+                arcC2[i] = pointB
             }
         }
         
@@ -759,8 +758,8 @@ data class VectorShape(
                             isCurve = true,
                             control1X = arcStarts[i].x,
                             control1Y = arcStarts[i].y,
-                            control2X = arcStarts[i].x,
-                            control2Y = arcStarts[i].y,
+                            control2X = arcC1[i].x,
+                            control2Y = arcC1[i].y,
                             isMoveTo = isFirst
                         )
                     )
@@ -769,10 +768,10 @@ data class VectorShape(
                             anchorX = arcEnds[i].x,
                             anchorY = arcEnds[i].y,
                             isCurve = true,
-                            control1X = arcC1[i].x,
-                            control1Y = arcC1[i].y,
-                            control2X = arcC2[i].x,
-                            control2Y = arcC2[i].y,
+                            control1X = arcC2[i].x,
+                            control1Y = arcC2[i].y,
+                            control2X = arcEnds[i].x,
+                            control2Y = arcEnds[i].y,
                             isMoveTo = false
                         )
                     )
@@ -899,17 +898,14 @@ data class VectorShape(
         val arcC2 = Array(n) { Offset.Zero }
         
         for (i in 0 until n) {
-            val pi = vertices[i]
-            val prevIndex = if (i > 0) i - 1 else n - 1
-            val nextIndex = if (i < n - 1) i + 1 else 0
-            
-            val pPrev = vertices[prevIndex]
-            val pNext = vertices[nextIndex]
+            val pointB = vertices[i]
+            val pointA = vertices[(i - 1 + n) % n]
+            val pointC = vertices[(i + 1) % n]
             
             val r = radii.getOrNull(i) ?: 0f
             if (r > 0.1f) {
                 // Call our industry-grade Live Corner solver
-                val solver = calculateLiveCorner(pPrev, pi, pNext, r)
+                val solver = calculateLiveCorner(pointA, pointB, pointC, r)
                 if (solver != null) {
                     drawAsArc[i] = true
                     arcStarts[i] = solver.p0
@@ -928,7 +924,6 @@ data class VectorShape(
         for (i in 0 until n) {
             val nextIdx = (i + 1) % n
             
-            val currentEnd = if (drawAsArc[i]) arcEnds[i] else vertices[i]
             val nextStart = if (drawAsArc[nextIdx]) arcStarts[nextIdx] else vertices[nextIdx]
             
             path.lineTo(nextStart.x, nextStart.y)

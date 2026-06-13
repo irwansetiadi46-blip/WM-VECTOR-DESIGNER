@@ -1332,17 +1332,27 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     val currentRadiusVal = if (viewModel.selectedRoundedCornerIndex != null) {
                                         val shVal = viewModel.shapes.find { it.id == viewModel.selectedShapeId }
                                         if (shVal != null) {
-                                            when (viewModel.selectedRoundedCornerIndex!!) {
-                                                0 -> shVal.radiusTL
-                                                1 -> shVal.radiusTR
-                                                2 -> shVal.radiusBR
-                                                3 -> shVal.radiusBL
-                                                else -> shVal.customCornerRadii.getOrNull(viewModel.selectedRoundedCornerIndex!!) ?: 0f
+                                            if (shVal.type == com.example.model.ShapeType.RECTANGLE) {
+                                                when (viewModel.selectedRoundedCornerIndex!!) {
+                                                    0 -> shVal.radiusTL
+                                                    1 -> shVal.radiusTR
+                                                    2 -> shVal.radiusBR
+                                                    3 -> shVal.radiusBL
+                                                    else -> shVal.customCornerRadii.getOrNull(viewModel.selectedRoundedCornerIndex!!) ?: 0f
+                                                }
+                                            } else {
+                                                shVal.customCornerRadii.getOrNull(viewModel.selectedRoundedCornerIndex!!) ?: 0f
                                             }
                                         } else 0f
                                     } else {
                                         val shVal = viewModel.shapes.find { it.id == viewModel.selectedShapeId }
-                                        shVal?.radiusTL ?: 0f
+                                        if (shVal != null) {
+                                            if (shVal.type == com.example.model.ShapeType.RECTANGLE) {
+                                                shVal.radiusTL
+                                            } else {
+                                                shVal.customCornerRadii.firstOrNull() ?: 0f
+                                            }
+                                        } else 0f
                                     }
 
                                     Text(

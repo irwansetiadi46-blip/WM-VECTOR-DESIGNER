@@ -1406,11 +1406,12 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     fun convertShapeToBezierPath(shapeId: String) {
         shapes = shapes.map { shape ->
             if (shape.id == shapeId && shape.type != ShapeType.BEZIER_PATH) {
-                if (shape.type == ShapeType.RECTANGLE) {
+                if (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR) {
                     val bezierNodes = shape.convertCornerPointsToEightBezierNodes()
                     shape.copy(
                         type = ShapeType.BEZIER_PATH,
                         bezierNodes = bezierNodes,
+                        customCornerRadii = emptyList(),
                         isPathClosed = true
                     )
                 } else {
