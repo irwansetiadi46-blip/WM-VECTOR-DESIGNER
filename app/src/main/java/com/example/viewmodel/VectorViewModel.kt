@@ -3843,6 +3843,24 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return nodes
     }
 
+    private fun segmentsToClosedNodes(segments: List<BezierSegment>): List<BezierNode> {
+        if (segments.isEmpty()) return emptyList()
+        val nodes = mutableListOf<BezierNode>()
+        for (i in segments.indices) {
+            val seg = segments[i]
+            val prevSeg = if (i > 0) segments[i-1] else segments.last()
+            
+            nodes.add(BezierNode(
+                anchorX = seg.p0.x, anchorY = seg.p0.y,
+                isCurve = true,
+                control1X = prevSeg.p2.x, control1Y = prevSeg.p2.y,
+                control2X = seg.p1.x, control2Y = seg.p1.y,
+                isMoveTo = if (i == 0) true else false
+            ))
+        }
+        return nodes
+    }
+
     fun expandStroke() {
         val selected = shapes.filter { selectedShapeIds.contains(it.id) && it.strokeWidth > 0f && it.strokeAlpha > 0f && !it.hasFill }
         if (selected.isEmpty()) return
@@ -3850,113 +3868,144 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
         shapes = shapes.map { shape ->
             if (selectedShapeIds.contains(shape.id) && shape.strokeWidth > 0f && shape.strokeAlpha > 0f) {
-                val originalPath = shape.asComposePath().asAndroidPath()
+                val origSegments = getOriginalBezierSegments(shape)
+                val validSegments = origSegments.filter { kotlin.math.hypot(it.p3.x - it.p0.x, it.p3.y - it.p0.y) > 1e-3f || kotlin.math.hypot(it.p2.x - it.p0.x, it.p2.y - it.p0.y) > 1e-3f }
+                if (validSegments.isEmpty()) return@map shape
                 
-                val paint = android.graphics.Paint()
-                paint.style = android.graphics.Paint.Style.STROKE
-                paint.strokeWidth = shape.strokeWidth
-                paint.strokeCap = when (shape.strokeJoin) {
-                    "ROUND" -> android.graphics.Paint.Cap.ROUND
-                    "SQUARE" -> android.graphics.Paint.Cap.SQUARE
-                    else -> android.graphics.Paint.Cap.BUTT
+                val w = shape.strokeWidth
+                val r = w / 2f
+                
+                fun getTangentAt(s: BezierSegment, t: Float): Offset {
+                    val t0 = 1f - t
+                    val d1 = s.p1 - s.p0
+                    val d2 = s.p2 - s.p1
+                    val d3 = s.p3 - s.p2
+                    val tangent = d1 * (3 * t0 * t0) + d2 * (6 * t0 * t) + d3 * (3 * t * t)
+                    val len = kotlin.math.hypot(tangent.x, tangent.y)
+                    if (len > 1e-4f) return tangent / len
+                    
+                    if (t < 0.5f) {
+                        val v2 = s.p2 - s.p0
+                        if (kotlin.math.hypot(v2.x, v2.y) > 1e-4f) return v2 / kotlin.math.hypot(v2.x, v2.y)
+                        val v3 = s.p3 - s.p0
+                        if (kotlin.math.hypot(v3.x, v3.y) > 1e-4f) return v3 / kotlin.math.hypot(v3.x, v3.y)
+                    } else {
+                        val v1 = s.p3 - s.p1
+                        if (kotlin.math.hypot(v1.x, v1.y) > 1e-4f) return v1 / kotlin.math.hypot(v1.x, v1.y)
+                        val v0 = s.p3 - s.p0
+                        if (kotlin.math.hypot(v0.x, v0.y) > 1e-4f) return v0 / kotlin.math.hypot(v0.x, v0.y)
+                    }
+                    return Offset(1f, 0f)
                 }
-                paint.strokeJoin = when (shape.strokeJoin) {
-                    "ROUND" -> android.graphics.Paint.Join.ROUND
-                    "BEVEL" -> android.graphics.Paint.Join.BEVEL
-                    else -> android.graphics.Paint.Join.MITER
+                
+                val leftOffsets = mutableListOf<BezierSegment>()
+                val rightOffsets = mutableListOf<BezierSegment>()
+                
+                for (seg in validSegments) {
+                    val t0 = getTangentAt(seg, 0f)
+                    val t1 = getTangentAt(seg, 1f)
+                    val n0 = Offset(-t0.y, t0.x)
+                    val n1 = Offset(-t1.y, t1.x)
+                    
+                    leftOffsets.add(BezierSegment(
+                        seg.p0 + n0 * r, seg.p1 + n0 * r,
+                        seg.p2 + n1 * r, seg.p3 + n1 * r, shape.id
+                    ))
+                    
+                    rightOffsets.add(BezierSegment(
+                        seg.p0 - n0 * r, seg.p1 - n0 * r,
+                        seg.p2 - n1 * r, seg.p3 - n1 * r, shape.id
+                    ))
                 }
                 
-                val fillPath = android.graphics.Path()
-                paint.getFillPath(originalPath, fillPath)
+                fun resolveJoins(offsets: List<BezierSegment>, original: List<BezierSegment>, isClosed: Boolean, isRight: Boolean): List<BezierSegment> {
+                    val result = mutableListOf<BezierSegment>()
+                    var currentSeg = offsets[0]
+                    
+                    for (i in 0 until offsets.size - (if (isClosed) 0 else 1)) {
+                        val nextIdx = (i + 1) % offsets.size
+                        val nextSegOrig = offsets[nextIdx]
+                        var nextSeg = nextSegOrig
+                        
+                        val tEnd = getTangentAt(original[i], 1f)
+                        val tStart = getTangentAt(original[nextIdx], 0f)
+                        
+                        val cross = tEnd.x * tStart.y - tEnd.y * tStart.x
+                        var intersected = false
+                        
+                        // Prevent division by zero and near parallel
+                        if (kotlin.math.abs(cross) > 1e-3f) {
+                            val v = nextSeg.p0 - currentSeg.p3
+                            val u = (v.x * tStart.y - v.y * tStart.x) / cross
+                            val intersection = currentSeg.p3 + tEnd * u
+                            val dist = kotlin.math.hypot(intersection.x - currentSeg.p3.x, intersection.y - currentSeg.p3.y)
+                            
+                            // Miter limit check
+                            if (dist < r * 5f) {
+                                currentSeg = currentSeg.copy(p3 = intersection)
+                                nextSeg = nextSeg.copy(p0 = intersection)
+                                intersected = true
+                            }
+                        }
+                        
+                        result.add(currentSeg)
+                        // If not mathematically mitered (limit exceeded or parallel), seamlessly join with a tiny segment
+                        if (!intersected && (kotlin.math.abs(currentSeg.p3.x - nextSeg.p0.x) > 1e-2f || kotlin.math.abs(currentSeg.p3.y - nextSeg.p0.y) > 1e-2f)) {
+                            result.add(BezierSegment(currentSeg.p3, currentSeg.p3, nextSeg.p0, nextSeg.p0, shape.id))
+                        }
+                        currentSeg = nextSeg
+                    }
+                    
+                    if (!isClosed) {
+                        result.add(currentSeg)
+                    } else {
+                        // Close loop cleanly
+                        result[0] = result[0].copy(p0 = currentSeg.p0)
+                    }
+                    
+                    return result
+                }
                 
-                val pm = android.graphics.PathMeasure(fillPath, false)
+                val finalLeft = resolveJoins(leftOffsets, validSegments, shape.isPathClosed, false)
+                val finalRight = resolveJoins(rightOffsets, validSegments, shape.isPathClosed, true)
+                
                 val newNodes = mutableListOf<BezierNode>()
                 
-                var isFirstMoveTo = true
-                var hasContour = true
-                while (hasContour) {
-                    val len = pm.length
-                    if (len > 0.1f) {
-                        val numSamples = (len / 0.5f).toInt().coerceIn(200, 1500)
-                        val step = len / numSamples
-                        val rawPoints = mutableListOf<Offset>()
-                        val pos = FloatArray(2)
-                        
-                        for (j in 0..numSamples) {
-                            if (pm.getPosTan(j * step, pos, null)) {
-                                rawPoints.add(Offset(pos[0], pos[1]))
-                            }
-                        }
-                        
-                        val uniquePoints = mutableListOf<Offset>()
-                        for (p in rawPoints) {
-                            if (uniquePoints.isEmpty() || kotlin.math.hypot(p.x - uniquePoints.last().x, p.y - uniquePoints.last().y) > 0.05f) {
-                                uniquePoints.add(p)
-                            }
-                        }
-                        
-                        if (uniquePoints.size >= 2) {
-                            val blocks = mutableListOf<MutableList<Offset>>()
-                            var currentBlock = mutableListOf<Offset>()
-                            currentBlock.add(uniquePoints.first())
-                            
-                            for (i in 1 until uniquePoints.size) {
-                                val curr = uniquePoints[i]
-                                var isSharpCorner = false
-                                val kStep = 5
-                                if (i in kStep until uniquePoints.size - kStep) {
-                                    val pPrev = uniquePoints[i - kStep]
-                                    val pCurr = uniquePoints[i]
-                                    val pNext = uniquePoints[i + kStep]
-                                    val v1 = pCurr - pPrev
-                                    val v2 = pNext - pCurr
-                                    val len1 = kotlin.math.hypot(v1.x, v1.y)
-                                    val len2 = kotlin.math.hypot(v2.x, v2.y)
-                                    if (len1 > 0.5f && len2 > 0.5f) {
-                                        val dot = (v1.x * v2.x + v1.y * v2.y) / (len1 * len2)
-                                        if (dot < 0.6f) {
-                                            isSharpCorner = true
-                                        }
-                                    }
-                                }
-                                
-                                if (isSharpCorner && currentBlock.size >= 4) {
-                                    currentBlock.add(curr)
-                                    blocks.add(currentBlock)
-                                    currentBlock = mutableListOf(curr)
-                                } else {
-                                    currentBlock.add(curr)
-                                }
-                            }
-                            if (currentBlock.size > 1) {
-                                blocks.add(currentBlock)
-                            }
-                            
-                            val segments = mutableListOf<BezierSegment>()
-                            for (block in blocks) {
-                                if (block.size >= 2) {
-                                    segments.addAll(fitCurveRecursive(block, 0, block.size - 1, 1.8f, 0))
-                                }
-                            }
-                            
-                            val cleanedSegments = segments.filter { seg ->
-                                kotlin.math.hypot(seg.p3.x - seg.p0.x, seg.p3.y - seg.p0.y) > 0.15f
-                            }.toMutableList()
-                            
-                            if (cleanedSegments.isNotEmpty()) {
-                                // Close the loop seamlessly if endpoints match and both are curves
-                                val lastSeg = cleanedSegments.last()
-                                val firstSeg = cleanedSegments.first()
-                                if (kotlin.math.hypot(lastSeg.p3.x - firstSeg.p0.x, lastSeg.p3.y - firstSeg.p0.y) < 1.0f) {
-                                     cleanedSegments[cleanedSegments.size - 1] = lastSeg.copy(p3 = firstSeg.p0)
-                                }
-                                val contourNodes = buildNodesFromSegments(cleanedSegments, isFirstMoveTo)
-                                newNodes.addAll(contourNodes)
-                            }
-                        }
+                if (shape.isPathClosed) {
+                    newNodes.addAll(segmentsToClosedNodes(finalLeft))
+                    val reversedRight = finalRight.reversed().map { s -> BezierSegment(s.p3, s.p2, s.p1, s.p0, shape.id) }
+                    newNodes.addAll(segmentsToClosedNodes(reversedRight))
+                } else {
+                    val finalSegments = mutableListOf<BezierSegment>()
+                    finalSegments.addAll(finalLeft)
+                    
+                    // Round Cap at End (Left End -> Right End)
+                    val sEndLeft = finalLeft.last()
+                    val sEndRight = finalRight.last()
+                    val tEnd = getTangentAt(validSegments.last(), 1f)
+                    val A = sEndLeft.p3
+                    val B = sEndRight.p3
+                    val c1 = A + tEnd * (r * 4f / 3f)
+                    val c2 = B + tEnd * (r * 4f / 3f)
+                    finalSegments.add(BezierSegment(A, c1, c2, B, shape.id))
+                    
+                    // Reversed Right Offset Path
+                    for (i in finalRight.size - 1 downTo 0) {
+                        val sR = finalRight[i]
+                        finalSegments.add(BezierSegment(sR.p3, sR.p2, sR.p1, sR.p0, shape.id))
                     }
-                    isFirstMoveTo = false
-                    hasContour = pm.nextContour()
+                    
+                    // Round Cap at Start (Right Start -> Left Start)
+                    val sStartLeft = finalLeft.first()
+                    val sStartRight = finalRight.first()
+                    val tStart = getTangentAt(validSegments.first(), 0f)
+                    val B_start = sStartRight.p0
+                    val A_start = sStartLeft.p0
+                    val c1_s = B_start - tStart * (r * 4f / 3f)
+                    val c2_s = A_start - tStart * (r * 4f / 3f)
+                    finalSegments.add(BezierSegment(B_start, c1_s, c2_s, A_start, shape.id))
+                    
+                    newNodes.addAll(segmentsToClosedNodes(finalSegments))
                 }
                 
                 shape.copy(
