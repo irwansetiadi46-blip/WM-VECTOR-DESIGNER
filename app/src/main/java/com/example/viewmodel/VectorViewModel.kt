@@ -3843,6 +3843,139 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return nodes
     }
 
+    fun expandStroke() {
+        val selected = shapes.filter { selectedShapeIds.contains(it.id) && it.strokeWidth > 0f && it.strokeAlpha > 0f && !it.hasFill }
+        if (selected.isEmpty()) return
+        pushToUndoStack()
+
+        shapes = shapes.map { shape ->
+            if (selectedShapeIds.contains(shape.id) && shape.strokeWidth > 0f && shape.strokeAlpha > 0f) {
+                val originalPath = shape.asComposePath().asAndroidPath()
+                
+                val paint = android.graphics.Paint()
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = shape.strokeWidth
+                paint.strokeCap = when (shape.strokeJoin) {
+                    "ROUND" -> android.graphics.Paint.Cap.ROUND
+                    "SQUARE" -> android.graphics.Paint.Cap.SQUARE
+                    else -> android.graphics.Paint.Cap.BUTT
+                }
+                paint.strokeJoin = when (shape.strokeJoin) {
+                    "ROUND" -> android.graphics.Paint.Join.ROUND
+                    "BEVEL" -> android.graphics.Paint.Join.BEVEL
+                    else -> android.graphics.Paint.Join.MITER
+                }
+                
+                val fillPath = android.graphics.Path()
+                paint.getFillPath(originalPath, fillPath)
+                
+                val pm = android.graphics.PathMeasure(fillPath, false)
+                val newNodes = mutableListOf<BezierNode>()
+                
+                var isFirstMoveTo = true
+                var hasContour = true
+                while (hasContour) {
+                    val len = pm.length
+                    if (len > 0.1f) {
+                        val numSamples = (len / 0.5f).toInt().coerceIn(200, 1500)
+                        val step = len / numSamples
+                        val rawPoints = mutableListOf<Offset>()
+                        val pos = FloatArray(2)
+                        
+                        for (j in 0..numSamples) {
+                            if (pm.getPosTan(j * step, pos, null)) {
+                                rawPoints.add(Offset(pos[0], pos[1]))
+                            }
+                        }
+                        
+                        val uniquePoints = mutableListOf<Offset>()
+                        for (p in rawPoints) {
+                            if (uniquePoints.isEmpty() || kotlin.math.hypot(p.x - uniquePoints.last().x, p.y - uniquePoints.last().y) > 0.05f) {
+                                uniquePoints.add(p)
+                            }
+                        }
+                        
+                        if (uniquePoints.size >= 2) {
+                            val blocks = mutableListOf<MutableList<Offset>>()
+                            var currentBlock = mutableListOf<Offset>()
+                            currentBlock.add(uniquePoints.first())
+                            
+                            for (i in 1 until uniquePoints.size) {
+                                val curr = uniquePoints[i]
+                                var isSharpCorner = false
+                                val kStep = 5
+                                if (i in kStep until uniquePoints.size - kStep) {
+                                    val pPrev = uniquePoints[i - kStep]
+                                    val pCurr = uniquePoints[i]
+                                    val pNext = uniquePoints[i + kStep]
+                                    val v1 = pCurr - pPrev
+                                    val v2 = pNext - pCurr
+                                    val len1 = kotlin.math.hypot(v1.x, v1.y)
+                                    val len2 = kotlin.math.hypot(v2.x, v2.y)
+                                    if (len1 > 0.5f && len2 > 0.5f) {
+                                        val dot = (v1.x * v2.x + v1.y * v2.y) / (len1 * len2)
+                                        if (dot < 0.6f) {
+                                            isSharpCorner = true
+                                        }
+                                    }
+                                }
+                                
+                                if (isSharpCorner && currentBlock.size >= 4) {
+                                    currentBlock.add(curr)
+                                    blocks.add(currentBlock)
+                                    currentBlock = mutableListOf(curr)
+                                } else {
+                                    currentBlock.add(curr)
+                                }
+                            }
+                            if (currentBlock.size > 1) {
+                                blocks.add(currentBlock)
+                            }
+                            
+                            val segments = mutableListOf<BezierSegment>()
+                            for (block in blocks) {
+                                if (block.size >= 2) {
+                                    segments.addAll(fitCurveRecursive(block, 0, block.size - 1, 1.8f, 0))
+                                }
+                            }
+                            
+                            val cleanedSegments = segments.filter { seg ->
+                                kotlin.math.hypot(seg.p3.x - seg.p0.x, seg.p3.y - seg.p0.y) > 0.15f
+                            }.toMutableList()
+                            
+                            if (cleanedSegments.isNotEmpty()) {
+                                // Close the loop seamlessly if endpoints match and both are curves
+                                val lastSeg = cleanedSegments.last()
+                                val firstSeg = cleanedSegments.first()
+                                if (kotlin.math.hypot(lastSeg.p3.x - firstSeg.p0.x, lastSeg.p3.y - firstSeg.p0.y) < 1.0f) {
+                                     cleanedSegments[cleanedSegments.size - 1] = lastSeg.copy(p3 = firstSeg.p0)
+                                }
+                                val contourNodes = buildNodesFromSegments(cleanedSegments, isFirstMoveTo)
+                                newNodes.addAll(contourNodes)
+                            }
+                        }
+                    }
+                    isFirstMoveTo = false
+                    hasContour = pm.nextContour()
+                }
+                
+                shape.copy(
+                    type = ShapeType.BEZIER_PATH,
+                    bezierNodes = newNodes,
+                    hasFill = true,
+                    fillColorHex = shape.strokeColorHex,
+                    fillAlpha = shape.strokeAlpha,
+                    strokeWidth = 0f,
+                    isPathClosed = true,
+                    customCornerRadii = emptyList(),
+                    radiusTL = 0f, radiusTR = 0f, radiusBR = 0f, radiusBL = 0f
+                )
+            } else {
+                shape
+            }
+        }
+    }
+
     fun applyBooleanOperation(opType: String) {
         val selected = shapes.filter { selectedShapeIds.contains(it.id) }
         if (selected.size < 2) return

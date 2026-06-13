@@ -48,6 +48,81 @@ import com.example.viewmodel.PrimitiveType
 import com.example.viewmodel.VectorTool
 import com.example.viewmodel.VectorViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.SolidColor
+
+val BooleanExcludeIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "BooleanExclude",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        path(
+            fill = SolidColor(Color.Black),
+            pathFillType = PathFillType.EvenOdd
+        ) {
+            moveTo(4f, 4f)
+            lineTo(16f, 4f)
+            lineTo(16f, 16f)
+            lineTo(4f, 16f)
+            close()
+            moveTo(8f, 8f)
+            lineTo(20f, 8f)
+            lineTo(20f, 20f)
+            lineTo(8f, 20f)
+            close()
+        }
+    }.build()
+
+val ExpandStrokeIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "ExpandStroke",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        path(
+            fill = SolidColor(Color.Black)
+        ) {
+            moveTo(2.4f, 2.4f)
+            lineTo(2.4f, 11.52f)
+            lineTo(4.8f, 11.52f)
+            lineTo(4.8f, 4.8f)
+            lineTo(21.6f, 4.8f)
+            lineTo(21.6f, 21.6f)
+            lineTo(14.88f, 21.6f)
+            lineTo(14.88f, 24f)
+            lineTo(24f, 24f)
+            lineTo(24f, 2.4f)
+            close()
+            
+            moveTo(2.4f, 14.4f)
+            lineTo(2.4f, 24f)
+            lineTo(12f, 24f)
+            lineTo(12f, 14.4f)
+            close()
+            moveTo(4.8f, 21.6f)
+            lineTo(4.8f, 16.8f)
+            lineTo(9.6f, 16.8f)
+            lineTo(9.6f, 21.6f)
+            close()
+
+            moveTo(16.8f, 8.64f)
+            lineTo(16.8f, 12f)
+            lineTo(19.2f, 12f)
+            lineTo(19.2f, 6.72f)
+            lineTo(13.92f, 6.72f)
+            lineTo(13.92f, 9.12f)
+            lineTo(17.52f, 9.12f)
+            lineTo(11.04f, 15.6f)
+            lineTo(12.72f, 17.28f)
+            close()
+        }
+    }.build()
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -557,6 +632,17 @@ fun MainLayout(viewModel: VectorViewModel) {
                     onClick = {
                         viewModel.currentTool = VectorTool.ROUNDED_CORNER
                         showBooleanInBottomScope = false
+                    }
+                )
+
+                // 8. Expand Stroke Tool
+                SidebarToolButton(
+                    icon = ExpandStrokeIcon,
+                    label = "Expand",
+                    isSelected = false,
+                    onClick = {
+                        viewModel.expandStroke()
+                        Toast.makeText(context, "Stroke diperluas.", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -1741,7 +1827,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     ) {
                         // 1. Boolean Operations
                         IconButtonWithLabel(
-                            icon = Icons.Default.MergeType,
+                            icon = BooleanExcludeIcon,
                             label = "Boolean",
                             onClick = {
                                 showBooleanInBottomScope = !showBooleanInBottomScope
@@ -1834,15 +1920,16 @@ fun MainLayout(viewModel: VectorViewModel) {
                         // 7. Clone / Duplicate
                         IconButtonWithLabel(
                             icon = Icons.Default.ContentCopy,
-                            label = "Clone",
-                            isActive = viewModel.isCloneModeActive,
+                            label = "Copy",
+                            isActive = false,
                             onClick = {
                                 viewModel.currentTool = VectorTool.POINTER
-                                viewModel.isCloneModeActive = !viewModel.isCloneModeActive
-                                if (viewModel.isCloneModeActive) {
-                                    Toast.makeText(context, "Mode Clone Aktif! Tap/drag objek untuk mencopy.", Toast.LENGTH_SHORT).show()
+                                viewModel.isCloneModeActive = false
+                                if (viewModel.selectedShapeIds.isNotEmpty()) {
+                                    viewModel.duplicateSelected()
+                                    Toast.makeText(context, "Objek tercopy otomatis.", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Mode Clone Nonaktif.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Pilih objek terlebih dahulu.", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         )

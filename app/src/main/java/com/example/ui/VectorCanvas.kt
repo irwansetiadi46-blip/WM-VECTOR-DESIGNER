@@ -895,30 +895,27 @@ fun VectorCanvas(
                                             if (hypot(e.x - s.x, e.y - s.y) > 10f / viewModel.zoomScale) viewModel.addPrimitiveShape(s, e)
                                         } else if (viewModel.currentTool == VectorTool.POINTER) {
                                             if (hypot(e.x - s.x, e.y - s.y) < 6f) {
+                                                var triggeredTab = false
+                                                when (activeDragHandle) {
+                                                    "DELETE_HOTSPOT" -> {
+                                                        viewModel.deleteSelectedShape()
+                                                        triggeredTab = true
+                                                    }
+                                                    "DUPLICATE_HOTSPOT" -> {
+                                                        viewModel.duplicateSelected()
+                                                        triggeredTab = true
+                                                    }
+                                                    "LOCK_TOGGLE_HOTSPOT", "ROTATE_HOTSPOT" -> {
+                                                        triggeredTab = true
+                                                    }
+                                                }
+                                                
                                                 val bounds = if (viewModel.selectedShapeIds.size == 1) {
                                                     getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
                                                 } else {
                                                     getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
                                                 }
-                                                val clickT = 40f / viewModel.zoomScale
-                                                var triggeredTab = false
-                                                if (bounds != null) {
-                                                    val centerX = (bounds.left + bounds.right) / 2f
-                                                    val topB = bounds.top - 54f / viewModel.zoomScale
-                                                    val delPos = Offset(centerX - 42f / viewModel.zoomScale, topB)
-                                                    val dupPos = Offset(centerX + 42f / viewModel.zoomScale, topB)
-                                                    if (hypot(e.x - delPos.x, e.y - delPos.y) < clickT) {
-                                                        viewModel.deleteSelectedShape()
-                                                        triggeredTab = true
-                                                    } else if (hypot(e.x - dupPos.x, e.y - dupPos.y) < clickT) {
-                                                         triggeredTab = true
-                                                     } else if (hypot(e.x - (centerX + 70f / viewModel.zoomScale), e.y - (bounds.bottom + 54f / viewModel.zoomScale)) < clickT) { triggeredTab = true } else if (hypot(e.x - dupPos.x, e.y - dupPos.y) < clickT) { viewModel.duplicateSelected(); triggeredTab = true } else if (false) {
-                                                         triggeredTab = true
-                                                     } else if (hypot(e.x - dupPos.x, e.y - dupPos.y) < clickT) {
-                                                        viewModel.duplicateSelected()
-                                                        triggeredTab = true
-                                                    }
-                                                }
+                                                
                                                 if (!triggeredTab) {
                                                     viewModel.selectShapeAt(screenToCanvas(changes[0].position))
                                                 }
