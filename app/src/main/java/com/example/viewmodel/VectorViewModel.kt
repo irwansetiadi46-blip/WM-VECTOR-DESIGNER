@@ -41,6 +41,15 @@ enum class PrimitiveType {
     LINE
 }
 
+enum class NodeEditMode {
+    NONE,
+    ADD,
+    REMOVE,
+    CUT,
+    SPLIT,
+    CLOSE
+}
+
 data class SmartGuideInfo(
     val x1: Float,
     val y1: Float,
@@ -142,6 +151,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
     // Selection node & corner controllers
     var selectedDirectSelectionNodeIndex by mutableStateOf<Int?>(null)
+    var currentNodeEditMode by mutableStateOf(NodeEditMode.NONE)
     var selectedRoundedCornerIndex by mutableStateOf<Int?>(null)
     var manualCornerRadiusText by mutableStateOf("")
 
@@ -412,6 +422,372 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 shape.copy(bezierNodes = updatedNodes)
             } else {
                 shape
+            }
+        }
+    }
+
+    fun toggleShapeNodeCurveType(shapeId: String, nodeIndex: Int) {
+        pushToUndoStack()
+        shapes = shapes.map { shape ->
+            if (shape.id == shapeId && shape.type == ShapeType.BEZIER_PATH) {
+                val nodes = shape.bezierNodes.toMutableList()
+                if (nodeIndex in nodes.indices) {
+                    val oldNode = nodes[nodeIndex]
+                    val isNowCurve = !oldNode.isCurve
+                    
+                    if (isNowCurve) {
+                        // Restore/regenerate handles based on adjacent nodes
+                        val prev = nodes[(nodeIndex - 1 + nodes.size) % nodes.size]
+                        val next = nodes[(nodeIndex + 1) % nodes.size]
+                        val dx = next.anchorX - prev.anchorX
+                        val dy = next.anchorY - prev.anchorY
+                        val len = hypot(dx, dy)
+                        if (len > 0.1f) {
+                            val handleLen = len * 0.25f
+                            val ux = dx / len
+                            val uy = dy / len
+                            nodes[nodeIndex] = oldNode.copy(
+                                isCurve = true,
+                                control1X = oldNode.anchorX - ux * handleLen,
+                                control1Y = oldNode.anchorY - uy * handleLen,
+                                control2X = oldNode.anchorX + ux * handleLen,
+                                control2Y = oldNode.anchorY + uy * handleLen
+                            )
+                        } else {
+                            nodes[nodeIndex] = oldNode.copy(
+                                isCurve = true,
+                                control1X = oldNode.anchorX - 30f,
+                                control1Y = oldNode.anchorY,
+                                control2X = oldNode.anchorX + 30f,
+                                control2Y = oldNode.anchorY
+                            )
+                        }
+                    } else {
+                        // Collapse handles onto the anchor for a sharp node (sudut)
+                        nodes[nodeIndex] = oldNode.copy(
+                            isCurve = false,
+                            control1X = oldNode.anchorX,
+                            control1Y = oldNode.anchorY,
+                            control2X = oldNode.anchorX,
+                            control2Y = oldNode.anchorY
+                        )
+                    }
+                    shape.copy(bezierNodes = nodes)
+                } else {
+                    shape
+                }
+            } else {
+                shape
+            }
+        }
+    }
+
+    fun addNodeOnStroke(shapeId: String, segmentIndex: Int, t: Float, isClosedSegment: Boolean) {
+        pushToUndoStack()
+        shapes = shapes.map { shape ->
+            if (shape.id == shapeId && shape.type == ShapeType.BEZIER_PATH) {
+                val nodes = shape.bezierNodes.toMutableList()
+                val size = nodes.size
+                if (size >= 2) {
+                    val prevIdx = if (isClosedSegment) size - 1 else segmentIndex - 1
+                    val currIdx = if (isClosedSegment) 0 else segmentIndex
+                    val prev = nodes[prevIdx]
+                    val curr = nodes[currIdx]
+
+                    val p0 = prev.getAnchor()
+                    val p3 = curr.getAnchor()
+                    val p1 = if (prev.isCurve) prev.getHandleOut() else p0 + (p3 - p0) / 3f
+                    val p2 = if (curr.isCurve) curr.getHandleIn() else p0 + (p3 - p0) * 2f / 3f
+
+                    val q0 = p0 + (p1 - p0) * t
+                    val q1 = p1 + (p2 - p1) * t
+                    val q2 = p2 + (p3 - p2) * t
+
+                    val r0 = q0 + (q1 - q0) * t
+                    val r1 = q1 + (q2 - q1) * t
+
+                    val s = r0 + (r1 - r0) * t
+
+                    // Update prev node's handle-out
+                    val updatedPrev = prev.copy(
+                        isCurve = true,
+                        control2X = q0.x,
+                        control2Y = q0.y
+                    )
+                    // Update curr node's handle-in
+                    val updatedCurr = curr.copy(
+                        isCurve = true,
+                        control1X = q2.x,
+                        control1Y = q2.y
+                    )
+                    
+                    // Insert the new node
+                    val newNode = BezierNode(
+                        anchorX = s.x,
+                        anchorY = s.y,
+                        isCurve = true,
+                        control1X = r0.x,
+                        control1Y = r0.y,
+                        control2X = r1.x,
+                        control2Y = r1.y,
+                        isMoveTo = false,
+                        nodeType = prev.nodeType
+                    )
+
+                    nodes[prevIdx] = updatedPrev
+                    nodes[currIdx] = updatedCurr
+                    
+                    if (isClosedSegment) {
+                        nodes.add(newNode)
+                    } else {
+                        nodes.add(segmentIndex, newNode)
+                    }
+                    shape.copy(bezierNodes = nodes)
+                } else {
+                    shape
+                }
+            } else {
+                shape
+            }
+        }
+    }
+
+    fun removeNodeAt(shapeId: String, nodeIndex: Int) {
+        pushToUndoStack()
+        shapes = shapes.map { shape ->
+            if (shape.id == shapeId && shape.type == ShapeType.BEZIER_PATH) {
+                val nodes = shape.bezierNodes.toMutableList()
+                if (nodeIndex in nodes.indices) {
+                    nodes.removeAt(nodeIndex)
+                    if (nodes.isNotEmpty() && nodeIndex == 0) {
+                        nodes[0] = nodes[0].copy(isMoveTo = true)
+                    }
+                    shape.copy(bezierNodes = nodes)
+                } else {
+                    shape
+                }
+            } else {
+                shape
+            }
+        }
+        selectedDirectSelectionNodeIndex = null
+    }
+
+    fun cutStrokeAt(shapeId: String, segmentIndex: Int, t: Float, isClosedSegment: Boolean) {
+        pushToUndoStack()
+        val shape = shapes.find { it.id == shapeId } ?: return
+        if (shape.type != ShapeType.BEZIER_PATH) return
+        val nodes = shape.bezierNodes
+        val size = nodes.size
+        if (size < 2) return
+
+        val prevIdx = if (isClosedSegment) size - 1 else segmentIndex - 1
+        val currIdx = if (isClosedSegment) 0 else segmentIndex
+        val prev = nodes[prevIdx]
+        val curr = nodes[currIdx]
+
+        val p0 = prev.getAnchor()
+        val p3 = curr.getAnchor()
+        val p1 = if (prev.isCurve) prev.getHandleOut() else p0 + (p3 - p0) / 3f
+        val p2 = if (curr.isCurve) curr.getHandleIn() else p0 + (p3 - p0) * 2f / 3f
+
+        val q0 = p0 + (p1 - p0) * t
+        val q1 = p1 + (p2 - p1) * t
+        val q2 = p2 + (p3 - p2) * t
+
+        val r0 = q0 + (q1 - q0) * t
+        val r1 = q1 + (q2 - q1) * t
+
+        val s = r0 + (r1 - r0) * t
+
+        if (shape.isPathClosed) {
+            val newNodes = mutableListOf<BezierNode>()
+            val sStart = BezierNode(
+                anchorX = s.x,
+                anchorY = s.y,
+                isCurve = true,
+                control1X = s.x,
+                control1Y = s.y,
+                control2X = r1.x,
+                control2Y = r1.y,
+                isMoveTo = true,
+                nodeType = prev.nodeType
+            )
+            newNodes.add(sStart)
+            
+            val updatedCurr = curr.copy(
+                isCurve = true,
+                control1X = q2.x,
+                control1Y = q2.y
+            )
+            newNodes.add(updatedCurr.copy(isMoveTo = false))
+            
+            var count = 1
+            while (count < size) {
+                val idx = (currIdx + count) % size
+                if (idx != prevIdx) {
+                    newNodes.add(nodes[idx].copy(isMoveTo = false))
+                }
+                count++
+            }
+            
+            val updatedPrev = prev.copy(
+                isCurve = true,
+                control2X = q0.x,
+                control2Y = q0.y
+            )
+            if (prevIdx != currIdx) {
+                newNodes.add(updatedPrev.copy(isMoveTo = false))
+            }
+            
+            val sEnd = BezierNode(
+                anchorX = s.x,
+                anchorY = s.y,
+                isCurve = true,
+                control1X = r0.x,
+                control1Y = r0.y,
+                control2X = s.x,
+                control2Y = s.y,
+                isMoveTo = false,
+                nodeType = prev.nodeType
+            )
+            newNodes.add(sEnd)
+            
+            shapes = shapes.map {
+                if (it.id == shapeId) {
+                    it.copy(bezierNodes = newNodes, isPathClosed = false)
+                } else {
+                    it
+                }
+            }
+        } else {
+            val shape1Nodes = mutableListOf<BezierNode>()
+            for (i in 0 until segmentIndex) {
+                if (i == prevIdx) {
+                    shape1Nodes.add(prev.copy(
+                        isCurve = true,
+                        control2X = q0.x,
+                        control2Y = q0.y
+                    ))
+                } else {
+                    shape1Nodes.add(nodes[i])
+                }
+            }
+            shape1Nodes.add(BezierNode(
+                anchorX = s.x,
+                anchorY = s.y,
+                isCurve = true,
+                control1X = r0.x,
+                control1Y = r0.y,
+                control2X = s.x,
+                control2Y = s.y,
+                isMoveTo = false,
+                nodeType = prev.nodeType
+            ))
+            
+            val shape2Nodes = mutableListOf<BezierNode>()
+            shape2Nodes.add(BezierNode(
+                anchorX = s.x,
+                anchorY = s.y,
+                isCurve = true,
+                control1X = s.x,
+                control1Y = s.y,
+                control2X = r1.x,
+                control2Y = r1.y,
+                isMoveTo = true,
+                nodeType = prev.nodeType
+            ))
+            for (i in segmentIndex until size) {
+                if (i == currIdx) {
+                    shape2Nodes.add(curr.copy(
+                        isCurve = true,
+                        control1X = q2.x,
+                        control1Y = q2.y,
+                        isMoveTo = false
+                    ))
+                } else {
+                    shape2Nodes.add(nodes[i].copy(isMoveTo = false))
+                }
+            }
+            
+            val shape1 = shape.copy(id = java.util.UUID.randomUUID().toString(), bezierNodes = shape1Nodes)
+            val shape2 = shape.copy(id = java.util.UUID.randomUUID().toString(), bezierNodes = shape2Nodes)
+            
+            val mutableShapes = shapes.toMutableList()
+            val originalIndex = mutableShapes.indexOfFirst { it.id == shapeId }
+            if (originalIndex != -1) {
+                mutableShapes.removeAt(originalIndex)
+                mutableShapes.add(originalIndex, shape1)
+                mutableShapes.add(originalIndex + 1, shape2)
+            }
+            shapes = mutableShapes
+            selectedShapeId = shape1.id
+        }
+    }
+
+    fun splitNodeAt(shapeId: String, nodeIndex: Int) {
+        pushToUndoStack()
+        val shape = shapes.find { it.id == shapeId } ?: return
+        if (shape.type != ShapeType.BEZIER_PATH) return
+        val nodes = shape.bezierNodes
+        val size = nodes.size
+        if (size < 2) return
+        if (nodeIndex !in nodes.indices) return
+
+        if (shape.isPathClosed) {
+            val newNodes = mutableListOf<BezierNode>()
+            val startNode = nodes[nodeIndex].copy(isMoveTo = true)
+            newNodes.add(startNode)
+            
+            for (count in 1 until size) {
+                val idx = (nodeIndex + count) % size
+                newNodes.add(nodes[idx].copy(isMoveTo = false))
+            }
+            val endNode = nodes[nodeIndex].copy(isMoveTo = false)
+            newNodes.add(endNode)
+            
+            shapes = shapes.map {
+                if (it.id == shapeId) {
+                    it.copy(bezierNodes = newNodes, isPathClosed = false)
+                } else {
+                    it
+                }
+            }
+        } else {
+            if (nodeIndex == 0 || nodeIndex == size - 1) {
+                return 
+            }
+            
+            val shape1Nodes = nodes.subList(0, nodeIndex + 1).map { it.copy() }
+            val shape2Nodes = mutableListOf<BezierNode>()
+            shape2Nodes.add(nodes[nodeIndex].copy(isMoveTo = true))
+            for (i in (nodeIndex + 1) until size) {
+                shape2Nodes.add(nodes[i].copy(isMoveTo = false))
+            }
+            
+            val shape1 = shape.copy(id = java.util.UUID.randomUUID().toString(), bezierNodes = shape1Nodes)
+            val shape2 = shape.copy(id = java.util.UUID.randomUUID().toString(), bezierNodes = shape2Nodes)
+            
+            val mutableShapes = shapes.toMutableList()
+            val originalIndex = mutableShapes.indexOfFirst { it.id == shapeId }
+            if (originalIndex != -1) {
+                mutableShapes.removeAt(originalIndex)
+                mutableShapes.add(originalIndex, shape1)
+                mutableShapes.add(originalIndex + 1, shape2)
+            }
+            shapes = mutableShapes
+            selectedShapeId = shape1.id
+        }
+        selectedDirectSelectionNodeIndex = null
+    }
+
+    fun closePath(shapeId: String) {
+        pushToUndoStack()
+        shapes = shapes.map {
+            if (it.id == shapeId && it.type == ShapeType.BEZIER_PATH) {
+                it.copy(isPathClosed = true)
+            } else {
+                it
             }
         }
     }
@@ -1030,26 +1406,35 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     fun convertShapeToBezierPath(shapeId: String) {
         shapes = shapes.map { shape ->
             if (shape.id == shapeId && shape.type != ShapeType.BEZIER_PATH) {
-                val corners = shape.getNodePoints()
-                if (corners.isNotEmpty()) {
-                    val bezierNodes = corners.map { pt ->
-                        com.example.model.BezierNode(
-                            anchorX = pt.x,
-                            anchorY = pt.y,
-                            isCurve = false,
-                            control1X = pt.x,
-                            control1Y = pt.y,
-                            control2X = pt.x,
-                            control2Y = pt.y
-                        )
-                    }
+                if (shape.type == ShapeType.RECTANGLE) {
+                    val bezierNodes = shape.convertCornerPointsToEightBezierNodes()
                     shape.copy(
                         type = ShapeType.BEZIER_PATH,
                         bezierNodes = bezierNodes,
-                        isPathClosed = (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR)
+                        isPathClosed = true
                     )
                 } else {
-                    shape
+                    val corners = shape.getNodePoints()
+                    if (corners.isNotEmpty()) {
+                        val bezierNodes = corners.map { pt ->
+                            com.example.model.BezierNode(
+                                anchorX = pt.x,
+                                anchorY = pt.y,
+                                isCurve = false,
+                                control1X = pt.x,
+                                control1Y = pt.y,
+                                control2X = pt.x,
+                                control2Y = pt.y
+                            )
+                        }
+                        shape.copy(
+                            type = ShapeType.BEZIER_PATH,
+                            bezierNodes = bezierNodes,
+                            isPathClosed = (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR)
+                        )
+                    } else {
+                        shape
+                    }
                 }
             } else {
                 shape

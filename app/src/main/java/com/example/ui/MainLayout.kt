@@ -574,7 +574,205 @@ fun MainLayout(viewModel: VectorViewModel) {
                     modifier = Modifier.fillMaxSize().clipToBounds()
                 )
 
-
+                if (viewModel.currentTool == VectorTool.DIRECT_SELECTION) {
+                    var expandedEditMode by remember { mutableStateOf(false) }
+                    var showNodeTypeMenu by remember { mutableStateOf(false) }
+                    
+                    val selectedShape = viewModel.shapes.find { it.id == viewModel.selectedShapeId }
+                    val activeNodeIndex = viewModel.selectedDirectSelectionNodeIndex
+                    val selectedNode = if (selectedShape != null && selectedShape.type == com.example.model.ShapeType.BEZIER_PATH && activeNodeIndex != null) {
+                        selectedShape.bezierNodes.getOrNull(activeNodeIndex)
+                    } else null
+                    
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF475569)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 16.dp)
+                            .wrapContentSize()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Section 1: Edit/Tool Mode
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "Edit:",
+                                    color = Color.White,
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium
+                                )
+                                Box {
+                                    androidx.compose.material3.Button(
+                                        onClick = { expandedEditMode = true },
+                                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF334155),
+                                            contentColor = Color.White
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(32.dp).testTag("node_edit_dropdown_button")
+                                    ) {
+                                        val modeLabel = when(viewModel.currentNodeEditMode) {
+                                            com.example.viewmodel.NodeEditMode.NONE -> "None"
+                                            com.example.viewmodel.NodeEditMode.ADD -> "+ Node"
+                                            com.example.viewmodel.NodeEditMode.REMOVE -> "- Node"
+                                            com.example.viewmodel.NodeEditMode.CUT -> "Cut"
+                                            com.example.viewmodel.NodeEditMode.SPLIT -> "Pisah"
+                                            com.example.viewmodel.NodeEditMode.CLOSE -> "Close"
+                                        }
+                                        Text(
+                                            text = modeLabel,
+                                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                                            fontSize = 12.sp
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDropDown,
+                                            contentDescription = "Dropdown indicator",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    
+                                    androidx.compose.material3.DropdownMenu(
+                                        expanded = expandedEditMode,
+                                        onDismissRequest = { expandedEditMode = false },
+                                        modifier = Modifier.background(Color(0xFF1E293B)).border(width = 0.5.dp, color = Color(0xFF475569))
+                                    ) {
+                                        val modes = listOf(
+                                            com.example.viewmodel.NodeEditMode.NONE to "None",
+                                            com.example.viewmodel.NodeEditMode.ADD to "+ Node",
+                                            com.example.viewmodel.NodeEditMode.REMOVE to "- Node",
+                                            com.example.viewmodel.NodeEditMode.CUT to "Cut",
+                                            com.example.viewmodel.NodeEditMode.SPLIT to "Pisah",
+                                            com.example.viewmodel.NodeEditMode.CLOSE to "Close Path"
+                                        )
+                                        modes.forEach { (mode, label) ->
+                                            androidx.compose.material3.DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = label,
+                                                        color = if (viewModel.currentNodeEditMode == mode) Color(0xFFFF6D00) else Color.White,
+                                                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
+                                                    )
+                                                },
+                                                onClick = {
+                                                    viewModel.currentNodeEditMode = mode
+                                                    expandedEditMode = false
+                                                    if (mode == com.example.viewmodel.NodeEditMode.CLOSE) {
+                                                        val sId = viewModel.selectedShapeId
+                                                        if (sId != null) {
+                                                            viewModel.closePath(sId)
+                                                            Toast.makeText(context, "Path Closed", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            Toast.makeText(context, "Silakan pilih path terlebih dahulu", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                        viewModel.currentNodeEditMode = com.example.viewmodel.NodeEditMode.NONE
+                                                    }
+                                                },
+                                                modifier = Modifier.testTag("node_edit_item_${mode.name}")
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Section 2: Node Type (Show dynamic dropdown only if a node is selected)
+                            if (activeNodeIndex != null) {
+                                Spacer(
+                                    modifier = Modifier
+                                        .height(20.dp)
+                                        .width(1.dp)
+                                        .background(Color(0xFF475569))
+                                )
+                                
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "Tipe:",
+                                        color = Color.White,
+                                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium
+                                    )
+                                    val currentNodeType = selectedNode?.nodeType ?: "BEBAS"
+                                    val nodeLabel = when (currentNodeType) {
+                                        "BEBAS" -> "Bebas"
+                                        "ASIMETRIS" -> "Asimetris"
+                                        "SIMETRIS" -> "Simetris"
+                                        "HALUS" -> "Halus"
+                                        else -> "Bebas"
+                                    }
+                                    Box {
+                                        androidx.compose.material3.Button(
+                                            onClick = { showNodeTypeMenu = true },
+                                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFF334155),
+                                                contentColor = Color.White
+                                            ),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(32.dp).testTag("node_type_dropdown_btn")
+                                        ) {
+                                            Text(
+                                                text = nodeLabel,
+                                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                                                fontSize = 12.sp
+                                            )
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDropDown,
+                                                contentDescription = "Dropdown indicators",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        
+                                        androidx.compose.material3.DropdownMenu(
+                                            expanded = showNodeTypeMenu,
+                                            onDismissRequest = { showNodeTypeMenu = false },
+                                            modifier = Modifier.background(Color(0xFF1E293B)).border(width = 0.5.dp, color = Color(0xFF475569))
+                                        ) {
+                                            val types = listOf(
+                                                "BEBAS" to "Bebas",
+                                                "ASIMETRIS" to "Asimetris",
+                                                "SIMETRIS" to "Simetris",
+                                                "HALUS" to "Halus"
+                                            )
+                                            types.forEach { (typeKey, typeLabel) ->
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = typeLabel,
+                                                            color = if (currentNodeType == typeKey) Color(0xFFFF6D00) else Color.White,
+                                                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        showNodeTypeMenu = false
+                                                        val sId = viewModel.selectedShapeId
+                                                        val idx = viewModel.selectedDirectSelectionNodeIndex
+                                                        if (sId != null && idx != null) {
+                                                            viewModel.setShapeNodeType(sId, idx, typeKey)
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
             // 1. Primitive Shapes Selection panel
             androidx.compose.animation.AnimatedVisibility(
@@ -913,102 +1111,7 @@ fun MainLayout(viewModel: VectorViewModel) {
 
 
 
-            // Direct Selection node deletion panel
-            if (viewModel.currentTool == VectorTool.DIRECT_SELECTION && viewModel.selectedDirectSelectionNodeIndex != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 12.dp, top = 12.dp)
-                ) {
-                    val selectedShape = viewModel.shapes.find { it.id == viewModel.selectedShapeId }
-                    var showNodeTypeMenu by remember { mutableStateOf(false) }
-                    val activeNodeIndex = viewModel.selectedDirectSelectionNodeIndex!!
-                    val selectedNode = if (selectedShape != null && selectedShape.type == com.example.model.ShapeType.BEZIER_PATH) {
-                        selectedShape.bezierNodes.getOrNull(activeNodeIndex)
-                    } else null
-                    
-                    val currentNodeType = selectedNode?.nodeType ?: "BEBAS"
-                    val nodeLabel = when (currentNodeType) {
-                        "BEBAS" -> "Bebas"
-                        "ASIMETRIS" -> "Asimetris"
-                        "SIMETRIS" -> "Simetris"
-                        "HALUS" -> "Halus"
-                        else -> "Bebas"
-                    }
-                    
-                    Box {
-                        Button(
-                            onClick = { showNodeTypeMenu = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xE61E293B)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF475569)),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                            modifier = Modifier.testTag("node_type_dropdown_btn")
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = "Tipe: $nodeLabel", fontSize = 11.sp, color = Color.White)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = "Dropdown Arrow",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                        
-                        DropdownMenu(
-                            expanded = showNodeTypeMenu,
-                            onDismissRequest = { showNodeTypeMenu = false },
-                            modifier = Modifier.background(Color(0xFF1E293B))
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Bebas (Corner / Sharp Node)", color = if (currentNodeType == "BEBAS") Color(0xFF3B82F6) else Color.White, fontSize = 12.sp) },
-                                onClick = {
-                                    showNodeTypeMenu = false
-                                    val sId = viewModel.selectedShapeId
-                                    val idx = viewModel.selectedDirectSelectionNodeIndex
-                                    if (sId != null && idx != null) {
-                                        viewModel.setShapeNodeType(sId, idx, "BEBAS")
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Asimetris (Asymmetric Node)", color = if (currentNodeType == "ASIMETRIS") Color(0xFF3B82F6) else Color.White, fontSize = 12.sp) },
-                                onClick = {
-                                    showNodeTypeMenu = false
-                                    val sId = viewModel.selectedShapeId
-                                    val idx = viewModel.selectedDirectSelectionNodeIndex
-                                    if (sId != null && idx != null) {
-                                        viewModel.setShapeNodeType(sId, idx, "ASIMETRIS")
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Simetris (Symmetric Node)", color = if (currentNodeType == "SIMETRIS") Color(0xFF3B82F6) else Color.White, fontSize = 12.sp) },
-                                onClick = {
-                                    showNodeTypeMenu = false
-                                    val sId = viewModel.selectedShapeId
-                                    val idx = viewModel.selectedDirectSelectionNodeIndex
-                                    if (sId != null && idx != null) {
-                                        viewModel.setShapeNodeType(sId, idx, "SIMETRIS")
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Halus (Smooth Node)", color = if (currentNodeType == "HALUS") Color(0xFF3B82F6) else Color.White, fontSize = 12.sp) },
-                                onClick = {
-                                    showNodeTypeMenu = false
-                                    val sId = viewModel.selectedShapeId
-                                    val idx = viewModel.selectedDirectSelectionNodeIndex
-                                    if (sId != null && idx != null) {
-                                        viewModel.setShapeNodeType(sId, idx, "HALUS")
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-            }
+
             
             // Pen tool contextual actions (Checklist and Close Path) next to the "dropdown tool edit" place
             if (viewModel.currentTool == VectorTool.PEN && viewModel.activeBezierNodes.isNotEmpty()) {

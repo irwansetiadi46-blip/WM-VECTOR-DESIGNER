@@ -10,6 +10,94 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
+/**
+ * Technical representation of a computed Live Corner Curve.
+ * Defined by 4 high-precision points form a Cubic Bézier curve (P0, P1, P2, P3).
+ * Guarantees G1 continuity at the transition boundaries.
+ */
+data class LiveCornerCurve(
+    val p0: Offset,          // Start Anchor Point
+    val p1: Offset,          // Start Bézier Control Handle Point
+    val p2: Offset,          // End Bézier Control Handle Point
+    val p3: Offset,          // End Target Anchor Point
+    val actualRadius: Float  // Safely constrained and scaled corner radius
+)
+
+/**
+ * Live Corners Solver: Dynamically calculates and rounds intersecting corner lines
+ * formed by points A, vertex/intersection corner B, and C.
+ * Optimized for any arbitrary angle between 30° and 150°, including orthographic 90°.
+ *
+ * @param pointA The starting point of Line Segment 1
+ * @param pointB The absolute intersection vertex (the corner to round)
+ * @param pointC The ending point of Line Segment 2
+ * @param radius The desired rounding radius R
+ */
+fun calculateLiveCorner(
+    pointA: Offset,
+    pointB: Offset,
+    pointC: Offset,
+    radius: Float
+): LiveCornerCurve? {
+    // 1. Vector Derivation: Compute direction vectors from the vertex/intersection point B to adjacent points A and C
+    val v1 = pointA - pointB
+    val v2 = pointC - pointB
+
+    // 2. High-precision segment lengths calculation to prevent any division-by-zero or NaN propagation
+    val L1 = kotlin.math.hypot(v1.x, v1.y)
+    val L2 = kotlin.math.hypot(v2.x, v2.y)
+
+    // 3. Degeneracy Check: Reject intersecting lines that lack sufficient geometric length
+    if (L1 < 0.1f || L2 < 0.1f) return null
+
+    // 4. Unit Vectors: Derive normalized direction vectors collinear with both intersecting line segments
+    val u1 = Offset(v1.x / L1, v1.y / L1)
+    val u2 = Offset(v2.x / L2, v2.y / L2)
+
+    // 5. Interior Angle Analysis: Find the angle theta (θ) formed by the two intersecting lines at vertex B
+    val cosTheta = (u1.x * u2.x + u1.y * u2.y).coerceIn(-0.99999f, 0.99999f)
+    val theta = kotlin.math.acos(cosTheta)
+
+    // 6. Tangent Half-Angle: Solve the trigonometric half-angle tangent relation to find the base circular tangent distance
+    val tanHalf = kotlin.math.tan(theta / 2f)
+    if (tanHalf < 0.001f) return null
+    val dBase = radius / tanHalf
+
+    // 7. Safety Constraints: Clamp the tangent distance to a maximum of 48% of the shorter line segment.
+    // This dynamically scales down the corner radius if the available segment lengths are too short,
+    // thereby preventing overlapping curves and rendering artifacts at extreme angles.
+    val dMax = minOf(L1, L2) * 0.48f
+    val D = minOf(dBase, dMax)
+    
+    // Compute the dynamically scaled actual nominal radius
+    val actualRadius = D * tanHalf
+
+    // 8. Offset Anchor Projection: Project start anchor P0 on BA, and target end anchor P3 on BC using unit vectors
+    // P0 = B + u1 * D
+    val p0 = pointB + u1 * D
+    // P3 = B + u2 * D
+    val p3 = pointB + u2 * D
+
+    // 9. Bezier Control Handle Derivation with Curvature Smoothing:
+    // Calculate bezier handle lengths (p1 and p2) using the standard corner-angle Kappa formula:
+    // handleLength = radius * (4.0 / 3.0) * tan(theta / 4.0)
+    val L_handle = actualRadius * (4f / 3f) * kotlin.math.tan(theta / 4f)
+
+    // 10. Control Points Projection: Project handles collinear along their respective tangents to guarantee G1 visual smoothness
+    // P1 extends from P0 towards the vertex B
+    val p1 = p0 - u1 * L_handle
+    // P2 extends from P3 towards the vertex B
+    val p2 = p3 - u2 * L_handle
+
+    return LiveCornerCurve(
+        p0 = p0,
+        p1 = p1,
+        p2 = p2,
+        p3 = p3,
+        actualRadius = actualRadius
+    )
+}
+
 // We represent shapes as direct data classes for easy Moshi serialization
 data class SerializedPoint(val x: Float, val y: Float) {
     fun toOffset(): Offset = Offset(x, y)
@@ -147,6 +235,7 @@ data class VectorShape(
     val radiusTR: Float = 0f,
     val radiusBL: Float = 0f,
     val radiusBR: Float = 0f,
+    val cornerRadius: Float = 0f,
     val customCornerRadii: List<Float> = emptyList(),
     
     // Selection Group grouping ID
@@ -468,15 +557,64 @@ data class VectorShape(
 
     fun getCornerRadius(index: Int): Float {
         if (type == ShapeType.RECTANGLE) {
-            return when (index) {
+            val r = when (index) {
                 0 -> radiusTL
                 1 -> radiusTR
                 2 -> radiusBR
                 3 -> radiusBL
                 else -> 0f
             }
+            return if (r == 0f) cornerRadius else r
         }
         return customCornerRadii.getOrNull(index) ?: 0f
+    }
+
+    fun getLiveCornerWidgetPositions(): List<Offset> {
+        val vertices = getCornerPoints()
+        val list = mutableListOf<Offset>()
+        if (vertices.isEmpty()) return list
+        
+        val n = vertices.size
+        for (i in 0 until n) {
+            val pi = vertices[i]
+            val prevIndex = if (i > 0) i - 1 else n - 1
+            val nextIndex = if (i < n - 1) i + 1 else 0
+            
+            val pPrev = vertices[prevIndex]
+            val pNext = vertices[nextIndex]
+            
+            val v1 = pPrev - pi
+            val v2 = pNext - pi
+            val L1 = kotlin.math.hypot(v1.x, v1.y)
+            val L2 = kotlin.math.hypot(v2.x, v2.y)
+            
+            if (L1 > 0.1f && L2 > 0.1f) {
+                val u1 = Offset(v1.x / L1, v1.y / L1)
+                val u2 = Offset(v2.x / L2, v2.y / L2)
+                
+                // Bisector vector
+                val bisectX = u1.x + u2.x
+                val bisectY = u1.y + u2.y
+                val len = kotlin.math.hypot(bisectX, bisectY)
+                if (len > 0.001f) {
+                    val ubX = bisectX / len
+                    val ubY = bisectY / len
+                    val uBisect = Offset(ubX, ubY)
+                    
+                    val r = getCornerRadius(i)
+                    // Visual position: place it along the bisector
+                    // Distance is proportional to radius, with a minimum inset of 16px to always remain visible
+                    val maxD = minOf(L1, L2) * 0.45f
+                    val d = minOf(r * 1.1f + 16f, maxD)
+                    list.add(pi + uBisect * d)
+                } else {
+                    list.add(pi)
+                }
+            } else {
+                list.add(pi)
+            }
+        }
+        return list
     }
 
     fun bakedRoundedCorners(): VectorShape {
@@ -503,33 +641,15 @@ data class VectorShape(
             
             val r = customCornerRadii.getOrNull(i) ?: 0f
             if (r > 0.1f) {
-                val v1 = pPrev - pi
-                val v2 = pNext - pi
-                val L1 = hypot(v1.x, v1.y)
-                val L2 = hypot(v2.x, v2.y)
-                if (L1 > 0.1f && L2 > 0.1f) {
-                    val u1 = Offset(v1.x / L1, v1.y / L1)
-                    val u2 = Offset(v2.x / L2, v2.y / L2)
-                    
-                    val c = u1.x * u2.x + u1.y * u2.y
-                    if (c < 0.99f && c > -0.99f) {
-                        val dReq = r * kotlin.math.sqrt((1f + c) / (1f - c))
-                        val dMax = minOf(L1, L2) / 2f
-                        val D = minOf(dReq, dMax)
-                        
-                        if (D > 0.1f) {
-                            val k = kotlin.math.sqrt((1f - c) / 2f)
-                            val f = (4f * k) / (3f * (1f + k))
-                            val L = f * D
-                            
-                            drawAsArc[i] = true
-                            arcStarts[i] = pi + u1 * D
-                            arcEnds[i] = pi + u2 * D
-                            arcC1[i] = arcStarts[i] - u1 * L
-                            arcC2[i] = arcEnds[i] - u2 * L
-                            continue
-                        }
-                    }
+                // Call our industry-grade Live Corner solver
+                val solver = calculateLiveCorner(pPrev, pi, pNext, r)
+                if (solver != null) {
+                    drawAsArc[i] = true
+                    arcStarts[i] = solver.p0
+                    arcEnds[i] = solver.p3
+                    arcC1[i] = solver.p1
+                    arcC2[i] = solver.p2
+                    continue
                 }
             }
             drawAsArc[i] = false
@@ -584,6 +704,189 @@ data class VectorShape(
         )
     }
 
+    fun convertCornerPointsToEightBezierNodes(): List<BezierNode> {
+        val vertices = getCornerPoints()
+        val n = vertices.size
+        if (n == 0) return emptyList()
+        
+        val maxW = width / 2f
+        val maxH = height / 2f
+        
+        val solvers = Array<LiveCornerCurve?>(n) { null }
+        val drawAsArc = BooleanArray(n)
+        val arcStarts = Array(n) { Offset.Zero }
+        val arcEnds = Array(n) { Offset.Zero }
+        val arcC1 = Array(n) { Offset.Zero }
+        val arcC2 = Array(n) { Offset.Zero }
+        
+        for (i in 0 until n) {
+            val pi = vertices[i]
+            val prevIndex = if (i > 0) i - 1 else n - 1
+            val nextIndex = if (i < n - 1) i + 1 else 0
+            
+            val pPrev = vertices[prevIndex]
+            val pNext = vertices[nextIndex]
+            
+            val rRaw = getCornerRadius(i)
+            val r = minOf(rRaw, maxW, maxH)
+            val solver = if (r > 0.1f) calculateLiveCorner(pPrev, pi, pNext, r) else null
+            if (solver != null) {
+                solvers[i] = solver
+                drawAsArc[i] = true
+                arcStarts[i] = solver.p0
+                arcEnds[i] = solver.p3
+                arcC1[i] = solver.p1
+                arcC2[i] = solver.p2
+            } else {
+                drawAsArc[i] = false
+                arcStarts[i] = pi
+                arcEnds[i] = pi
+                arcC1[i] = pi
+                arcC2[i] = pi
+            }
+        }
+        
+        val nodes = mutableListOf<BezierNode>()
+        if (n != 4) {
+            // Fallback for non-rectangles (polygons, stars, etc.)
+            for (i in 0 until n) {
+                val isFirst = (i == 0)
+                if (drawAsArc[i]) {
+                    nodes.add(
+                        BezierNode(
+                            anchorX = arcStarts[i].x,
+                            anchorY = arcStarts[i].y,
+                            isCurve = true,
+                            control1X = arcStarts[i].x,
+                            control1Y = arcStarts[i].y,
+                            control2X = arcStarts[i].x,
+                            control2Y = arcStarts[i].y,
+                            isMoveTo = isFirst
+                        )
+                    )
+                    nodes.add(
+                        BezierNode(
+                            anchorX = arcEnds[i].x,
+                            anchorY = arcEnds[i].y,
+                            isCurve = true,
+                            control1X = arcC1[i].x,
+                            control1Y = arcC1[i].y,
+                            control2X = arcC2[i].x,
+                            control2Y = arcC2[i].y,
+                            isMoveTo = false
+                        )
+                    )
+                } else {
+                    nodes.add(
+                        BezierNode(
+                            anchorX = vertices[i].x,
+                            anchorY = vertices[i].y,
+                            isCurve = false,
+                            control1X = vertices[i].x,
+                            control1Y = vertices[i].y,
+                            control2X = vertices[i].x,
+                            control2Y = vertices[i].y,
+                            isMoveTo = isFirst
+                        )
+                    )
+                }
+            }
+            return nodes
+        }
+        
+        // Exactly 4 corners (Rectangle) -> 8 precise nodes
+        // Node 0: Exit of TL corner
+        nodes.add(BezierNode(
+            anchorX = arcEnds[0].x,
+            anchorY = arcEnds[0].y,
+            isCurve = true,
+            control1X = arcC2[0].x,
+            control1Y = arcC2[0].y,
+            control2X = arcEnds[0].x,
+            control2Y = arcEnds[0].y,
+            isMoveTo = true
+        ))
+        
+        // Node 1: Entry of TR corner
+        nodes.add(BezierNode(
+            anchorX = arcStarts[1].x,
+            anchorY = arcStarts[1].y,
+            isCurve = true,
+            control1X = arcStarts[1].x,
+            control1Y = arcStarts[1].y,
+            control2X = arcC1[1].x,
+            control2Y = arcC1[1].y
+        ))
+        
+        // Node 2: Exit of TR corner
+        nodes.add(BezierNode(
+            anchorX = arcEnds[1].x,
+            anchorY = arcEnds[1].y,
+            isCurve = true,
+            control1X = arcC2[1].x,
+            control1Y = arcC2[1].y,
+            control2X = arcEnds[1].x,
+            control2Y = arcEnds[1].y
+        ))
+        
+        // Node 3: Entry of BR corner
+        nodes.add(BezierNode(
+            anchorX = arcStarts[2].x,
+            anchorY = arcStarts[2].y,
+            isCurve = true,
+            control1X = arcStarts[2].x,
+            control1Y = arcStarts[2].y,
+            control2X = arcC1[2].x,
+            control2Y = arcC1[2].y
+        ))
+        
+        // Node 4: Exit of BR corner
+        nodes.add(BezierNode(
+            anchorX = arcEnds[2].x,
+            anchorY = arcEnds[2].y,
+            isCurve = true,
+            control1X = arcC2[2].x,
+            control1Y = arcC2[2].y,
+            control2X = arcEnds[2].x,
+            control2Y = arcEnds[2].y
+        ))
+        
+        // Node 5: Entry of BL corner
+        nodes.add(BezierNode(
+            anchorX = arcStarts[3].x,
+            anchorY = arcStarts[3].y,
+            isCurve = true,
+            control1X = arcStarts[3].x,
+            control1Y = arcStarts[3].y,
+            control2X = arcC1[3].x,
+            control2Y = arcC1[3].y
+        ))
+        
+        // Node 6: Exit of BL corner
+        nodes.add(BezierNode(
+            anchorX = arcEnds[3].x,
+            anchorY = arcEnds[3].y,
+            isCurve = true,
+            control1X = arcC2[3].x,
+            control1Y = arcC2[3].y,
+            control2X = arcEnds[3].x,
+            control2Y = arcEnds[3].y
+        ))
+        
+        // Node 7: Entry of TL corner
+        nodes.add(BezierNode(
+            anchorX = arcStarts[0].x,
+            anchorY = arcStarts[0].y,
+            isCurve = true,
+            control1X = arcStarts[0].x,
+            control1Y = arcStarts[0].y,
+            control2X = arcC1[0].x,
+            control2Y = arcC1[0].y
+        ))
+        
+        return nodes
+    }
+
     fun buildRoundedVertexPath(vertices: List<Offset>, radii: List<Float>): Path {
         val path = Path()
         if (vertices.isEmpty()) return path
@@ -605,33 +908,15 @@ data class VectorShape(
             
             val r = radii.getOrNull(i) ?: 0f
             if (r > 0.1f) {
-                val v1 = pPrev - pi
-                val v2 = pNext - pi
-                val L1 = hypot(v1.x, v1.y)
-                val L2 = hypot(v2.x, v2.y)
-                if (L1 > 0.1f && L2 > 0.1f) {
-                    val u1 = Offset(v1.x / L1, v1.y / L1)
-                    val u2 = Offset(v2.x / L2, v2.y / L2)
-                    
-                    val c = u1.x * u2.x + u1.y * u2.y
-                    if (c < 0.99f && c > -0.99f) {
-                        val dReq = r * kotlin.math.sqrt((1f + c) / (1f - c))
-                        val dMax = minOf(L1, L2) / 2f
-                        val D = minOf(dReq, dMax)
-                        
-                        if (D > 0.1f) {
-                            val k = kotlin.math.sqrt((1f - c) / 2f)
-                            val f = (4f * k) / (3f * (1f + k))
-                            val L = f * D
-                            
-                            drawAsArc[i] = true
-                            arcStarts[i] = pi + u1 * D
-                            arcEnds[i] = pi + u2 * D
-                            arcC1[i] = arcStarts[i] - u1 * L
-                            arcC2[i] = arcEnds[i] - u2 * L
-                            continue
-                        }
-                    }
+                // Call our industry-grade Live Corner solver
+                val solver = calculateLiveCorner(pPrev, pi, pNext, r)
+                if (solver != null) {
+                    drawAsArc[i] = true
+                    arcStarts[i] = solver.p0
+                    arcEnds[i] = solver.p3
+                    arcC1[i] = solver.p1
+                    arcC2[i] = solver.p2
+                    continue
                 }
             }
             drawAsArc[i] = false
@@ -665,23 +950,21 @@ data class VectorShape(
         val path = Path()
         when (type) {
             ShapeType.RECTANGLE -> {
-                if (radiusTL > 0f || radiusTR > 0f || radiusBL > 0f || radiusBR > 0f) {
-                    val rTL = minOf(radiusTL, width / 2f, height / 2f)
-                    val rTR = minOf(radiusTR, width / 2f, height / 2f)
-                    val rBR = minOf(radiusBR, width / 2f, height / 2f)
-                    val rBL = minOf(radiusBL, width / 2f, height / 2f)
-                    
-                    path.addRoundRect(
-                        androidx.compose.ui.geometry.RoundRect(
-                            rect = Rect(x, y, x + width, y + height),
-                            topLeft = androidx.compose.ui.geometry.CornerRadius(rTL, rTL),
-                            topRight = androidx.compose.ui.geometry.CornerRadius(rTR, rTR),
-                            bottomRight = androidx.compose.ui.geometry.CornerRadius(rBR, rBR),
-                            bottomLeft = androidx.compose.ui.geometry.CornerRadius(rBL, rBL)
-                        )
+                val vertices = getCornerPoints()
+                if (vertices.isNotEmpty()) {
+                    val r0 = getCornerRadius(0)
+                    val r1 = getCornerRadius(1)
+                    val r2 = getCornerRadius(2)
+                    val r3 = getCornerRadius(3)
+                    val maxW = width / 2f
+                    val maxH = height / 2f
+                    val radii = listOf(
+                        minOf(r0, maxW, maxH),
+                        minOf(r1, maxW, maxH),
+                        minOf(r2, maxW, maxH),
+                        minOf(r3, maxW, maxH)
                     )
-                } else {
-                    path.addRect(Rect(x, y, x + width, y + height))
+                    path.addPath(buildRoundedVertexPath(vertices, radii))
                 }
             }
             ShapeType.ELLIPSE -> {
