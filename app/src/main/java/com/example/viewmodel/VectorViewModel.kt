@@ -4052,95 +4052,79 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         // Now, fetch updated sorted selection
         val updatedSelected = shapes.filter { selectedShapeIds.contains(it.id) }
         val sortedSelected = shapes.filter { updatedSelected.any { sel -> sel.id == it.id } }
-        
-        // Extract original boundaries
-        val flatSegments = sortedSelected.flatMap { getOriginalBezierSegments(it) }
-        val allIntersectionTs = Array(flatSegments.size) { mutableListOf<Float>() }
+        if (sortedSelected.size < 2) return
 
-        for (i in flatSegments.indices) {
-            for (j in (i + 1) until flatSegments.size) {
-                val segI = flatSegments[i]
-                val segJ = flatSegments[j]
-                
-                val results = mutableListOf<Pair<Float, Float>>()
-                findIntersections(segI, 0f, 1f, segJ, 0f, 1f, results)
-                
-                for (res in results) {
-                    val tI = res.first
-                    val tJ = res.second
-                    
-                    if (tI in 0.005f..0.995f) {
-                        allIntersectionTs[i].add(tI)
-                    }
-                    if (tJ in 0.005f..0.995f) {
-                        allIntersectionTs[j].add(tJ)
-                    }
-                }
+        // Extract all original segments rotated/transformed to absolute Canvas World Space
+        val allWorldSegments = mutableListOf<BezierSegment>()
+        fun getRotatedSegments(shape: VectorShape): List<BezierSegment> {
+            val sList = getOriginalBezierSegments(shape)
+            if (shape.rotationAngle == 0f) return sList
+            val bounds = shape.getBoundingBox()
+            val cx = (bounds.left + bounds.right) / 2f
+            val cy = (bounds.top + bounds.bottom) / 2f
+            return sList.map { s ->
+                BezierSegment(
+                    p0 = rotatePoint(s.p0, Offset(cx, cy), shape.rotationAngle),
+                    p1 = rotatePoint(s.p1, Offset(cx, cy), shape.rotationAngle),
+                    p2 = rotatePoint(s.p2, Offset(cx, cy), shape.rotationAngle),
+                    p3 = rotatePoint(s.p3, Offset(cx, cy), shape.rotationAngle),
+                    originalShapeId = s.originalShapeId,
+                    isCurve = s.isCurve
+                )
             }
         }
 
-        val origSegments = mutableListOf<BezierSegment>()
-        for (i in flatSegments.indices) {
-            val seg = flatSegments[i]
-            val ts = allIntersectionTs[i]
-            val subsegs = splitAtMultipleTs(seg, ts)
-            origSegments.addAll(subsegs)
+        allWorldSegments.addAll(getRotatedSegments(sortedSelected[0]))
+
+        // Set up first shape's absolute path
+        val rawPath0 = sortedSelected[0].copy(rotationAngle = 0f).asComposePath()
+        val matrix0 = android.graphics.Matrix().apply {
+            if (sortedSelected[0].rotationAngle != 0f) {
+                val bounds = sortedSelected[0].getBoundingBox()
+                val cx = (bounds.left + bounds.right) / 2f
+                val cy = (bounds.top + bounds.bottom) / 2f
+                postRotate(sortedSelected[0].rotationAngle, cx, cy)
+            }
         }
+        var currentPath = Path().apply { addPath(rawPath0) }
+        currentPath.asAndroidPath().transform(matrix0)
 
-        val originalSegmentsOfShape = sortedSelected.map { getOriginalBezierSegments(it) }
+        // Sequentially execute Boolean operations using native Path.op
+        for (i in 1 until sortedSelected.size) {
+            val shapeB = sortedSelected[i]
+            allWorldSegments.addAll(getRotatedSegments(shapeB))
 
-        val pool = mutableListOf<BezierSegment>()
-        for (seg in origSegments) {
-            val idx = sortedSelected.indexOfFirst { it.id == seg.originalShapeId }
-            if (idx == -1) continue
-
-            val midP = seg.getPoint(0.5f)
-            val inShape = BooleanArray(sortedSelected.size) { k ->
-                isPointInsideSegments(midP.x, midP.y, originalSegmentsOfShape[k])
-            }
-            
-            var keep = false
-            var reverse = false
-            
-            when (opType) {
-                "UNITE" -> {
-                    val insideOther = (0 until sortedSelected.size).any { it != idx && inShape[it] }
-                    if (!insideOther) keep = true
-                }
-                "INTERSECT" -> {
-                    val insideAllOther = (0 until sortedSelected.size).all { it == idx || inShape[it] }
-                    if (insideAllOther) keep = true
-                }
-                "MINUS_FRONT" -> {
-                    if (idx == 0) {
-                        val insideAnyHole = (1 until sortedSelected.size).any { inShape[it] }
-                        if (!insideAnyHole) keep = true
-                    } else {
-                        val insideBase = inShape[0]
-                        val insideOtherHole = (1 until sortedSelected.size).any { it != idx && inShape[it] }
-                        if (insideBase && !insideOtherHole) {
-                            keep = true
-                            reverse = true
-                        }
-                    }
-                }
-                "EXCLUDE" -> {
-                    val insideCount = (0 until sortedSelected.size).count { it != idx && inShape[it] }
-                    keep = true
-                    reverse = (insideCount % 2 != 0)
+            val rawPathB = shapeB.copy(rotationAngle = 0f).asComposePath()
+            val matrixB = android.graphics.Matrix().apply {
+                if (shapeB.rotationAngle != 0f) {
+                    val bounds = shapeB.getBoundingBox()
+                    val cx = (bounds.left + bounds.right) / 2f
+                    val cy = (bounds.top + bounds.bottom) / 2f
+                    postRotate(shapeB.rotationAngle, cx, cy)
                 }
             }
-            
-            if (keep) {
-                if (reverse) {
-                    pool.add(BezierSegment(seg.p3, seg.p2, seg.p1, seg.p0, seg.originalShapeId, seg.isCurve))
-                } else {
-                    pool.add(seg)
-                }
+
+            // Create transformed path copies in absolute Canvas World Space
+            val transformedPathB = Path().apply { addPath(rawPathB) }
+            transformedPathB.asAndroidPath().transform(matrixB)
+
+            val op = when (opType) {
+                "UNITE" -> PathOperation.Union
+                "INTERSECT" -> PathOperation.Intersect
+                "MINUS_FRONT" -> PathOperation.Difference
+                "EXCLUDE" -> PathOperation.Xor
+                else -> PathOperation.Union
+            }
+
+            val nextPath = Path()
+            val success = nextPath.op(currentPath, transformedPathB, op)
+            if (success) {
+                currentPath = nextPath
             }
         }
 
-        val nodes = stitchSegments(pool)
+        // Extract and reconstruct perfect bezier nodes from final world-space path
+        val nodes = reconstructBezierNodesFromAndroidPath(currentPath.asAndroidPath(), allWorldSegments)
 
         if (nodes.isEmpty()) {
             shapes = shapes.filter { !selectedShapeIds.contains(it.id) }
@@ -4165,7 +4149,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             hasFill = targetStyleShape.hasFill,
             fillColorHex = targetStyleShape.fillColorHex,
             fillAlpha = targetStyleShape.fillAlpha,
-            layerOrder = targetStyleShape.layerOrder
+            layerOrder = targetStyleShape.layerOrder,
+            rotationAngle = 0f // reset rotation matrix since all coordinates are baked to world coordinates
         )
 
         shapes = shapes.map { s ->
