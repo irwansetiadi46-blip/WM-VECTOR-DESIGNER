@@ -3848,29 +3848,117 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         if (selected.size < 2) return
         pushToUndoStack()
 
-        // Keeps sorting matching the layout stack order
-        val sortedSelected = shapes.filter { selected.any { sel -> sel.id == it.id } }.map { it.bakedRoundedCorners() }
-        
-        var compositePath = preparePathForBoolean(sortedSelected[0].asComposePath())
-        
-        val op = when (opType) {
-            "UNITE" -> PathOperation.Union
-            "MINUS_FRONT" -> PathOperation.Difference
-            "INTERSECT" -> PathOperation.Intersect
-            "EXCLUDE" -> PathOperation.Xor
-            else -> PathOperation.Union
+        // 1. Force permanent conversion to BEZIER_PATH using 8-point/multi-point node expansion
+        shapes = shapes.map { shape ->
+            if (selectedShapeIds.contains(shape.id) && (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR)) {
+                val bezierNodes = shape.convertCornerPointsToEightBezierNodes()
+                shape.copy(
+                    type = ShapeType.BEZIER_PATH,
+                    bezierNodes = bezierNodes,
+                    customCornerRadii = emptyList(),
+                    isPathClosed = true,
+                    radiusTL = 0f,
+                    radiusTR = 0f,
+                    radiusBR = 0f,
+                    radiusBL = 0f
+                )
+            } else {
+                shape
+            }
         }
 
-        for (i in 1 until sortedSelected.size) {
-            val nextPath = preparePathForBoolean(sortedSelected[i].asComposePath())
-            val result = Path()
-            result.op(compositePath, nextPath, op)
-            compositePath = result
-        }
-
+        // Now, fetch updated sorted selection
+        val updatedSelected = shapes.filter { selectedShapeIds.contains(it.id) }
+        val sortedSelected = shapes.filter { updatedSelected.any { sel -> sel.id == it.id } }
+        
         // Extract original boundaries
-        val origSegments = sortedSelected.flatMap { getOriginalBezierSegments(it) }
-        val nodes = reconstructBezierNodesFromAndroidPath(compositePath.asAndroidPath(), origSegments)
+        val flatSegments = sortedSelected.flatMap { getOriginalBezierSegments(it) }
+        val allIntersectionTs = Array(flatSegments.size) { mutableListOf<Float>() }
+
+        for (i in flatSegments.indices) {
+            for (j in (i + 1) until flatSegments.size) {
+                val segI = flatSegments[i]
+                val segJ = flatSegments[j]
+                
+                val results = mutableListOf<Pair<Float, Float>>()
+                findIntersections(segI, 0f, 1f, segJ, 0f, 1f, results)
+                
+                for (res in results) {
+                    val tI = res.first
+                    val tJ = res.second
+                    
+                    if (tI in 0.005f..0.995f) {
+                        allIntersectionTs[i].add(tI)
+                    }
+                    if (tJ in 0.005f..0.995f) {
+                        allIntersectionTs[j].add(tJ)
+                    }
+                }
+            }
+        }
+
+        val origSegments = mutableListOf<BezierSegment>()
+        for (i in flatSegments.indices) {
+            val seg = flatSegments[i]
+            val ts = allIntersectionTs[i]
+            val subsegs = splitAtMultipleTs(seg, ts)
+            origSegments.addAll(subsegs)
+        }
+
+        val originalSegmentsOfShape = sortedSelected.map { getOriginalBezierSegments(it) }
+
+        val pool = mutableListOf<BezierSegment>()
+        for (seg in origSegments) {
+            val idx = sortedSelected.indexOfFirst { it.id == seg.originalShapeId }
+            if (idx == -1) continue
+
+            val midP = seg.getPoint(0.5f)
+            val inShape = BooleanArray(sortedSelected.size) { k ->
+                isPointInsideSegments(midP.x, midP.y, originalSegmentsOfShape[k])
+            }
+            
+            var keep = false
+            var reverse = false
+            
+            when (opType) {
+                "UNITE" -> {
+                    val insideOther = (0 until sortedSelected.size).any { it != idx && inShape[it] }
+                    if (!insideOther) keep = true
+                }
+                "INTERSECT" -> {
+                    val insideAllOther = (0 until sortedSelected.size).all { it == idx || inShape[it] }
+                    if (insideAllOther) keep = true
+                }
+                "MINUS_FRONT" -> {
+                    if (idx == 0) {
+                        val insideAnyHole = (1 until sortedSelected.size).any { inShape[it] }
+                        if (!insideAnyHole) keep = true
+                    } else {
+                        val insideBase = inShape[0]
+                        val insideOtherHole = (1 until sortedSelected.size).any { it != idx && inShape[it] }
+                        if (insideBase && !insideOtherHole) {
+                            keep = true
+                            reverse = true
+                        }
+                    }
+                }
+                "EXCLUDE" -> {
+                    val insideCount = (0 until sortedSelected.size).count { it != idx && inShape[it] }
+                    keep = true
+                    reverse = (insideCount % 2 != 0)
+                }
+            }
+            
+            if (keep) {
+                if (reverse) {
+                    pool.add(BezierSegment(seg.p3, seg.p2, seg.p1, seg.p0, seg.originalShapeId, seg.isCurve))
+                } else {
+                    pool.add(seg)
+                }
+            }
+        }
+
+        val nodes = stitchSegments(pool)
 
         if (nodes.isEmpty()) {
             shapes = shapes.filter { !selectedShapeIds.contains(it.id) }
@@ -3904,6 +3992,192 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
         selectedShapeId = newId
         selectedShapeIds = setOf(newId)
+    }
+
+    private fun findIntersections(
+        segA: BezierSegment, tA0: Float, tA1: Float,
+        segB: BezierSegment, tB0: Float, tB1: Float,
+        results: MutableList<Pair<Float, Float>>,
+        depth: Int = 0
+    ) {
+        val subA = segA.split(tA0, tA1)
+        val minXa = minOf(subA.p0.x, subA.p1.x, subA.p2.x, subA.p3.x)
+        val maxXa = maxOf(subA.p0.x, subA.p1.x, subA.p2.x, subA.p3.x)
+        val minYa = minOf(subA.p0.y, subA.p1.y, subA.p2.y, subA.p3.y)
+        val maxYa = maxOf(subA.p0.y, subA.p1.y, subA.p2.y, subA.p3.y)
+
+        val subB = segB.split(tB0, tB1)
+        val minXb = minOf(subB.p0.x, subB.p1.x, subB.p2.x, subB.p3.x)
+        val maxXb = maxOf(subB.p0.x, subB.p1.x, subB.p2.x, subB.p3.x)
+        val minYb = minOf(subB.p0.y, subB.p1.y, subB.p2.y, subB.p3.y)
+        val maxYb = maxOf(subB.p0.y, subB.p1.y, subB.p2.y, subB.p3.y)
+
+        if (subA.originalShapeId == subB.originalShapeId) {
+            val d00 = kotlin.math.hypot(subA.p0.x - subB.p0.x, subA.p0.y - subB.p0.y)
+            val d33 = kotlin.math.hypot(subA.p3.x - subB.p3.x, subA.p3.y - subB.p3.y)
+            val d03 = kotlin.math.hypot(subA.p0.x - subB.p3.x, subA.p0.y - subB.p3.y)
+            val d30 = kotlin.math.hypot(subA.p3.x - subB.p0.x, subA.p3.y - subB.p0.y)
+            if (d00 < 0.2f || d33 < 0.2f || d03 < 0.2f || d30 < 0.2f) {
+                val lenA = maxOf(maxXa - minXa, maxYa - minYa)
+                val lenB = maxOf(maxXb - minXb, maxYb - minYb)
+                if (lenA < 1.0f && lenB < 1.0f) {
+                    return
+                }
+            }
+        }
+
+        if (maxXa < minXb - 0.01f || minXa > maxXb + 0.01f || maxYa < minYb - 0.01f || minYa > maxYb + 0.01f) {
+            return
+        }
+
+        val sizeA = maxOf(maxXa - minXa, maxYa - minYa)
+        val sizeB = maxOf(maxXb - minXb, maxYb - minYb)
+
+        if (sizeA < 0.15f && sizeB < 0.15f) {
+            val midA = (tA0 + tA1) / 2f
+            val midB = (tB0 + tB1) / 2f
+            results.add(Pair(midA, midB))
+            return
+        }
+
+        if (depth > 12) {
+            val midA = (tA0 + tA1) / 2f
+            val midB = (tB0 + tB1) / 2f
+            results.add(Pair(midA, midB))
+            return
+        }
+
+        if (sizeA >= sizeB) {
+            val midA = (tA0 + tA1) / 2f
+            findIntersections(segA, tA0, midA, segB, tB0, tB1, results, depth + 1)
+            findIntersections(segA, midA, tA1, segB, tB0, tB1, results, depth + 1)
+        } else {
+            val midB = (tB0 + tB1) / 2f
+            findIntersections(segA, tA0, tA1, segB, tB0, midB, results, depth + 1)
+            findIntersections(segA, tA0, tA1, segB, midB, tB1, results, depth + 1)
+        }
+    }
+
+    private fun splitAtMultipleTs(seg: BezierSegment, ts: List<Float>): List<BezierSegment> {
+        if (ts.isEmpty()) return listOf(seg)
+        val sortedTs = ts.filter { it in 0.001f..0.999f }.distinct().sorted()
+        if (sortedTs.isEmpty()) return listOf(seg)
+
+        val results = mutableListOf<BezierSegment>()
+        var prevT = 0f
+        for (t in sortedTs) {
+            results.add(seg.split(prevT, t))
+            prevT = t
+        }
+        results.add(seg.split(prevT, 1f))
+        return results
+    }
+
+    private fun isPointInsideSegments(px: Float, py: Float, segments: List<BezierSegment>): Boolean {
+        val testY = py + 0.00013f
+        var crossings = 0
+        for (seg in segments) {
+            val minY = minOf(seg.p0.y, seg.p1.y, seg.p2.y, seg.p3.y)
+            val maxY = maxOf(seg.p0.y, seg.p1.y, seg.p2.y, seg.p3.y)
+            if (testY < minY || testY > maxY) continue
+            val maxX = maxOf(seg.p0.x, seg.p1.x, seg.p2.x, seg.p3.x)
+            if (px > maxX) continue
+
+            val steps = 30
+            var prev = seg.p0
+            for (i in 1..steps) {
+                val t = i.toFloat() / steps
+                val curr = seg.getPoint(t)
+                if ((prev.y > testY) != (curr.y > testY)) {
+                    val intersectX = prev.x + (curr.x - prev.x) * (testY - prev.y) / (curr.y - prev.y)
+                    if (px < intersectX) crossings++
+                }
+                prev = curr
+            }
+        }
+        return (crossings % 2) != 0
+    }
+
+    private fun stitchSegments(pool: MutableList<BezierSegment>): List<BezierNode> {
+        val nodes = mutableListOf<BezierNode>()
+        if (pool.isEmpty()) return nodes
+
+        while (pool.isNotEmpty()) {
+            val subpath = mutableListOf<BezierSegment>()
+            var curr = pool.removeAt(0)
+            subpath.add(curr)
+            
+            while (true) {
+                val p3 = curr.p3
+                var nextIdx = -1
+                var minDist = 1.5f // generous tolerance for float precision
+                for (i in pool.indices) {
+                    val candidate = pool[i]
+                    val d = kotlin.math.hypot(candidate.p0.x - p3.x, candidate.p0.y - p3.y)
+                    if (d < minDist) {
+                        minDist = d
+                        nextIdx = i
+                    }
+                }
+                
+                if (nextIdx != -1) {
+                    curr = pool.removeAt(nextIdx)
+                    subpath.add(curr)
+                } else {
+                    // Try to find connected backwards? If the shape is fully closed, it should be a loop.
+                    break
+                }
+            }
+            
+            // Build Nodes from subpath segments
+            for (i in subpath.indices) {
+                val seg = subpath[i]
+                val prevSeg = if (i > 0) subpath[i - 1] else subpath.last()
+                
+                val isCurveSegmentNext = subpath[(i + 1) % subpath.size].let { nextSeg ->
+                    kotlin.math.hypot(nextSeg.p1.x - nextSeg.p0.x, nextSeg.p1.y - nextSeg.p0.y) > 0.1f ||
+                    kotlin.math.hypot(nextSeg.p2.x - nextSeg.p3.x, nextSeg.p2.y - nextSeg.p3.y) > 0.1f ||
+                    nextSeg.isCurve
+                }
+                
+                val isCurveSegmentCurrent = kotlin.math.hypot(seg.p1.x - seg.p0.x, seg.p1.y - seg.p0.y) > 0.1f ||
+                                            kotlin.math.hypot(seg.p2.x - seg.p3.x, seg.p2.y - seg.p3.y) > 0.1f ||
+                                            seg.isCurve
+                
+                val node = BezierNode(
+                    anchorX = seg.p0.x,
+                    anchorY = seg.p0.y,
+                    isCurve = isCurveSegmentCurrent, 
+                    control1X = prevSeg.p2.x,
+                    control1Y = prevSeg.p2.y,
+                    control2X = seg.p1.x,
+                    control2Y = seg.p1.y,
+                    isMoveTo = (i == 0),
+                    nodeType = "BEBAS"
+                )
+                nodes.add(node)
+                
+                if (i == subpath.size - 1) {
+                    val endNode = BezierNode(
+                        anchorX = seg.p3.x,
+                        anchorY = seg.p3.y,
+                        isCurve = false,
+                        control1X = seg.p2.x,
+                        control1Y = seg.p2.y,
+                        control2X = seg.p3.x, // will be overridden if loop connects
+                        control2Y = seg.p3.y,
+                        isMoveTo = false,
+                        nodeType = "BEBAS"
+                    )
+                    // Let's only add the closing point if it doesn't match the very first point!
+                    val dStart = kotlin.math.hypot(seg.p3.x - subpath[0].p0.x, seg.p3.y - subpath[0].p0.y)
+                    if (dStart > 1.5f) {
+                        nodes.add(endNode)
+                    }
+                }
+            }
+        }
+        return nodes
     }
 
     // Toggle items layering visibility and locks
