@@ -589,7 +589,7 @@ fun MainLayout(viewModel: VectorViewModel) {
 
             // Delete (Trash can icon)
             val isPenNodeSelected = viewModel.currentTool == VectorTool.PEN && viewModel.activeEditNodeIndex != null
-            val isDSNodeSelected = viewModel.currentTool == VectorTool.DIRECT_SELECTION && viewModel.selectedDirectSelectionNodeIndex != null
+            val isDSNodeSelected = viewModel.currentTool == VectorTool.DIRECT_SELECTION && viewModel.selectedDirectSelectionNodes.isNotEmpty()
             val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
 
             IconButton(
@@ -830,7 +830,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     var showNodeTypeMenu by remember { mutableStateOf(false) }
                     
                     val selectedShape = viewModel.shapes.find { it.id == viewModel.selectedShapeId }
-                    val activeNodeIndex = viewModel.selectedDirectSelectionNodeIndex
+                    val activeNodeIndex = viewModel.selectedDirectSelectionNodes.firstOrNull()
                     val selectedNode = if (selectedShape != null && selectedShape.type == com.example.model.ShapeType.BEZIER_PATH && activeNodeIndex != null) {
                         selectedShape.bezierNodes.getOrNull(activeNodeIndex)
                     } else null
@@ -1010,9 +1010,11 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                     onClick = {
                                                         showNodeTypeMenu = false
                                                         val sId = viewModel.selectedShapeId
-                                                        val idx = viewModel.selectedDirectSelectionNodeIndex
-                                                        if (sId != null && idx != null) {
-                                                            viewModel.setShapeNodeType(sId, idx, typeKey)
+                                                        val idxs = viewModel.selectedDirectSelectionNodes
+                                                        if (sId != null && idxs.isNotEmpty()) {
+                                                            idxs.forEach { idx ->
+                                                                viewModel.setShapeNodeType(sId, idx, typeKey)
+                                                            }
                                                         }
                                                     }
                                                 )

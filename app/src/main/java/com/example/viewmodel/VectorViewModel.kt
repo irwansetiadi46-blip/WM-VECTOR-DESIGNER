@@ -137,7 +137,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         set(value) {
             _currentTool = value
             activeEditNodeIndex = null
-            selectedDirectSelectionNodeIndex = null
+            selectedDirectSelectionNodes = emptySet()
+            selectedDirectSelectionHandles = emptySet()
             isCloneModeActive = false
         }
     var activePrimitiveType by mutableStateOf(PrimitiveType.RECTANGLE)
@@ -159,7 +160,13 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var isPathClosed by mutableStateOf(false)
 
     // Selection node & corner controllers
-    var selectedDirectSelectionNodeIndex by mutableStateOf<Int?>(null)
+    var selectedDirectSelectionNodes by mutableStateOf<Set<Int>>(emptySet())
+    var selectedDirectSelectionHandles by mutableStateOf<Set<com.example.model.HandleHit>>(emptySet())
+    
+    fun clearDirectSelection() {
+        selectedDirectSelectionNodes = emptySet()
+        selectedDirectSelectionHandles = emptySet()
+    }
     var currentNodeEditMode by mutableStateOf(NodeEditMode.NONE)
     var selectedRoundedCornerIndex by mutableStateOf<Int?>(null)
     var manualCornerRadiusText by mutableStateOf("")
@@ -266,6 +273,46 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 }
             } else {
                 s
+            }
+        }
+    }
+
+    fun translateDirectSelection(shapeId: String, startShape: com.example.model.VectorShape, dx: Float, dy: Float) {
+        shapes = shapes.map { shape ->
+            if (shape.id == shapeId && shape.type == ShapeType.BEZIER_PATH) {
+                val newNodes = shape.bezierNodes.mapIndexed { idx, currentNode ->
+                    val startNode = startShape.bezierNodes.getOrNull(idx) ?: currentNode
+                    val isNodeSelected = selectedDirectSelectionNodes.contains(idx)
+                    val isHandleInSelected = selectedDirectSelectionHandles.contains(com.example.model.HandleHit(idx, "in"))
+                    val isHandleOutSelected = selectedDirectSelectionHandles.contains(com.example.model.HandleHit(idx, "out"))
+                    val anyHandleSelected = isHandleInSelected || isHandleOutSelected
+
+                    val moveAnchor = isNodeSelected && !anyHandleSelected
+                    
+                    val newAnchorX = startNode.anchorX + (if (moveAnchor) dx else 0f)
+                    val newAnchorY = startNode.anchorY + (if (moveAnchor) dy else 0f)
+                    
+                    val moveHandleIn = isHandleInSelected || (isNodeSelected && !anyHandleSelected)
+                    val moveHandleOut = isHandleOutSelected || (isNodeSelected && !anyHandleSelected)
+                    
+                    val newC1X = startNode.control1X + (if (moveHandleIn) dx else 0f)
+                    val newC1Y = startNode.control1Y + (if (moveHandleIn) dy else 0f)
+                    
+                    val newC2X = startNode.control2X + (if (moveHandleOut) dx else 0f)
+                    val newC2Y = startNode.control2Y + (if (moveHandleOut) dy else 0f)
+                    
+                    startNode.copy(
+                        anchorX = newAnchorX,
+                        anchorY = newAnchorY,
+                        control1X = newC1X,
+                        control1Y = newC1Y,
+                        control2X = newC2X,
+                        control2Y = newC2Y
+                    )
+                }
+                shape.copy(bezierNodes = newNodes)
+            } else {
+                shape
             }
         }
     }
@@ -606,7 +653,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 shape
             }
         }
-        selectedDirectSelectionNodeIndex = null
+        selectedDirectSelectionNodes = emptySet()
+        selectedDirectSelectionHandles = emptySet()
     }
 
     fun cutStrokeAt(shapeId: String, segmentIndex: Int, t: Float, isClosedSegment: Boolean) {
@@ -814,7 +862,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             shapes = mutableShapes
             selectedShapeId = shape1.id
         }
-        selectedDirectSelectionNodeIndex = null
+        selectedDirectSelectionNodes = emptySet()
+        selectedDirectSelectionHandles = emptySet()
     }
 
     fun closePath(shapeId: String) {
@@ -2315,21 +2364,24 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             }
         } else if (currentTool == VectorTool.DIRECT_SELECTION) {
             val shapeId = selectedShapeId
-            val nodeIdx = selectedDirectSelectionNodeIndex
-            if (shapeId != null && nodeIdx != null) {
+            if (shapeId != null && selectedDirectSelectionNodes.isNotEmpty()) {
                 pushToUndoStack()
                 shapes = shapes.map { shape ->
                     if (shape.id == shapeId) {
                         when (shape.type) {
                             ShapeType.BEZIER_PATH -> {
                                 val newNodes = shape.bezierNodes.toMutableList().apply {
-                                    if (nodeIdx in indices) removeAt(nodeIdx)
+                                    for (i in selectedDirectSelectionNodes.sortedDescending()) {
+                                        if (i in indices) removeAt(i)
+                                    }
                                 }
                                 shape.copy(bezierNodes = newNodes)
                             }
                             ShapeType.FREEHAND -> {
                                 val newPts = shape.freehandPoints.toMutableList().apply {
-                                    if (nodeIdx in indices) removeAt(nodeIdx)
+                                    for (i in selectedDirectSelectionNodes.sortedDescending()) {
+                                        if (i in indices) removeAt(i)
+                                    }
                                 }
                                 shape.copy(freehandPoints = newPts)
                             }
@@ -2342,7 +2394,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     !(it.type == ShapeType.BEZIER_PATH && it.bezierNodes.isEmpty()) && 
                     !(it.type == ShapeType.FREEHAND && it.freehandPoints.isEmpty())
                 }
-                selectedDirectSelectionNodeIndex = null
+                selectedDirectSelectionNodes = emptySet()
+                selectedDirectSelectionHandles = emptySet()
             }
         }
     }
