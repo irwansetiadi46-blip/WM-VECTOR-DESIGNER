@@ -643,10 +643,7 @@ data class VectorShape(
             val pNext = vertices[nextIndex]
             
             val originalNode = bezierNodes.getOrNull(i)
-            if (originalNode?.handleType == "SMOOTH_RENDER_ONLY") {
-                drawAsArc[i] = false
-                continue
-            }
+            // handleType check removed
             
             val r = customCornerRadii.getOrNull(i) ?: 0f
             if (r > 0.1f) {
@@ -678,11 +675,11 @@ data class VectorShape(
                     BezierNode(
                         anchorX = arcStarts[i].x,
                         anchorY = arcStarts[i].y,
-                        control1X = arcStarts[i].x,
-                        control1Y = arcStarts[i].y,
-                        control2X = arcStarts[i].x,
-                        control2Y = arcStarts[i].y,
-                        isCurve = false,
+                        control1X = if (originalNode.isCurve) originalNode.control1X else arcStarts[i].x,
+                        control1Y = if (originalNode.isCurve) originalNode.control1Y else arcStarts[i].y,
+                        control2X = if (originalNode.isCurve) originalNode.control2X else arcStarts[i].x,
+                        control2Y = if (originalNode.isCurve) originalNode.control2Y else arcStarts[i].y,
+                        isCurve = originalNode.isCurve,
                         isMoveTo = isFirst && (!isPathClosed || !drawAsArc[n-1])
                     )
                 )
@@ -910,10 +907,7 @@ data class VectorShape(
             val pointC = vertices[(i + 1) % n]
             
             val originalNode = bezierNodes.getOrNull(i)
-            if (originalNode?.handleType == "SMOOTH_RENDER_ONLY") {
-                drawAsArc[i] = false
-                continue
-            }
+            // handleType check removed
             
             val r = radii.getOrNull(i) ?: 0f
             if (r > 0.1f) {
@@ -940,14 +934,11 @@ data class VectorShape(
             
             val nextStart = if (drawAsArc[nextIdx]) arcStarts[nextIdx] else vertices[nextIdx]
             
-            if (nextNode?.handleType == "SMOOTH_RENDER_ONLY" && nextNode.isCurve) {
-                val prevNode = bezierNodes.getOrNull(i)
-                val cp1X = prevNode?.control2X ?: vertices[i].x
-                val cp1Y = prevNode?.control2Y ?: vertices[i].y
+            if (nextNode != null && nextNode.isCurve) {
                 path.cubicTo(
-                    cp1X, cp1Y,
                     nextNode.control1X, nextNode.control1Y,
-                    nextNode.anchorX, nextNode.anchorY
+                    nextNode.control2X, nextNode.control2Y,
+                    nextStart.x, nextStart.y
                 )
             } else {
                 path.lineTo(nextStart.x, nextStart.y)

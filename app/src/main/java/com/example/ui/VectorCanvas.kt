@@ -228,7 +228,7 @@ fun VectorCanvas(
                         
                         if (changes.any { it.pressed }) {
                             if (changes.size > 1) {
-                                if (!isMultiTouch && isDragging && viewModel.currentTool == VectorTool.PEN && penDragMode == "create") {
+                                if (!isMultiTouch && viewModel.currentTool == VectorTool.PEN && penDragMode == "create") {
                                     viewModel.removeLastBezierNode()
                                     penDragMode = null
                                 }

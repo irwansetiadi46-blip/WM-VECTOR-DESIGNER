@@ -1017,8 +1017,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var panOffset by mutableStateOf(Offset.Zero)
 
     // Undo / Redo history stacks
-    private val undoStack = mutableListOf<List<VectorShape>>()
-    private val redoStack = mutableListOf<List<VectorShape>>()
+    private val undoStack = androidx.compose.runtime.mutableStateListOf<List<VectorShape>>()
+    private val redoStack = androidx.compose.runtime.mutableStateListOf<List<VectorShape>>()
 
     // Document / Canvas size
     var canvasWidth by mutableStateOf(2000f)
@@ -1612,10 +1612,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun pushToUndoStack() {
-        // Limit undo stack size to prevent out of memory
-        if (undoStack.size >= 50) {
-            undoStack.removeAt(0)
-        }
         undoStack.add(ArrayList(shapes))
         redoStack.clear()
     }
