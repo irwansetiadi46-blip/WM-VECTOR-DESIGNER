@@ -1389,6 +1389,58 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 Text("Exclude", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // ROW 2: Advanced Boolean Operations
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // 5. Divide
+                            Button(
+                                onClick = {
+                                    if (canApplyBoolean) {
+                                        viewModel.applyBooleanOperation("DIVIDE")
+                                        Toast.makeText(context, "Paths Divided!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Pilih minimal 2 objek!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = canApplyBoolean,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF10B981),
+                                    disabledContainerColor = Color(0xFF334155)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(32.dp)
+                            ) {
+                                Text("Divide", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            // 6. Trim
+                            Button(
+                                onClick = {
+                                    if (canApplyBoolean) {
+                                        viewModel.applyBooleanOperation("TRIM")
+                                        Toast.makeText(context, "Paths Trimmed!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Pilih minimal 2 objek!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = canApplyBoolean,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFF59E0B),
+                                    disabledContainerColor = Color(0xFF334155)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(32.dp)
+                            ) {
+                                Text("Trim", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 } else if (showExpandOptionsPanel) {
                     // --- EXPAND OPTIONS PANEL ---

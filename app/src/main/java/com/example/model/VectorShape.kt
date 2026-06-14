@@ -114,7 +114,8 @@ data class BezierNode(
     val control2X: Float = anchorX,
     val control2Y: Float = anchorY,
     val isMoveTo: Boolean = false,
-    val nodeType: String = "BEBAS" // "BEBAS", "ASIMETRIS", "SIMETRIS", "HALUS"
+    val nodeType: String = "BEBAS", // "BEBAS", "ASIMETRIS", "SIMETRIS", "HALUS"
+    val handleType: String = "DEFAULT" // "DEFAULT", "SMOOTH_RENDER_ONLY", "SHARP_INTERSECTION"
 ) {
     fun getAnchor(): Offset = Offset(anchorX, anchorY)
     fun getHandleIn(): Offset = Offset(control1X, control1Y)
@@ -641,6 +642,12 @@ data class VectorShape(
             val pPrev = vertices[prevIndex]
             val pNext = vertices[nextIndex]
             
+            val originalNode = bezierNodes.getOrNull(i)
+            if (originalNode?.handleType == "SMOOTH_RENDER_ONLY") {
+                drawAsArc[i] = false
+                continue
+            }
+            
             val r = customCornerRadii.getOrNull(i) ?: 0f
             if (r > 0.1f) {
                 // Call our industry-grade Live Corner solver
@@ -902,6 +909,12 @@ data class VectorShape(
             val pointA = vertices[(i - 1 + n) % n]
             val pointC = vertices[(i + 1) % n]
             
+            val originalNode = bezierNodes.getOrNull(i)
+            if (originalNode?.handleType == "SMOOTH_RENDER_ONLY") {
+                drawAsArc[i] = false
+                continue
+            }
+            
             val r = radii.getOrNull(i) ?: 0f
             if (r > 0.1f) {
                 // Call our industry-grade Live Corner solver
@@ -923,10 +936,22 @@ data class VectorShape(
         
         for (i in 0 until n) {
             val nextIdx = (i + 1) % n
+            val nextNode = bezierNodes.getOrNull(nextIdx)
             
             val nextStart = if (drawAsArc[nextIdx]) arcStarts[nextIdx] else vertices[nextIdx]
             
-            path.lineTo(nextStart.x, nextStart.y)
+            if (nextNode?.handleType == "SMOOTH_RENDER_ONLY" && nextNode.isCurve) {
+                val prevNode = bezierNodes.getOrNull(i)
+                val cp1X = prevNode?.control2X ?: vertices[i].x
+                val cp1Y = prevNode?.control2Y ?: vertices[i].y
+                path.cubicTo(
+                    cp1X, cp1Y,
+                    nextNode.control1X, nextNode.control1Y,
+                    nextNode.anchorX, nextNode.anchorY
+                )
+            } else {
+                path.lineTo(nextStart.x, nextStart.y)
+            }
             
             if (drawAsArc[nextIdx]) {
                 path.cubicTo(

@@ -60,6 +60,18 @@ private fun mapStrokeCap(capStr: String): StrokeCap {
     }
 }
 
+private fun rotatePoint(p: Offset, c: Offset, angleDegrees: Float): Offset {
+    val rad = Math.toRadians(angleDegrees.toDouble())
+    val cos = kotlin.math.cos(rad).toFloat()
+    val sin = kotlin.math.sin(rad).toFloat()
+    val dx = p.x - c.x
+    val dy = p.y - c.y
+    return Offset(
+        c.x + (dx * cos - dy * sin),
+        c.y + (dx * sin + dy * cos)
+    )
+}
+
 private fun getRotatedCombinedBoundingBox(shapeIds: Set<String>, list: List<VectorShape>): Rect? {
     val selectedShapes = list.filter { shapeIds.contains(it.id) }
     if (selectedShapes.isEmpty()) return null
@@ -1499,6 +1511,11 @@ fun VectorCanvas(
                         }
                         
                         nodes.forEachIndexed { idx, pt ->
+                            val bounds = shape.getBoundingBox()
+                            val cx = (bounds.left + bounds.right) / 2f
+                            val cy = (bounds.top + bounds.bottom) / 2f
+                            val rotatedPt = if (shape.rotationAngle != 0f) rotatePoint(pt, Offset(cx, cy), shape.rotationAngle) else pt
+                            
                             val isNodeSelected = idx == activeNodeIdx && isShapeSelected
                             val handleRad = (if (isNodeSelected) 14f else 10f) / viewModel.zoomScale
                             val outerRad = handleRad + (2f / viewModel.zoomScale)
@@ -1509,36 +1526,36 @@ fun VectorCanvas(
                             if (isSudut) {
                                 drawRect(
                                     color = Color(0xFF0F172A),
-                                    topLeft = Offset(pt.x - outerRad, pt.y - outerRad),
+                                    topLeft = Offset(rotatedPt.x - outerRad, rotatedPt.y - outerRad),
                                     size = androidx.compose.ui.geometry.Size(outerRad * 2f, outerRad * 2f)
                                 )
                                 drawRect(
                                     color = if (isNodeSelected) Color(0xFFFF6D00) else Color(0xFF00B0FF),
-                                    topLeft = Offset(pt.x - handleRad, pt.y - handleRad),
+                                    topLeft = Offset(rotatedPt.x - handleRad, rotatedPt.y - handleRad),
                                     size = androidx.compose.ui.geometry.Size(handleRad * 2f, handleRad * 2f)
                                 )
                                 val innerR = handleRad - (3f / viewModel.zoomScale)
                                 drawRect(
                                     color = Color.White,
-                                    topLeft = Offset(pt.x - innerR, pt.y - innerR),
+                                    topLeft = Offset(rotatedPt.x - innerR, rotatedPt.y - innerR),
                                     size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
                                 )
                             } else {
                                 drawCircle(
                                     color = Color(0xFF0F172A),
                                     radius = outerRad,
-                                    center = pt
+                                    center = rotatedPt
                                 )
                                 drawCircle(
                                     color = if (isNodeSelected) Color(0xFFFF6D00) else Color(0xFF00B0FF),
                                     radius = handleRad,
-                                    center = pt
+                                    center = rotatedPt
                                 )
                                 val innerR = handleRad - (3f / viewModel.zoomScale)
                                 drawCircle(
                                     color = Color.White,
                                     radius = innerR,
-                                    center = pt
+                                    center = rotatedPt
                                 )
                             }
                         }
@@ -1553,22 +1570,27 @@ fun VectorCanvas(
                         val corners = shape.getLiveCornerWidgetPositions()
                         val activeCornerIdx = viewModel.selectedRoundedCornerIndex
                         corners.forEachIndexed { idx, pt ->
+                            val bounds = shape.getBoundingBox()
+                            val cx = (bounds.left + bounds.right) / 2f
+                            val cy = (bounds.top + bounds.bottom) / 2f
+                            val rotatedPt = if (shape.rotationAngle != 0f) rotatePoint(pt, Offset(cx, cy), shape.rotationAngle) else pt
+                            
                             val handleRad = (if (idx == activeCornerIdx) 10f else 7f) / viewModel.zoomScale
                             
                             drawCircle(
                                 color = Color(0xFF0F172A),
                                 radius = handleRad + (2f / viewModel.zoomScale),
-                                center = pt
+                                center = rotatedPt
                             )
                             drawCircle(
                                 color = if (idx == activeCornerIdx) Color(0xFFFF5722) else Color(0xFFFFB74D),
                                 radius = handleRad,
-                                center = pt
+                                center = rotatedPt
                             )
                             drawCircle(
                                 color = Color.White,
                                 radius = handleRad - (2.5f / viewModel.zoomScale),
-                                center = pt
+                                center = rotatedPt
                             )
                         }
                     }
