@@ -86,41 +86,38 @@ val ExpandStrokeIcon: ImageVector
         viewportHeight = 24f
     ).apply {
         path(
-            fill = SolidColor(Color.Black)
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 2.5f,
+            strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
+            strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round
         ) {
-            moveTo(2.4f, 2.4f)
-            lineTo(2.4f, 11.52f)
-            lineTo(4.8f, 11.52f)
-            lineTo(4.8f, 4.8f)
-            lineTo(21.6f, 4.8f)
-            lineTo(21.6f, 21.6f)
-            lineTo(14.88f, 21.6f)
-            lineTo(14.88f, 24f)
-            lineTo(24f, 24f)
-            lineTo(24f, 2.4f)
-            close()
-            
-            moveTo(2.4f, 14.4f)
-            lineTo(2.4f, 24f)
-            lineTo(12f, 24f)
-            lineTo(12f, 14.4f)
-            close()
-            moveTo(4.8f, 21.6f)
-            lineTo(4.8f, 16.8f)
-            lineTo(9.6f, 16.8f)
-            lineTo(9.6f, 21.6f)
-            close()
+            // Top-Left arrow
+            moveTo(11.5f, 11.5f)
+            lineTo(4.5f, 4.5f)
+            moveTo(4.5f, 10f)
+            lineTo(4.5f, 4.5f)
+            lineTo(10f, 4.5f)
 
-            moveTo(16.8f, 8.64f)
-            lineTo(16.8f, 12f)
-            lineTo(19.2f, 12f)
-            lineTo(19.2f, 6.72f)
-            lineTo(13.92f, 6.72f)
-            lineTo(13.92f, 9.12f)
-            lineTo(17.52f, 9.12f)
-            lineTo(11.04f, 15.6f)
-            lineTo(12.72f, 17.28f)
-            close()
+            // Top-Right arrow
+            moveTo(12.5f, 11.5f)
+            lineTo(19.5f, 4.5f)
+            moveTo(14f, 4.5f)
+            lineTo(19.5f, 4.5f)
+            lineTo(19.5f, 10f)
+
+            // Bottom-Left arrow
+            moveTo(11.5f, 12.5f)
+            lineTo(4.5f, 19.5f)
+            moveTo(4.5f, 14f)
+            lineTo(4.5f, 19.5f)
+            lineTo(10f, 19.5f)
+
+            // Bottom-Right arrow
+            moveTo(12.5f, 12.5f)
+            lineTo(19.5f, 19.5f)
+            moveTo(14f, 19.5f)
+            lineTo(19.5f, 19.5f)
+            lineTo(19.5f, 14f)
         }
     }.build()
 
@@ -149,6 +146,9 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showSnappingPopup by remember { mutableStateOf(false) }
     var bottomBarExpandedLevel by remember { mutableStateOf(2) } // 0: Hidden, 1: Draw tools, 2: Design and Sliders, 3: Artwork Ops, 4: Boolean Actions
     var showBooleanInBottomScope by remember { mutableStateOf(false) }
+    var showExpandOptionsPanel by remember { mutableStateOf(false) }
+    var expandFillChecked by remember { mutableStateOf(true) }
+    var expandStrokeChecked by remember { mutableStateOf(true) }
     
     // Text tools state
     var textInputState by remember { mutableStateOf("") }
@@ -572,6 +572,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     onClick = {
                         viewModel.currentTool = VectorTool.POINTER
                         showBooleanInBottomScope = false
+                        showExpandOptionsPanel = false
                     }
                 )
 
@@ -583,6 +584,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     onClick = {
                         viewModel.currentTool = VectorTool.DIRECT_SELECTION
                         showBooleanInBottomScope = false
+                        showExpandOptionsPanel = false
                     }
                 )
 
@@ -595,6 +597,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         viewModel.currentTool = VectorTool.PEN
                         viewModel.selectedShapeId = null
                         showBooleanInBottomScope = false
+                        showExpandOptionsPanel = false
                     }
                 )
 
@@ -608,6 +611,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         viewModel.selectedShapeId = null
                         showPrimitiveSelector = !showPrimitiveSelector
                         showBooleanInBottomScope = false
+                        showExpandOptionsPanel = false
                     }
                 )
 
@@ -621,6 +625,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         viewModel.selectedShapeId = null
                         showColorPickerFill = true
                         showBooleanInBottomScope = false
+                        showExpandOptionsPanel = false
                     }
                 )
 
@@ -632,6 +637,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     onClick = {
                         viewModel.currentTool = VectorTool.ROUNDED_CORNER
                         showBooleanInBottomScope = false
+                        showExpandOptionsPanel = false
                     }
                 )
 
@@ -639,10 +645,15 @@ fun MainLayout(viewModel: VectorViewModel) {
                 SidebarToolButton(
                     icon = ExpandStrokeIcon,
                     label = "Expand",
-                    isSelected = false,
+                    isSelected = showExpandOptionsPanel,
                     onClick = {
-                        viewModel.expandStroke()
-                        Toast.makeText(context, "Stroke diperluas.", Toast.LENGTH_SHORT).show()
+                        val selectedCount = viewModel.selectedShapeIds.size
+                        if (selectedCount == 0) {
+                            Toast.makeText(context, "Pilih objek terlebih dahulu menggunakan selection tool.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showExpandOptionsPanel = !showExpandOptionsPanel
+                            showBooleanInBottomScope = false
+                        }
                     }
                 )
             }
@@ -1379,6 +1390,115 @@ fun MainLayout(viewModel: VectorViewModel) {
                             }
                         }
                     }
+                } else if (showExpandOptionsPanel) {
+                    // --- EXPAND OPTIONS PANEL ---
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = ExpandStrokeIcon,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF6D00),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "EXPAND OBJECT OPTIONS",
+                                    color = Color(0xFFFF6D00),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "Tutup [X]",
+                                color = Color.LightGray,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { showExpandOptionsPanel = false }
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        // Checkboxes Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Checkbox Fill
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { expandFillChecked = !expandFillChecked }
+                                    .padding(vertical = 2.dp, horizontal = 4.dp)
+                            ) {
+                                Checkbox(
+                                    checked = expandFillChecked,
+                                    onCheckedChange = { expandFillChecked = it },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = Color(0xFFFF6D00),
+                                        checkmarkColor = Color.Black
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Fill", color = Color.White, fontSize = 12.sp)
+                            }
+
+                            // Checkbox Stroke
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { expandStrokeChecked = !expandStrokeChecked }
+                                    .padding(vertical = 2.dp, horizontal = 4.dp)
+                            ) {
+                                Checkbox(
+                                    checked = expandStrokeChecked,
+                                    onCheckedChange = { expandStrokeChecked = it },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = Color(0xFFFF6D00),
+                                        checkmarkColor = Color.Black
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Stroke", color = Color.White, fontSize = 12.sp)
+                            }
+                        }
+
+                        // Submit Expand Button
+                        Button(
+                            onClick = {
+                                if (!expandFillChecked && !expandStrokeChecked) {
+                                    Toast.makeText(context, "Pilih setidaknya salah satu (Fill atau Stroke)!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    viewModel.expandSelectedShapes(expandFill = expandFillChecked, expandStroke = expandStrokeChecked)
+                                    Toast.makeText(context, "Objek berhasil diperluas.", Toast.LENGTH_SHORT).show()
+                                    showExpandOptionsPanel = false
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(36.dp)
+                        ) {
+                            Text(
+                                "EXPAND",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                 } else {
                     // --- DYNAMIC/CONTEXTUAL SLIDERS SECTION ---
                     when (viewModel.currentTool) {
@@ -1831,6 +1951,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             label = "Boolean",
                             onClick = {
                                 showBooleanInBottomScope = !showBooleanInBottomScope
+                                showExpandOptionsPanel = false
                             }
                         )
 
