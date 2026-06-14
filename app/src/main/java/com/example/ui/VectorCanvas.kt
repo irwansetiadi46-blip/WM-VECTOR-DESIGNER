@@ -458,6 +458,9 @@ fun VectorCanvas(
                                                         if (hitShape != null) {
                                                             viewModel.selectShapeAt(rawCanvasPos)
                                                             activeDragHandle = "MOVE"
+                                                        } else if (viewModel.selectedShapeIds.isNotEmpty()) {
+                                                            activeDragHandle = "MOVE"
+                                                            viewModel.pushToUndoStack()
                                                         } else {
                                                             activeDragHandle = "MARQUEE_SELECT"
                                                         }
@@ -508,8 +511,6 @@ fun VectorCanvas(
                                                     }
                                                     val nodeIdx = nodes.indexOfFirst { hypot(rawCanvasPos.x - it.x, rawCanvasPos.y - it.y) < 24f / viewModel.zoomScale }
                                                     if (handleHitIdx != -1) {
-                                                        viewModel.selectedDirectSelectionNodes = viewModel.selectedDirectSelectionNodes + handleHitIdx
-                                                        viewModel.selectedDirectSelectionHandles = viewModel.selectedDirectSelectionHandles + com.example.model.HandleHit(handleHitIdx, handleHitType)
                                                         activeDragHandle = "DIRECT_HANDLE"
                                                         directSelectionActiveHandleNodeIndex = handleHitIdx
                                                         directSelectionActiveHandleType = handleHitType
@@ -543,26 +544,25 @@ fun VectorCanvas(
                                                             
                                                             viewModel.pushToUndoStack()
                                                         } else {
-                                                            val clickedShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
-                                                            if (viewModel.selectedDirectSelectionNodes.isNotEmpty() || viewModel.selectedDirectSelectionHandles.isNotEmpty()) {
+                                                            if (viewModel.selectedDirectSelectionNodes.isNotEmpty()) {
                                                                 activeDragHandle = "DIRECT_DRAG_ANYWHERE"
                                                                 viewModel.pushToUndoStack()
-                                                            } else if (clickedShape != null) {
-                                                                viewModel.selectedShapeId = clickedShape.id
-                                                                viewModel.clearDirectSelection()
-                                                                activeDragHandle = "NONE"
                                                             } else {
-                                                                viewModel.clearDirectSelection()
-                                                                viewModel.selectedShapeId = null
-                                                                activeDragHandle = "NONE"
+                                                                val clickedShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
+                                                                if (clickedShape != null) {
+                                                                    viewModel.selectedShapeId = clickedShape.id
+                                                                    viewModel.clearDirectSelection()
+                                                                    activeDragHandle = "NONE"
+                                                                } else {
+                                                                    viewModel.clearDirectSelection()
+                                                                    viewModel.selectedShapeId = null
+                                                                    activeDragHandle = "NONE"
+                                                                }
                                                             }
                                                         }
                                                     } else {
                                                         val clickedShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
-                                                        if (viewModel.selectedDirectSelectionNodes.isNotEmpty() || viewModel.selectedDirectSelectionHandles.isNotEmpty()) {
-                                                            activeDragHandle = "DIRECT_DRAG_ANYWHERE"
-                                                            viewModel.pushToUndoStack()
-                                                        } else if (clickedShape != null) {
+                                                        if (clickedShape != null) {
                                                             viewModel.selectedShapeId = clickedShape.id
                                                             viewModel.clearDirectSelection()
                                                             activeDragHandle = "NONE"
@@ -813,24 +813,12 @@ fun VectorCanvas(
                                                                 }
                                                                 val snappedPos = viewModel.snapNodeComprehensive(Offset(targetX, targetY), id, nodeIdx)
                                                                 
-                                                                if (viewModel.selectedDirectSelectionNodes.isEmpty() && viewModel.selectedDirectSelectionHandles.size == 1) {
-                                                                    viewModel.updateShapeHandle(
-                                                                        shapeId = id,
-                                                                        nodeIndex = directSelectionActiveHandleNodeIndex,
-                                                                        handleType = directSelectionActiveHandleType,
-                                                                        newPos = snappedPos
-                                                                    )
-                                                                } else {
-                                                                    val origHandleX = if (directSelectionActiveHandleType == "in") startNode?.control1X else startNode?.control2X
-                                                                    val origHandleY = if (directSelectionActiveHandleType == "in") startNode?.control1Y else startNode?.control2Y
-                                                                    if (origHandleX != null && origHandleY != null) {
-                                                                        deltaX = snappedPos.x - origHandleX
-                                                                        deltaY = snappedPos.y - origHandleY
-                                                                    } else {
-                                                                        deltaX = 0f; deltaY = 0f
-                                                                    }
-                                                                    viewModel.translateDirectSelection(id, startShape, deltaX, deltaY)
-                                                                }
+                                                                viewModel.updateShapeHandle(
+                                                                    shapeId = id,
+                                                                    nodeIndex = directSelectionActiveHandleNodeIndex,
+                                                                    handleType = directSelectionActiveHandleType,
+                                                                    newPos = snappedPos
+                                                                )
                                                             } else { // DIRECT_DRAG_ANYWHERE
                                                                 val baseDX = rawCanvasPos.x - initialTouchCanvasPos!!.x
                                                                 val baseDY = rawCanvasPos.y - initialTouchCanvasPos!!.y
@@ -1056,7 +1044,7 @@ fun VectorCanvas(
                                                             else -> {
                                                                 if (nodeIdx != -1) {
                                                                     viewModel.selectedDirectSelectionNodes = setOf(nodeIdx)
-                                                                    viewModel.selectedDirectSelectionHandles = emptySet()
+                                                                    // removed selection reset
                                                                     hitNode = true
                                                                     val node = shape.bezierNodes.getOrNull(nodeIdx)
                                                                     if (node != null && node.nodeType == "HALUS") {
@@ -1071,7 +1059,7 @@ fun VectorCanvas(
                                                         if (nodeIdx != -1) {
                                                             // Multi-select toggle if holding? We don't have shift key, let's just make it simple.
                                                             viewModel.selectedDirectSelectionNodes = setOf(nodeIdx)
-                                                            viewModel.selectedDirectSelectionHandles = emptySet()
+                                                            // removed selection reset
                                                             hitNode = true
                                                         }
                                                     }
@@ -1523,7 +1511,7 @@ fun VectorCanvas(
                                     
                                     if (isSelectedNode) {
                                         if (c1Pt != anchorPt) {
-                                            val isC1Selected = viewModel.selectedDirectSelectionHandles.contains(com.example.model.HandleHit(idx, "in"))
+                                            val isC1Selected = false
                                             drawLine(
                                                 color = handleColor.copy(alpha = 0.5f),
                                                 start = anchorPt,
@@ -1543,7 +1531,7 @@ fun VectorCanvas(
                                             )
                                         }
                                         if (c2Pt != anchorPt) {
-                                            val isC2Selected = viewModel.selectedDirectSelectionHandles.contains(com.example.model.HandleHit(idx, "out"))
+                                            val isC2Selected = false
                                             drawLine(
                                                 color = handleColor.copy(alpha = 0.5f),
                                                 start = anchorPt,
