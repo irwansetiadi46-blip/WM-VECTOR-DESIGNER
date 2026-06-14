@@ -211,7 +211,7 @@ data class VectorShape(
     val strokeWidth: Float = 4f,
     val strokeAlpha: Float = 1f,
     val hasFill: Boolean = false,
-    val fillColorHex: String = "#00FF80",
+    val fillColorHex: String = "#E0E0E0",
     val fillAlpha: Float = 1f,
     val strokeJoin: String = "ROUND", // "MITER", "ROUND", "BEVEL"
     val strokeCap: String = "ROUND",  // "ROUND", "BUTT", "SQUARE"
@@ -252,7 +252,7 @@ data class VectorShape(
     fun getFillColor(): Color = try {
         Color(android.graphics.Color.parseColor(fillColorHex))
     } catch (_: Exception) {
-        Color.Green
+        Color.LightGray
     }
 
     // Computes the outer rectangular bounds of the shape without rotation

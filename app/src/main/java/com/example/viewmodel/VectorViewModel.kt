@@ -141,7 +141,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var currentStrokeJoin by mutableStateOf("ROUND") // "MITER", "ROUND", "BEVEL"
     var currentStrokeCap by mutableStateOf("ROUND")   // "ROUND", "BUTT", "SQUARE"
     var hasFillEnabled by mutableStateOf(true)
-    var currentFillColorHex by mutableStateOf("#4caf50")
+    var currentFillColorHex by mutableStateOf("#E0E0E0")
     var currentFillAlpha by mutableStateOf(1f)
 
     // Path building states
@@ -3969,44 +3969,63 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val finalLeft = resolveJoins(leftOffsets, validSegments, shape.isPathClosed, false)
                 val finalRight = resolveJoins(rightOffsets, validSegments, shape.isPathClosed, true)
                 
-                val newNodes = mutableListOf<BezierNode>()
+                val finalPath = android.graphics.Path()
+                
+                // 1. Move to the starting point of the Left Offset path (Outer)
+                val startLeft = finalLeft[0].p0
+                finalPath.moveTo(startLeft.x, startLeft.y)
+                
+                // 2. Draw Left Offset (Outer) path in normal order
+                for (seg in finalLeft) {
+                    if (seg.isCurve) {
+                        finalPath.cubicTo(seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y, seg.p3.x, seg.p3.y)
+                    } else {
+                        finalPath.lineTo(seg.p3.x, seg.p3.y)
+                    }
+                }
+                
+                // 3. Bridge the Gap to the start of the reversed Right Offset path
+                val endLeft = finalLeft.last().p3
+                val startRight = finalRight.last().p3
                 
                 if (shape.isPathClosed) {
-                    newNodes.addAll(segmentsToClosedNodes(finalLeft))
-                    val reversedRight = finalRight.reversed().map { s -> BezierSegment(s.p3, s.p2, s.p1, s.p0, shape.id) }
-                    newNodes.addAll(segmentsToClosedNodes(reversedRight))
+                    // Closed shape gets a clean straight line bridge
+                    finalPath.lineTo(startRight.x, startRight.y)
                 } else {
-                    val finalSegments = mutableListOf<BezierSegment>()
-                    finalSegments.addAll(finalLeft)
-                    
-                    // Round Cap at End (Left End -> Right End)
-                    val sEndLeft = finalLeft.last()
-                    val sEndRight = finalRight.last()
+                    // Open shape gets a clean round cap connecting End A to End B
                     val tEnd = getTangentAt(validSegments.last(), 1f)
-                    val A = sEndLeft.p3
-                    val B = sEndRight.p3
-                    val c1 = A + tEnd * (r * 4f / 3f)
-                    val c2 = B + tEnd * (r * 4f / 3f)
-                    finalSegments.add(BezierSegment(A, c1, c2, B, shape.id))
-                    
-                    // Reversed Right Offset Path
-                    for (i in finalRight.size - 1 downTo 0) {
-                        val sR = finalRight[i]
-                        finalSegments.add(BezierSegment(sR.p3, sR.p2, sR.p1, sR.p0, shape.id))
-                    }
-                    
-                    // Round Cap at Start (Right Start -> Left Start)
-                    val sStartLeft = finalLeft.first()
-                    val sStartRight = finalRight.first()
-                    val tStart = getTangentAt(validSegments.first(), 0f)
-                    val B_start = sStartRight.p0
-                    val A_start = sStartLeft.p0
-                    val c1_s = B_start - tStart * (r * 4f / 3f)
-                    val c2_s = A_start - tStart * (r * 4f / 3f)
-                    finalSegments.add(BezierSegment(B_start, c1_s, c2_s, A_start, shape.id))
-                    
-                    newNodes.addAll(segmentsToClosedNodes(finalSegments))
+                    val c1 = endLeft + tEnd * (r * 4f / 3f)
+                    val c2 = startRight + tEnd * (r * 4f / 3f)
+                    finalPath.cubicTo(c1.x, c1.y, c2.x, c2.y, startRight.x, startRight.y)
                 }
+                
+                // 4. Direction Inversion: Draw reversed Right Offset (Inner) path (from end to start)
+                for (i in finalRight.indices.reversed()) {
+                    val seg = finalRight[i]
+                    if (seg.isCurve) {
+                        finalPath.cubicTo(seg.p2.x, seg.p2.y, seg.p1.x, seg.p1.y, seg.p0.x, seg.p0.y)
+                    } else {
+                        finalPath.lineTo(seg.p0.x, seg.p0.y)
+                    }
+                }
+                
+                // 5. Perfect Solid Closure back to the start of the Left Offset path
+                val endRight = finalRight.first().p0
+                if (shape.isPathClosed) {
+                    // Connect end of inner right back to start of outer left
+                    finalPath.lineTo(startLeft.x, startLeft.y)
+                } else {
+                    // Open shape gets a clean round cap back to the starting point
+                    val tStart = getTangentAt(validSegments.first(), 0f)
+                    val c1_s = endRight - tStart * (r * 4f / 3f)
+                    val c2_s = startLeft - tStart * (r * 4f / 3f)
+                    finalPath.cubicTo(c1_s.x, c1_s.y, c2_s.x, c2_s.y, startLeft.x, startLeft.y)
+                }
+                finalPath.close()
+                
+                // 6. Total Node Sync: Re-extract vertices and reconstruct perfect bezier nodes
+                val stitchSegmentsReference = finalLeft + finalRight
+                val newNodes = reconstructBezierNodesFromAndroidPath(finalPath, stitchSegmentsReference)
                 
                 shape.copy(
                     type = ShapeType.BEZIER_PATH,
@@ -4635,7 +4654,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val strokeJoin = extractJsonString(itemJson, "strokeJoin") ?: "ROUND"
                 val strokeCap = extractJsonString(itemJson, "strokeCap") ?: "ROUND"
                 val hasFill = extractJsonBoolean(itemJson, "hasFill") ?: false
-                val fillColorHex = extractJsonString(itemJson, "fillColorHex") ?: "#00FF80"
+                val fillColorHex = extractJsonString(itemJson, "fillColorHex") ?: "#E0E0E0"
                 val fillAlpha = extractJsonFloat(itemJson, "fillAlpha") ?: 1f
                 val textContent = extractJsonString(itemJson, "textContent") ?: "Text"
                 val fontSize = extractJsonFloat(itemJson, "fontSize") ?: 24f
