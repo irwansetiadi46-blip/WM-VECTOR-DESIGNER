@@ -133,6 +133,11 @@ fun MainLayout(viewModel: VectorViewModel) {
     }
 
     var showArtboardColorPicker by remember { mutableStateOf(false) }
+    var renameProjectTarget by remember { mutableStateOf<com.example.viewmodel.SavedProject?>(null) }
+    var newProjectNameInput by remember { mutableStateOf("") }
+    
+    var artboardWidthInput by remember { mutableStateOf("") }
+    var artboardHeightInput by remember { mutableStateOf("") }
 
     val fontLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -476,19 +481,36 @@ fun MainLayout(viewModel: VectorViewModel) {
                                         }
                                     }
                                     
-                                    IconButton(
-                                        onClick = {
-                                            viewModel.deleteProject(project.id)
-                                            Toast.makeText(context, "Proyek dihapus!", Toast.LENGTH_SHORT).show()
-                                        },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete Project",
-                                            tint = Color(0xFFEF4444),
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        IconButton(
+                                            onClick = {
+                                                renameProjectTarget = project
+                                                newProjectNameInput = project.name
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Rename Project",
+                                                tint = Color(0xFF60A5FA),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.deleteProject(project.id)
+                                                Toast.makeText(context, "Proyek dihapus!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete Project",
+                                                tint = Color(0xFFEF4444),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
                                     
                                 }
@@ -498,6 +520,14 @@ fun MainLayout(viewModel: VectorViewModel) {
                 }
             }
             
+            Text(
+                text = "Designed by Irwan Setiadi • War Machine Vector Studio v02.2",
+                color = Color(0xFF64748B),
+                fontSize = 8.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
         }
         return
@@ -2529,6 +2559,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                         leadingIcon = { Icon(Icons.Default.Settings, contentDescription = "Settings icon", tint = Color(0xFF94A3B8)) },
                         onClick = {
                             showMenuSheet = false
+                            artboardWidthInput = viewModel.canvasWidth.toInt().toString()
+                            artboardHeightInput = viewModel.canvasHeight.toInt().toString()
                             showArtboardSettingsDialog = true
                         }
                     )
@@ -2965,11 +2997,43 @@ fun MainLayout(viewModel: VectorViewModel) {
 
                     // 1. Color Selection Panel
                     Text(
-                        text = "WARNA LATAR BELAKANG",
+                        text = "UKURAN & WARNA",
                         color = Color.LightGray,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
+                    
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = artboardWidthInput,
+                            onValueChange = { artboardWidthInput = it.filter { ch -> ch.isDigit() } },
+                            label = { Text("Width (px)", color = Color.LightGray, fontSize = 10.sp) },
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFFFF6D00),
+                                unfocusedBorderColor = Color(0xFF334155),
+                                cursorColor = Color(0xFFFF6D00)
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = artboardHeightInput,
+                            onValueChange = { artboardHeightInput = it.filter { ch -> ch.isDigit() } },
+                            label = { Text("Height (px)", color = Color.LightGray, fontSize = 10.sp) },
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFFFF6D00),
+                                unfocusedBorderColor = Color(0xFF334155),
+                                cursorColor = Color(0xFFFF6D00)
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
                     Row(
                         modifier = Modifier
@@ -3069,7 +3133,16 @@ fun MainLayout(viewModel: VectorViewModel) {
 
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Button(
-                            onClick = { showArtboardSettingsDialog = false },
+                            onClick = { 
+                                val newWidth = artboardWidthInput.toFloatOrNull() ?: viewModel.canvasWidth
+                                val newHeight = artboardHeightInput.toFloatOrNull() ?: viewModel.canvasHeight
+                                if (newWidth > 0 && newHeight > 0) {
+                                    viewModel.canvasWidth = newWidth
+                                    viewModel.canvasHeight = newHeight
+                                    viewModel.saveCurrentProject()
+                                }
+                                showArtboardSettingsDialog = false 
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
@@ -3079,6 +3152,47 @@ fun MainLayout(viewModel: VectorViewModel) {
                 }
             }
         }
+    }
+
+    if (renameProjectTarget != null) {
+        AlertDialog(
+            onDismissRequest = { renameProjectTarget = null },
+            title = { Text("Ubah Nama Proyek", color = Color.White) },
+            text = {
+                OutlinedTextField(
+                    value = newProjectNameInput,
+                    onValueChange = { newProjectNameInput = it },
+                    label = { Text("Nama Proyek", color = Color.LightGray) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFFF6D00),
+                        unfocusedBorderColor = Color.Gray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            containerColor = Color(0xFF1E293B),
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newProjectNameInput.isNotBlank()) {
+                            viewModel.renameProject(renameProjectTarget!!.id, newProjectNameInput)
+                            Toast.makeText(context, "Nama proyek diubah", Toast.LENGTH_SHORT).show()
+                            renameProjectTarget = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00))
+                ) {
+                    Text("Simpan", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameProjectTarget = null }) {
+                    Text("Batal", color = Color.LightGray)
+                }
+            }
+        )
     }
 
     if (showArtboardColorPicker) {

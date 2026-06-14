@@ -228,6 +228,10 @@ fun VectorCanvas(
                         
                         if (changes.any { it.pressed }) {
                             if (changes.size > 1) {
+                                if (!isMultiTouch && isDragging && viewModel.currentTool == VectorTool.PEN && penDragMode == "create") {
+                                    viewModel.removeLastBezierNode()
+                                    penDragMode = null
+                                }
                                 isMultiTouch = true
                                 isDragging = false
                                 changes.forEach { it.consume() }
@@ -624,7 +628,7 @@ fun VectorCanvas(
                                                     }
                                                     "node" -> {
                                                         // Geser titik utama node dengan snapping
-                                                        val snapN = viewModel.snapOffsetComprehensive(rawCanvasPos, viewModel.selectedShapeId)
+                                                        val snapN = viewModel.snapNodeComprehensive(rawCanvasPos, viewModel.selectedShapeId, penActiveNodeIndex)
                                                         viewModel.updateActiveBezierNode(penActiveNodeIndex, snapN)
                                                     }
                                                     "create" -> {
@@ -774,14 +778,7 @@ fun VectorCanvas(
                                                     val nodeIdx = if (activeDragHandle == "DIRECT_NODE") directSelectionActiveHandleNodeIndex.takeIf { it != -1 } else viewModel.selectedDirectSelectionNodeIndex
                                                     if (id != null && nodeIdx != null && activeDragHandle == "DIRECT_NODE") {
                                                         val canvasPosUnsnapped = rawCanvasPos
-                                                        val snappedPos = if (viewModel.isSnapToGrid) {
-                                                            Offset(
-                                                                kotlin.math.round(canvasPosUnsnapped.x / viewModel.gridSize) * viewModel.gridSize,
-                                                                kotlin.math.round(canvasPosUnsnapped.y / viewModel.gridSize) * viewModel.gridSize
-                                                            )
-                                                        } else {
-                                                            viewModel.snapOffsetComprehensive(canvasPosUnsnapped, viewModel.selectedShapeId)
-                                                        }
+                                                        val snappedPos = viewModel.snapNodeComprehensive(canvasPosUnsnapped, id, nodeIdx)
                                                         viewModel.updateShapeNode(id, nodeIdx, snappedPos)
                                                     } else if (id != null && activeDragHandle == "DIRECT_HANDLE" && directSelectionActiveHandleNodeIndex != -1) {
                                                         val canvasPosUnsnapped = rawCanvasPos

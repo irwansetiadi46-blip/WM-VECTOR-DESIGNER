@@ -1434,6 +1434,138 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return snapOffsetComprehensive(original)
     }
 
+    fun snapNodeComprehensive(pos: Offset, shapeId: String?, nodeIndex: Int?): Offset {
+        activeSmartGuideHorizontal = null
+        activeSmartGuideVertical = null
+        activeSmartGuidesList = emptyList()
+
+        val refPoints = mutableListOf<Offset>()
+        for (s in shapes) {
+            if (!s.isVisible) continue
+            val bounds = s.getBoundingBox()
+            refPoints.add(Offset(bounds.left, bounds.top))
+            refPoints.add(Offset(bounds.right, bounds.top))
+            refPoints.add(Offset(bounds.left, bounds.bottom))
+            refPoints.add(Offset(bounds.right, bounds.bottom))
+            refPoints.add(Offset(bounds.left + bounds.width / 2f, bounds.top + bounds.height / 2f))
+
+            if (s.type == ShapeType.LINE) {
+                refPoints.add(Offset(s.startX, s.startY))
+                refPoints.add(Offset(s.endX, s.endY))
+            }
+            s.bezierNodes.forEachIndexed { idx, node ->
+                if (s.id == shapeId && idx == nodeIndex) {
+                    // ignore
+                } else {
+                    refPoints.add(Offset(node.anchorX, node.anchorY))
+                }
+            }
+        }
+
+        activeBezierNodes.forEachIndexed { idx, node ->
+            if (idx != nodeIndex) {
+                refPoints.add(Offset(node.anchorX, node.anchorY))
+            }
+        }
+
+        val tolerance = 15f
+        var snappedX = pos.x
+        var snappedY = pos.y
+        var pointSnapped = false
+        val guides = mutableListOf<SmartGuideInfo>()
+
+        // 1. Snap to Point (exact matching / close distance)
+        if (isSnapToPointEnabled) {
+            var closestPoint: Offset? = null
+            var minDistance = tolerance
+            for (p in refPoints) {
+                val dist = hypot(pos.x - p.x, pos.y - p.y)
+                if (dist < minDistance) {
+                    minDistance = dist
+                    closestPoint = p
+                }
+            }
+            if (closestPoint != null) {
+                snappedX = closestPoint.x
+                snappedY = closestPoint.y
+                pointSnapped = true
+                if (isSmartGuideEnabled) {
+                    activeSmartGuideHorizontal = snappedY
+                    activeSmartGuideVertical = snappedX
+                    guides.add(SmartGuideInfo(snappedX, snappedY, closestPoint.x, closestPoint.y, "ALIGN_LINE"))
+                }
+            }
+        }
+
+        // 2. Alignment Snaps (Vertical, Horizontal, 45-degree angle)
+        if (!pointSnapped) {
+            var hasVertSnap = false
+            var hasHorizSnap = false
+
+            // Vertical Snap
+            if (isSnapToObjectEnabled || isSnapToPointEnabled) {
+                for (p in refPoints) {
+                    if (kotlin.math.abs(pos.x - p.x) < tolerance) {
+                        snappedX = p.x
+                        hasVertSnap = true
+                        if (isSmartGuideEnabled) {
+                            activeSmartGuideVertical = p.x
+                            guides.add(SmartGuideInfo(p.x, p.y, p.x, pos.y, "ALIGN_LINE"))
+                        }
+                        break
+                    }
+                }
+            }
+
+            // Horizontal Snap
+            if (isSnapToObjectEnabled || isSnapToPointEnabled) {
+                for (p in refPoints) {
+                    if (kotlin.math.abs(pos.y - p.y) < tolerance) {
+                        snappedY = p.y
+                        hasHorizSnap = true
+                        if (isSmartGuideEnabled) {
+                            activeSmartGuideHorizontal = p.y
+                            guides.add(SmartGuideInfo(p.x, p.y, pos.x, p.y, "ALIGN_LINE"))
+                        }
+                        break
+                    }
+                }
+            }
+
+            // 45-degree angle Snap
+            if (!hasVertSnap && !hasHorizSnap && (isSnapToObjectEnabled || isSnapToPointEnabled)) {
+                for (p in refPoints) {
+                    val dx = pos.x - p.x
+                    val dy = pos.y - p.y
+                    if (kotlin.math.abs(kotlin.math.abs(dx) - kotlin.math.abs(dy)) < tolerance) {
+                        val signX = if (dx >= 0f) 1f else -1f
+                        val signY = if (dy >= 0f) 1f else -1f
+                        val avgDist = (kotlin.math.abs(dx) + kotlin.math.abs(dy)) / 2f
+                        snappedX = p.x + signX * avgDist
+                        snappedY = p.y + signY * avgDist
+                        if (isSmartGuideEnabled) {
+                            guides.add(SmartGuideInfo(p.x, p.y, snappedX, snappedY, "ALIGN_LINE"))
+                        }
+                        break
+                    }
+                }
+            }
+        }
+
+        // 3. Grid Snapping as fallback if enabled
+        if (isSnapToGrid) {
+            snappedX = kotlin.math.round(snappedX / gridSize) * gridSize
+            snappedY = kotlin.math.round(snappedY / gridSize) * gridSize
+            if (isSmartGuideEnabled) {
+                activeSmartGuideVertical = snappedX
+                activeSmartGuideHorizontal = snappedY
+            }
+        }
+
+        activeSmartGuidesList = guides
+        return Offset(snappedX, snappedY)
+    }
+
     init {
         // Load default shapes on startup or present beautiful preset
         loadDefaultWorkspace()
@@ -1808,6 +1940,13 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // Pen Tool: Adding explicit Bezier curve joints immediately on touch down
+    fun removeLastBezierNode() {
+        if (activeBezierNodes.isNotEmpty()) {
+            activeBezierNodes = activeBezierNodes.dropLast(1)
+            activeEditNodeIndex = if (activeBezierNodes.isNotEmpty()) activeBezierNodes.size - 1 else null
+        }
+    }
+
     fun addBezierPenPointImmediately(anchor: Offset) {
         val snap = snapOffset(anchor)
         val newNode = BezierNode(
@@ -5462,6 +5601,24 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             isSetupCompleted = false
         }
         refreshSavedProjects()
+    }
+
+    fun renameProject(projectId: String, newName: String) {
+        val json = sharedPrefs.getString(projectId, null) ?: return
+        try {
+            val project = parseSavedProject(json)
+            if (project != null) {
+                val updatedProject = project.copy(name = newName, lastModified = System.currentTimeMillis())
+                val newJson = serializeProject(updatedProject)
+                sharedPrefs.edit().putString(projectId, newJson).apply()
+                if (currentProjectId == projectId) {
+                    currentProjectName = newName
+                }
+                refreshSavedProjects()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
 
