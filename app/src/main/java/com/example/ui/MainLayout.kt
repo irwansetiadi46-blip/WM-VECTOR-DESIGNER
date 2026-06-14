@@ -126,12 +126,37 @@ val ExpandStrokeIcon: ImageVector
 fun MainLayout(viewModel: VectorViewModel) {
     val context = LocalContext.current
 
+    LaunchedEffect(viewModel.isSetupCompleted) {
+        if (!viewModel.isSetupCompleted) {
+            viewModel.refreshSavedProjects()
+        }
+    }
+
+    var showArtboardColorPicker by remember { mutableStateOf(false) }
+
     val fontLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
             viewModel.importFontFromFile(context, uri)
             Toast.makeText(context, "Font loaded successfully!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val importFileLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.importFileFromUri(
+                context = context,
+                uri = uri,
+                onSuccess = { msg ->
+                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                },
+                onError = { err ->
+                    Toast.makeText(context, "Gagal mengimport: $err", Toast.LENGTH_LONG).show()
+                }
+            )
         }
     }
 
@@ -143,6 +168,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showExportDialog by remember { mutableStateOf(false) }
     var showTextDialog by remember { mutableStateOf(false) }
     var showCustomSettingsDialog by remember { mutableStateOf(false) }
+    var showArtboardSettingsDialog by remember { mutableStateOf(false) }
     var showSnappingPopup by remember { mutableStateOf(false) }
     var bottomBarExpandedLevel by remember { mutableStateOf(2) } // 0: Hidden, 1: Draw tools, 2: Design and Sliders, 3: Artwork Ops, 4: Boolean Actions
     var showBooleanInBottomScope by remember { mutableStateOf(false) }
@@ -166,212 +192,310 @@ fun MainLayout(viewModel: VectorViewModel) {
                 .padding(24.dp)
                 .safeDrawingPadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
-            Icon(
-                imageVector = Icons.Default.Category,
-                contentDescription = "Logo",
-                tint = Color(0xFFFF6D00),
-                modifier = Modifier.size(72.dp)
-            )
-            Text(
-                text = "WAR MACHINE",
-                color = Color.White,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 2.sp
-            )
-            Text(
-                text = "VECTOR EDITOR",
-                color = Color(0xFFFF6D00),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 4.sp
-            )
-            Text(
-                text = "Studio desain vektor professional dengan tools lengkap untuk Android.",
-                color = Color.Gray,
-                fontSize = 12.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-            
-            Divider(color = Color(0xFF334155), thickness = 1.dp, modifier = Modifier.padding(vertical = 12.dp))
-            
-            Text(
-                text = "PILIH TEMPLATE UKURAN ARTBOARD",
-                color = Color.LightGray,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.Start)
-            )
-            
-            var selectedWidth by remember { mutableStateOf("2000") }
-            var selectedHeight by remember { mutableStateOf("2000") }
-            var showArtboardColorPickerOnboarding by remember { mutableStateOf(false) }
-            var artboardColorHex by remember { mutableStateOf("#FFFFFF") }
-            var artboardAlpha by remember { mutableStateOf(1F) }
-
+            Spacer(modifier = Modifier.height(12.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(
-                    "Square (2K)" to (2000 to 2000),
-                    "Full HD" to (1920 to 1080),
-                    "Instagram" to (1080 to 1920),
-                    "App Icon" to (512 to 512)
-                ).forEach { (label, dims) ->
-                    val isSel = selectedWidth == dims.first.toString() && selectedHeight == dims.second.toString()
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF1E293B))
-                            .border(1.dp, if (isSel) Color.White else Color(0xFF475569), RoundedCornerShape(8.dp))
-                            .clickable {
-                                selectedWidth = dims.first.toString()
-                                selectedHeight = dims.second.toString()
-                            }
-                            .padding(vertical = 12.dp, horizontal = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(label, color = if (isSel) Color.Black else Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Text("${dims.first}x${dims.second}", color = if (isSel) Color.Black else Color.Gray, fontSize = 9.sp)
-                        }
-                    }
-                }
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedTextField(
-                    value = selectedWidth,
-                    onValueChange = { selectedWidth = it },
-                    label = { Text("Width (px)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
-                        unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
-                    ),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedTextField(
-                    value = selectedHeight,
-                    onValueChange = { selectedHeight = it },
-                    label = { Text("Height (px)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
-                        unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
-                    ),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "WARNA LATAR BELAKANG ARTBOARD",
-                color = Color.LightGray,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.Start)
-            )
-            
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF1E293B))
-                    .border(1.dp, Color(0xFF475569), RoundedCornerShape(12.dp))
-                    .clickable { showArtboardColorPickerOnboarding = true }
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val parsedColor = try {
-                    Color(android.graphics.Color.parseColor(artboardColorHex))
-                } catch(_: Exception) {
-                    Color.White
-                }
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(parsedColor)
-                        .border(1.5.dp, Color.White, CircleShape)
+                Icon(
+                    imageVector = Icons.Default.Category,
+                    contentDescription = "Logo",
+                    tint = Color(0xFFFF6D00),
+                    modifier = Modifier.size(54.dp)
                 )
                 Column {
                     Text(
-                        text = "Warna Latar (Tekan untuk Memilih)",
+                        text = "WAR MACHINE",
                         color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp
                     )
                     Text(
-                        text = "Hex Code: ${artboardColorHex.uppercase()}",
+                        text = "VECTOR DESIGN STUDIO",
                         color = Color(0xFFFF6D00),
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 3.sp
                     )
                 }
             }
-            
-            if (showArtboardColorPickerOnboarding) {
-                ColorPickerDialog(
-                    title = "Pilih Warna Latar Artboard",
-                    initialColorHex = artboardColorHex,
-                    initialAlpha = artboardAlpha,
-                    onColorSelected = { hex, alpha ->
-                        artboardColorHex = hex
-                        artboardAlpha = alpha
-                        viewModel.artboardColorHex = hex
-                        viewModel.artboardAlpha = alpha
-                        showArtboardColorPickerOnboarding = false
-                    },
-                    onDismissRequest = { showArtboardColorPickerOnboarding = false }
-                )
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Opacity Latar Belakang:", color = Color.White, fontSize = 12.sp)
-                Text("${(artboardAlpha * 100).toInt()}%", color = Color(0xFFFF6D00), fontWeight = FontWeight.Bold)
-            }
-            Slider(
-                value = artboardAlpha,
-                onValueChange = { artboardAlpha = it },
-                valueRange = 0f..1f,
-                colors = SliderDefaults.colors(activeTrackColor = Color(0xFFFF6D00), thumbColor = Color(0xFFFF6D00))
+
+            Text(
+                text = "Studio vektor profesional dengan layout presisi, layer canggih, & " +
+                     "sketsa dinamis.",
+                color = Color.Gray,
+                fontSize = 11.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp)
             )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Button(
-                onClick = {
-                    val w = selectedWidth.toFloatOrNull() ?: 2000f
-                    val h = selectedHeight.toFloatOrNull() ?: 2000f
-                    viewModel.canvasWidth = w
-                    viewModel.canvasHeight = h
-                    viewModel.artboardColorHex = artboardColorHex
-                    viewModel.artboardAlpha = artboardAlpha
-                    viewModel.isSetupCompleted = true
-                    Toast.makeText(context, "Proyek Baru Dibuat: ${w.toInt()} x ${h.toInt()} px", Toast.LENGTH_SHORT).show()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(12.dp)
+
+            // SECTION 1: CREATE NEW PROJECT
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
             ) {
-                Text("BUAT CANVAS & MASUK STUDIO", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "BUAT PROYEK BARU",
+                        color = Color(0xFFFF6D00),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    var newProjectName by remember { mutableStateOf("") }
+                    var selectedWidth by remember { mutableStateOf("2000") }
+                    var selectedHeight by remember { mutableStateOf("2000") }
+
+                    OutlinedTextField(
+                        value = newProjectName,
+                        onValueChange = { newProjectName = it },
+                        label = { Text("Nama Proyek", color = Color.Gray) },
+                        placeholder = { Text("Tulis nama proyek anda...", color = Color.DarkGray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
+                            unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        text = "PILIH UKURAN ARTBOARD",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            "Square" to (2000 to 2000),
+                            "Full HD" to (1920 to 1080),
+                            "Vertical" to (1080 to 1920),
+                            "Icon" to (512 to 512)
+                        ).forEach { (label, dims) ->
+                            val isSel = selectedWidth == dims.first.toString() && selectedHeight == dims.second.toString()
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                    .border(1.dp, if (isSel) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        selectedWidth = dims.first.toString()
+                                        selectedHeight = dims.second.toString()
+                                    }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(label, color = if (isSel) Color.Black else Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text("${dims.first}px", color = if (isSel) Color.Black else Color.Gray, fontSize = 8.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = selectedWidth,
+                            onValueChange = { selectedWidth = it },
+                            label = { Text("Lebar (px)", color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
+                                unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = selectedHeight,
+                            onValueChange = { selectedHeight = it },
+                            label = { Text("Tinggi (px)", color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
+                                unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            val w = selectedWidth.toFloatOrNull() ?: 2000f
+                            val h = selectedHeight.toFloatOrNull() ?: 2000f
+                            val name = if (newProjectName.isBlank()) "Proyek Vektor Saya" else newProjectName
+                            viewModel.createNewProject(name, w, h)
+                            Toast.makeText(context, "Proyek Baru Dibuat!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("BUAT PROYEK & KANVAS", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
+
+            // SECTION 2: MY PROJECTS FOLDER / PREVIOUS PROJECTS LIST
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "📂 FOLDER MY PROJECTS",
+                            color = Color(0xFFFF6D00),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF0F172A))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "${viewModel.savedProjectsList.size} Proyek",
+                                color = Color.Green,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    if (viewModel.savedProjectsList.isEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF0F172A), RoundedCornerShape(12.dp))
+                                .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = "Folder Kosong",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Text(
+                                "Belum Ada Proyek",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Semua proyek anda akan disimpan otomatis di folder ini secara realtime saat mengedit.",
+                                color = Color.Gray,
+                                fontSize = 10.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            )
+                        }
+                    } else {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            viewModel.savedProjectsList.forEach { project ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF0F172A))
+                                        .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            viewModel.loadProject(project)
+                                            Toast.makeText(context, "Proyek \"${project.name}\" Berhasil Dimuat!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ArtTrack,
+                                            contentDescription = "Vector Art Icon",
+                                            tint = Color(0xFFFF6D00),
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                        Column {
+                                            Text(
+                                                text = project.name,
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text(
+                                                    text = "${project.canvasWidth.toInt()}x${project.canvasHeight.toInt()} px",
+                                                    color = Color.LightGray,
+                                                    fontSize = 9.sp
+                                                )
+                                                Text(
+                                                    text = "(${project.shapes.size} shapes)",
+                                                    color = Color.Gray,
+                                                    fontSize = 9.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                    
+                                    IconButton(
+                                        onClick = {
+                                            viewModel.deleteProject(project.id)
+                                            Toast.makeText(context, "Proyek dihapus!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Project",
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    
+                                }
+                            }
+                        }
+                    }
+                }
             }
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -2391,7 +2515,11 @@ fun MainLayout(viewModel: VectorViewModel) {
                         leadingIcon = { Icon(Icons.Default.Add, contentDescription = "Import icon", tint = Color(0xFF3B82F6)) },
                         onClick = {
                             showMenuSheet = false
-                            Toast.makeText(context, "Import sukses! Mendukung file EPS, SVG, JPG, PNG.", Toast.LENGTH_LONG).show()
+                            try {
+                                importFileLauncher.launch("*/*")
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Tidak dapat membuka berkas: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
 
@@ -2401,7 +2529,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         leadingIcon = { Icon(Icons.Default.Settings, contentDescription = "Settings icon", tint = Color(0xFF94A3B8)) },
                         onClick = {
                             showMenuSheet = false
-                            showCustomSettingsDialog = true
+                            showArtboardSettingsDialog = true
                         }
                     )
                 }
@@ -2812,6 +2940,160 @@ fun MainLayout(viewModel: VectorViewModel) {
                 }
             }
         }
+    }
+
+    if (showArtboardSettingsDialog) {
+        Dialog(onDismissRequest = { showArtboardSettingsDialog = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .wrapContentHeight(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Artboard Settings",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    // 1. Color Selection Panel
+                    Text(
+                        text = "WARNA LATAR BELAKANG",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF0F172A))
+                            .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
+                            .clickable { showArtboardColorPicker = true }
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val parsedColor = try {
+                            Color(android.graphics.Color.parseColor(viewModel.artboardColorHex))
+                        } catch(_: Exception) {
+                            Color.White
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(parsedColor)
+                                .border(1.5.dp, Color.White, CircleShape)
+                        )
+                        Column {
+                            Text(
+                                text = "Tekan untuk Pilih Warna",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Hex Code: ${viewModel.artboardColorHex.uppercase()}",
+                                color = Color(0xFFFF6D00),
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    // 2. Opacity / Alpha Slider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Opacity Latar Belakang:", color = Color.White, fontSize = 12.sp)
+                        Text("${(viewModel.artboardAlpha * 100).toInt()}%", color = Color(0xFFFF6D00), fontWeight = FontWeight.Bold)
+                    }
+
+                    Slider(
+                        value = viewModel.artboardAlpha,
+                        onValueChange = { 
+                            viewModel.artboardAlpha = it 
+                            viewModel.saveCurrentProject()
+                        },
+                        valueRange = 0f..1f,
+                        colors = SliderDefaults.colors(
+                            activeTrackColor = Color(0xFFFF6D00),
+                            thumbColor = Color(0xFFFF6D00)
+                        )
+                    )
+
+                    // 3. Quick preset options
+                    Text(
+                        text = "PRESET CEPAT",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            "Putih" to "#FFFFFF",
+                            "Hitam" to "#000000",
+                            "Abu-abu" to "#808080",
+                            "Biru" to "#1E3A8A"
+                        ).forEach { (label, hexColor) ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF0F172A))
+                                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        viewModel.artboardColorHex = hexColor
+                                        viewModel.saveCurrentProject()
+                                    }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(label, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { showArtboardSettingsDialog = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Selesai", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showArtboardColorPicker) {
+        ColorPickerDialog(
+            title = "Pilih Warna Latar Artboard",
+            initialColorHex = viewModel.artboardColorHex,
+            initialAlpha = viewModel.artboardAlpha,
+            onColorSelected = { hex, alpha ->
+                viewModel.artboardColorHex = hex
+                viewModel.artboardAlpha = alpha
+                viewModel.saveCurrentProject()
+                showArtboardColorPicker = false
+            },
+            onDismissRequest = { showArtboardColorPicker = false }
+        )
     }
 
     // TEXT VECTOR INPUT DEFINITIONS MODAL (Row 2, Button 5)

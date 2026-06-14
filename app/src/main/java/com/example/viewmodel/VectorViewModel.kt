@@ -63,8 +63,17 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     private val sharedPrefs = application.getSharedPreferences("vector_prefs", Context.MODE_PRIVATE)
 
     // Current State
-    var shapes by mutableStateOf<List<VectorShape>>(emptyList())
-        private set
+    private var _shapes by mutableStateOf<List<VectorShape>>(emptyList())
+    var shapes: List<VectorShape>
+        get() = _shapes
+        set(value) {
+            _shapes = value
+            if (isSetupCompleted && !isAutosaveSuspended) {
+                saveCurrentProject()
+            }
+        }
+
+    var isAutosaveSuspended by mutableStateOf(false)
 
     // Layer Management System
     var layers by mutableStateOf<List<com.example.model.VectorLayer>>(
@@ -3896,157 +3905,31 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
     fun performStrokeExpansion(shape: VectorShape): VectorShape? {
         if (shape.strokeWidth <= 0f || shape.strokeAlpha <= 0f) return null
-        val origSegments = getOriginalBezierSegments(shape)
-        val validSegments = origSegments.filter { kotlin.math.hypot(it.p3.x - it.p0.x, it.p3.y - it.p0.y) > 1e-3f || kotlin.math.hypot(it.p2.x - it.p0.x, it.p2.y - it.p0.y) > 1e-3f }
-        if (validSegments.isEmpty()) return null
         
-        val w = shape.strokeWidth
-        val r = w / 2f
+        val composePath = shape.asComposePath()
+        val androidPath = composePath.asAndroidPath()
         
-        fun getTangentAt(s: BezierSegment, t: Float): Offset {
-            val t0 = 1f - t
-            val d1 = s.p1 - s.p0
-            val d2 = s.p2 - s.p1
-            val d3 = s.p3 - s.p2
-            val tangent = d1 * (3 * t0 * t0) + d2 * (6 * t0 * t) + d3 * (3 * t * t)
-            val len = kotlin.math.hypot(tangent.x, tangent.y)
-            if (len > 1e-4f) return tangent / len
-            
-            if (t < 0.5f) {
-                val v2 = s.p2 - s.p0
-                if (kotlin.math.hypot(v2.x, v2.y) > 1e-4f) return v2 / kotlin.math.hypot(v2.x, v2.y)
-                val v3 = s.p3 - s.p0
-                if (kotlin.math.hypot(v3.x, v3.y) > 1e-4f) return v3 / kotlin.math.hypot(v3.x, v3.y)
-            } else {
-                val v1 = s.p3 - s.p1
-                if (kotlin.math.hypot(v1.x, v1.y) > 1e-4f) return v1 / kotlin.math.hypot(v1.x, v1.y)
-                val v0 = s.p3 - s.p0
-                if (kotlin.math.hypot(v0.x, v0.y) > 1e-4f) return v0 / kotlin.math.hypot(v0.x, v0.y)
-            }
-            return Offset(1f, 0f)
+        val paint = android.graphics.Paint().apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = shape.strokeWidth
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            strokeJoin = android.graphics.Paint.Join.ROUND
         }
+        val dstPath = android.graphics.Path()
+        paint.getFillPath(androidPath, dstPath)
         
-        val leftOffsets = mutableListOf<BezierSegment>()
-        val rightOffsets = mutableListOf<BezierSegment>()
-        
-        for (seg in validSegments) {
-            val t0 = getTangentAt(seg, 0f)
-            val t1 = getTangentAt(seg, 1f)
-            val n0 = Offset(-t0.y, t0.x)
-            val n1 = Offset(-t1.y, t1.x)
-            
-            leftOffsets.add(BezierSegment(
-                seg.p0 + n0 * r, seg.p1 + n0 * r,
-                seg.p2 + n1 * r, seg.p3 + n1 * r, shape.id
-            ))
-            
-            rightOffsets.add(BezierSegment(
-                seg.p0 - n0 * r, seg.p1 - n0 * r,
-                seg.p2 - n1 * r, seg.p3 - n1 * r, shape.id
-            ))
-        }
-        
-        fun resolveJoins(offsets: List<BezierSegment>, original: List<BezierSegment>, isClosed: Boolean, isRight: Boolean): List<BezierSegment> {
-            val result = mutableListOf<BezierSegment>()
-            var currentSeg = offsets[0]
-            
-            for (i in 0 until offsets.size - (if (isClosed) 0 else 1)) {
-                val nextIdx = (i + 1) % offsets.size
-                val nextSegOrig = offsets[nextIdx]
-                var nextSeg = nextSegOrig
-                
-                val tEnd = getTangentAt(original[i], 1f)
-                val tStart = getTangentAt(original[nextIdx], 0f)
-                
-                val cross = tEnd.x * tStart.y - tEnd.y * tStart.x
-                var intersected = false
-                
-                if (kotlin.math.abs(cross) > 1e-3f) {
-                    val v = nextSeg.p0 - currentSeg.p3
-                    val u = (v.x * tStart.y - v.y * tStart.x) / cross
-                    val intersection = currentSeg.p3 + tEnd * u
-                    val dist = kotlin.math.hypot(intersection.x - currentSeg.p3.x, intersection.y - currentSeg.p3.y)
-                    
-                    if (dist < r * 5f) {
-                        currentSeg = currentSeg.copy(p3 = intersection)
-                        nextSeg = nextSeg.copy(p0 = intersection)
-                        intersected = true
-                    }
-                }
-                
-                result.add(currentSeg)
-                if (!intersected && (kotlin.math.abs(currentSeg.p3.x - nextSeg.p0.x) > 1e-2f || kotlin.math.abs(currentSeg.p3.y - nextSeg.p0.y) > 1e-2f)) {
-                    result.add(BezierSegment(currentSeg.p3, currentSeg.p3, nextSeg.p0, nextSeg.p0, shape.id))
-                }
-                currentSeg = nextSeg
-            }
-            
-            if (!isClosed) {
-                result.add(currentSeg)
-            } else {
-                result[0] = result[0].copy(p0 = currentSeg.p0)
-            }
-            
-            return result
-        }
-        
-        val finalLeft = resolveJoins(leftOffsets, validSegments, shape.isPathClosed, false)
-        val finalRight = resolveJoins(rightOffsets, validSegments, shape.isPathClosed, true)
-        
-        val finalPath = android.graphics.Path()
-        val startLeft = finalLeft[0].p0
-        finalPath.moveTo(startLeft.x, startLeft.y)
-        
-        for (seg in finalLeft) {
-            if (seg.isCurve) {
-                finalPath.cubicTo(seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y, seg.p3.x, seg.p3.y)
-            } else {
-                finalPath.lineTo(seg.p3.x, seg.p3.y)
-            }
-        }
-        
-        val endLeft = finalLeft.last().p3
-        val startRight = finalRight.last().p3
-        
-        if (shape.isPathClosed) {
-            finalPath.lineTo(startRight.x, startRight.y)
-        } else {
-            val tEnd = getTangentAt(validSegments.last(), 1f)
-            val c1 = endLeft + tEnd * (r * 4f / 3f)
-            val c2 = startRight + tEnd * (r * 4f / 3f)
-            finalPath.cubicTo(c1.x, c1.y, c2.x, c2.y, startRight.x, startRight.y)
-        }
-        
-        for (i in finalRight.indices.reversed()) {
-            val seg = finalRight[i]
-            if (seg.isCurve) {
-                finalPath.cubicTo(seg.p2.x, seg.p2.y, seg.p1.x, seg.p1.y, seg.p0.x, seg.p0.y)
-            } else {
-                finalPath.lineTo(seg.p0.x, seg.p0.y)
-            }
-        }
-        
-        val endRight = finalRight.first().p0
-        if (shape.isPathClosed) {
-            finalPath.lineTo(startLeft.x, startLeft.y)
-        } else {
-            val tStart = getTangentAt(validSegments.first(), 0f)
-            val c1_s = endRight - tStart * (r * 4f / 3f)
-            val c2_s = startLeft - tStart * (r * 4f / 3f)
-            finalPath.cubicTo(c1_s.x, c1_s.y, c2_s.x, c2_s.y, startLeft.x, startLeft.y)
-        }
-        finalPath.close()
-        
-        val stitchSegmentsReference = finalLeft + finalRight
-        val newNodes = reconstructBezierNodesFromAndroidPath(finalPath, stitchSegmentsReference)
+        val nodes = reconstructBezierNodesFromAndroidPath(dstPath, emptyList())
+        if (nodes.isEmpty()) return null
         
         return shape.copy(
             type = ShapeType.BEZIER_PATH,
-            bezierNodes = newNodes,
+            bezierNodes = nodes,
             hasFill = true,
             fillColorHex = shape.strokeColorHex,
             fillAlpha = shape.strokeAlpha,
             strokeWidth = 0f,
+            strokeAlpha = 0f,
+            rotationAngle = 0f, // Reset rotation matrix since coordinates are baked into world space
             isPathClosed = true,
             customCornerRadii = emptyList(),
             radiusTL = 0f, radiusTR = 0f, radiusBR = 0f, radiusBL = 0f
@@ -4066,29 +3949,28 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val hasStroke = shape.strokeWidth > 0f && shape.strokeAlpha > 0f
                 val hasFill = shape.hasFill
 
-                if (expandFill && expandStroke && hasFill && hasStroke) {
-                    // Split into two shapes: fill shape and stroke shape
-                    val fillShape = shape.copy(
-                        id = java.util.UUID.randomUUID().toString(),
-                        strokeWidth = 0f,
-                        strokeAlpha = 0f
-                    )
-                    newShapesList.add(fillShape)
-                    resultingSelectedIds.add(fillShape.id)
+                if (expandStroke && hasStroke) {
+                    val strokeShape = performStrokeExpansion(shape)
+                    if (strokeShape != null) {
+                        if (hasFill) {
+                            // Split: keep original fill as a separate stroke-free shape, and add the expanded stroke
+                            val fillShape = shape.copy(
+                                id = java.util.UUID.randomUUID().toString(),
+                                strokeWidth = 0f,
+                                strokeAlpha = 0f
+                            )
+                            newShapesList.add(fillShape)
+                            resultingSelectedIds.add(fillShape.id)
 
-                    val strokeShape = performStrokeExpansion(shape)
-                    if (strokeShape != null) {
-                        val finalStrokeShape = strokeShape.copy(
-                            id = java.util.UUID.randomUUID().toString()
-                        )
-                        newShapesList.add(finalStrokeShape)
-                        resultingSelectedIds.add(finalStrokeShape.id)
-                    }
-                } else if (expandStroke && hasStroke) {
-                    val strokeShape = performStrokeExpansion(shape)
-                    if (strokeShape != null) {
-                        newShapesList.add(strokeShape)
-                        resultingSelectedIds.add(strokeShape.id)
+                            val finalStrokeShape = strokeShape.copy(
+                                id = java.util.UUID.randomUUID().toString()
+                            )
+                            newShapesList.add(finalStrokeShape)
+                            resultingSelectedIds.add(finalStrokeShape.id)
+                        } else {
+                            newShapesList.add(strokeShape)
+                            resultingSelectedIds.add(strokeShape.id)
+                        }
                     } else {
                         newShapesList.add(shape)
                         resultingSelectedIds.add(shape.id)
@@ -4683,18 +4565,22 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
     // Project state storage methods
     fun saveProjectLocally() {
-        val serialized = convertShapesToJsonStr(shapes)
-        sharedPrefs.edit().putString("saved_canvas_shapes", serialized).apply()
+        saveCurrentProject()
     }
 
     fun loadSavedProject() {
-        val data = sharedPrefs.getString("saved_canvas_shapes", null)
-        if (!data.isNullOrBlank()) {
-            pushToUndoStack()
-            val loaded = parseJsonToShapes(data)
-            if (loaded.isNotEmpty()) {
-                shapes = loaded
-                selectedShapeId = null
+        val list = getAllSavedProjects()
+        if (list.isNotEmpty()) {
+            loadProject(list.first())
+        } else {
+            val data = sharedPrefs.getString("saved_canvas_shapes", null)
+            if (!data.isNullOrBlank()) {
+                pushToUndoStack()
+                val loaded = parseJsonToShapes(data)
+                if (loaded.isNotEmpty()) {
+                    shapes = loaded
+                    selectedShapeId = null
+                }
             }
         }
     }
@@ -5004,4 +4890,589 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         val pattern = "\"$key\"\\s*:\\s*\\[(.*?)\\]".toRegex()
         return pattern.find(json)?.groupValues?.get(1)
     }
+
+    fun importFileFromUri(
+        context: Context,
+        uri: android.net.Uri,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        try {
+            val contentResolver = context.contentResolver
+            var fileName = "imported_file"
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIndex != -1 && cursor.moveToFirst()) {
+                    fileName = cursor.getString(nameIndex)
+                }
+            }
+
+            val inputStream = contentResolver.openInputStream(uri)
+            if (inputStream == null) {
+                onError("Gagal membuka file stream.")
+                return
+            }
+
+            val extension = fileName.substringAfterLast('.', "").lowercase()
+            
+            if (extension == "json") {
+                val jsonText = inputStream.bufferedReader().use { it.readText() }
+                val importedShapes = parseJsonToShapes(jsonText)
+                if (importedShapes.isNotEmpty()) {
+                    pushToUndoStack()
+                    val remapped = importedShapes.map { shape ->
+                        shape.copy(id = UUID.randomUUID().toString())
+                    }
+                    shapes = shapes + remapped
+                    onSuccess("Berhasil mengimpor ${remapped.size} objek dari JSON!")
+                } else {
+                    onError("Format JSON tidak valid atau kosong.")
+                }
+            } else if (extension == "svg") {
+                val svgText = inputStream.bufferedReader().use { it.readText() }
+                val importedShapes = parseSvgStringContents(svgText)
+                if (importedShapes.isNotEmpty()) {
+                    pushToUndoStack()
+                    shapes = shapes + importedShapes
+                    onSuccess("Berhasil mengimpor ${importedShapes.size} objek dari SVG!")
+                } else {
+                    onError("Format SVG tidak valid atau tidak ada path yang didukung.")
+                }
+            } else if (extension in listOf("png", "jpg", "jpeg", "webp")) {
+                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                if (bitmap != null) {
+                    val maxDim = 32
+                    val originalW = bitmap.width
+                    val originalH = bitmap.height
+                    val scale = maxDim.toFloat() / maxOf(originalW, originalH).toFloat()
+                    val scaledW = if (scale < 1f) (originalW * scale).toInt().coerceAtLeast(1) else originalW
+                    val scaledH = if (scale < 1f) (originalH * scale).toInt().coerceAtLeast(1) else originalH
+                    val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, scaledW, scaledH, true)
+
+                    val pixelSize = 400f / maxOf(scaledW, scaledH).toFloat()
+                    val startCanvasX = (canvasWidth - (scaledW * pixelSize)) / 2f
+                    val startCanvasY = (canvasHeight - (scaledH * pixelSize)) / 2f
+
+                    val importedShapes = mutableListOf<VectorShape>()
+                    for (y in 0 until scaledH) {
+                        var x = 0
+                        while (x < scaledW) {
+                            val color = scaledBitmap.getPixel(x, y)
+                            val alpha = android.graphics.Color.alpha(color)
+                            if (alpha <= 10) {
+                                x++
+                                continue
+                            }
+
+                            val r1 = android.graphics.Color.red(color)
+                            val g1 = android.graphics.Color.green(color)
+                            val b1 = android.graphics.Color.blue(color)
+
+                            var runLength = 1
+                            while (x + runLength < scaledW) {
+                                val nextColor = scaledBitmap.getPixel(x + runLength, y)
+                                val nextAlpha = android.graphics.Color.alpha(nextColor)
+                                if (nextAlpha > 10) {
+                                    val r2 = android.graphics.Color.red(nextColor)
+                                    val g2 = android.graphics.Color.green(nextColor)
+                                    val b2 = android.graphics.Color.blue(nextColor)
+                                    val diff = kotlin.math.abs(r1 - r2) + kotlin.math.abs(g1 - g2) + kotlin.math.abs(b1 - b2)
+                                    if (diff < 15 && kotlin.math.abs(alpha - nextAlpha) < 15) {
+                                        runLength++
+                                    } else {
+                                        break
+                                    }
+                                } else {
+                                    break
+                                }
+                            }
+
+                            val hexColor = String.format("#%02X%02X%02X", r1, g1, b1)
+                            importedShapes.add(
+                                VectorShape(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = "Trace seg $x,$y",
+                                    type = ShapeType.RECTANGLE,
+                                    x = startCanvasX + x * pixelSize,
+                                    y = startCanvasY + y * pixelSize,
+                                    width = pixelSize * runLength + 0.3f,
+                                    height = pixelSize + 0.3f,
+                                    hasFill = true,
+                                    fillColorHex = hexColor,
+                                    strokeWidth = 0f,
+                                    strokeAlpha = 0f
+                                )
+                            )
+                            x += runLength
+                        }
+                    }
+
+                    if (importedShapes.isNotEmpty()) {
+                        pushToUndoStack()
+                        shapes = shapes + importedShapes
+                        onSuccess("Berhasil melakukan vektorisasi gambar! ${importedShapes.size} segmen ditambahkan.")
+                    } else {
+                        onError("Gambar transparan atau tidak dapat di-trace.")
+                    }
+                } else {
+                    onError("Gagal men-decode file gambar.")
+                }
+            } else {
+                onError("Tipe file tidak didukung (.${extension}). Silakan upload file JSON, SVG, PNG, atau JPG.")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            onError("Kesalahan saat mengimport file: ${e.message}")
+        }
+    }
+
+    private fun parseSvgStringContents(svgContent: String): List<VectorShape> {
+        val result = mutableListOf<VectorShape>()
+        val tagRegex = Regex("<(path|rect|circle|ellipse|line|polygon|polyline)[^>]*>")
+        val matches = tagRegex.findAll(svgContent)
+        
+        for (m in matches) {
+            val fullTag = m.value
+            val tagName = m.groupValues[1]
+            
+            val fillHex = extractAttribute(fullTag, "fill") ?: "#D1D5DB"
+            val hasFill = fillHex != "none"
+            
+            val strokeHex = extractAttribute(fullTag, "stroke") ?: "#374151"
+            val strokeW = extractAttribute(fullTag, "stroke-width")?.toFloatOrNull() ?: 0f
+            val hasStroke = strokeW > 0f && strokeHex != "none"
+            
+            when (tagName) {
+                "rect" -> {
+                    val x = extractAttribute(fullTag, "x")?.toFloatOrNull() ?: 0f
+                    val y = extractAttribute(fullTag, "y")?.toFloatOrNull() ?: 0f
+                    val w = extractAttribute(fullTag, "width")?.toFloatOrNull() ?: 100f
+                    val h = extractAttribute(fullTag, "height")?.toFloatOrNull() ?: 100f
+                    
+                    result.add(VectorShape(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = "Imported Rect",
+                        type = ShapeType.RECTANGLE,
+                        x = x,
+                        y = y,
+                        width = w,
+                        height = h,
+                        hasFill = hasFill,
+                        fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
+                        strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                        strokeWidth = strokeW,
+                        strokeAlpha = if (hasStroke) 1f else 0f
+                    ))
+                }
+                "circle" -> {
+                    val cx = extractAttribute(fullTag, "cx")?.toFloatOrNull() ?: 0f
+                    val cy = extractAttribute(fullTag, "cy")?.toFloatOrNull() ?: 0f
+                    val r = extractAttribute(fullTag, "r")?.toFloatOrNull() ?: 50f
+                    
+                    result.add(VectorShape(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = "Imported Circle",
+                        type = ShapeType.ELLIPSE,
+                        x = cx - r,
+                        y = cy - r,
+                        width = r * 2f,
+                        height = r * 2f,
+                        hasFill = hasFill,
+                        fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
+                        strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                        strokeWidth = strokeW,
+                        strokeAlpha = if (hasStroke) 1f else 0f
+                    ))
+                }
+                "ellipse" -> {
+                    val cx = extractAttribute(fullTag, "cx")?.toFloatOrNull() ?: 0f
+                    val cy = extractAttribute(fullTag, "cy")?.toFloatOrNull() ?: 0f
+                    val rx = extractAttribute(fullTag, "rx")?.toFloatOrNull() ?: 50f
+                    val ry = extractAttribute(fullTag, "ry")?.toFloatOrNull() ?: 50f
+                    
+                    result.add(VectorShape(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = "Imported Ellipse",
+                        type = ShapeType.ELLIPSE,
+                        x = cx - rx,
+                        y = cy - ry,
+                        width = rx * 2f,
+                        height = ry * 2f,
+                        hasFill = hasFill,
+                        fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
+                        strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                        strokeWidth = strokeW,
+                        strokeAlpha = if (hasStroke) 1f else 0f
+                    ))
+                }
+                "line" -> {
+                    val x1 = extractAttribute(fullTag, "x1")?.toFloatOrNull() ?: 0f
+                    val y1 = extractAttribute(fullTag, "y1")?.toFloatOrNull() ?: 0f
+                    val x2 = extractAttribute(fullTag, "x2")?.toFloatOrNull() ?: 100f
+                    val y2 = extractAttribute(fullTag, "y2")?.toFloatOrNull() ?: 100f
+                    
+                    result.add(VectorShape(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = "Imported Line",
+                        type = ShapeType.LINE,
+                        startX = x1,
+                        startY = y1,
+                        endX = x2,
+                        endY = y2,
+                        strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                        strokeWidth = if (strokeW > 0f) strokeW else 4f,
+                        strokeAlpha = 1f
+                    ))
+                }
+                "path" -> {
+                    val d = extractAttribute(fullTag, "d") ?: ""
+                    val isClosed = d.trim().endsWith("z", ignoreCase = true)
+                    val nodes = parseSvgPathData(d)
+                    if (nodes.isNotEmpty()) {
+                        result.add(VectorShape(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = "Imported Path",
+                            type = ShapeType.BEZIER_PATH,
+                            bezierNodes = nodes,
+                            isPathClosed = isClosed,
+                            hasFill = hasFill,
+                            fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
+                            strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                            strokeWidth = strokeW,
+                            strokeAlpha = if (hasStroke) 1f else 0f
+                        ))
+                    }
+                }
+                "polygon", "polyline" -> {
+                    val pointsStr = extractAttribute(fullTag, "points") ?: ""
+                    val coordTokens = pointsStr.trim().split(Regex("[\\s,]+")).filter { it.isNotEmpty() }
+                    val nodes = mutableListOf<BezierNode>()
+                    var first = true
+                    var idx = 0
+                    while (idx + 1 < coordTokens.size) {
+                        val x = coordTokens[idx].toFloatOrNull() ?: 0f
+                        val y = coordTokens[idx+1].toFloatOrNull() ?: 0f
+                        nodes.add(BezierNode(anchorX = x, anchorY = y, isMoveTo = first, isCurve = false))
+                        first = false
+                        idx += 2
+                    }
+                    
+                    if (nodes.isNotEmpty()) {
+                        result.add(VectorShape(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = "Imported Shape",
+                            type = ShapeType.BEZIER_PATH,
+                            bezierNodes = nodes,
+                            isPathClosed = tagName == "polygon",
+                            hasFill = hasFill && tagName == "polygon",
+                            fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
+                            strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                            strokeWidth = strokeW,
+                            strokeAlpha = if (hasStroke) 1f else 0f
+                        ))
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    private fun extractAttribute(tag: String, attr: String): String? {
+        val pattern1 = "$attr\\s*=\\s*\"([^\"]*)\"".toRegex(RegexOption.IGNORE_CASE)
+        val pattern2 = "$attr\\s*=\\s*'([^']*)'".toRegex(RegexOption.IGNORE_CASE)
+        val m1 = pattern1.find(tag)
+        if (m1 != null) return m1.groupValues[1]
+        val m2 = pattern2.find(tag)
+        if (m2 != null) return m2.groupValues[1]
+        return null
+    }
+
+    private fun parseSvgPathData(d: String): List<BezierNode> {
+        val nodes = mutableListOf<BezierNode>()
+        val formatted = d.replace("([a-df-zM-Z])".toRegex(), " $1 ")
+                         .replace(",", " ")
+                         .trim()
+        val tokens = formatted.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        
+        var i = 0
+        var currentX = 0f
+        var currentY = 0f
+        var startX = 0f
+        var startY = 0f
+        
+        while (i < tokens.size) {
+            val cmd = tokens[cmdIndiceWorkaround(i)]
+            i++
+            when (cmd) {
+                "M", "m" -> {
+                    val isRelative = cmd == "m"
+                    if (i + 1 < tokens.size) {
+                        val x = tokens[i].toFloatOrNull() ?: 0f
+                        val y = tokens[i+1].toFloatOrNull() ?: 0f
+                        i += 2
+                        currentX = if (isRelative) currentX + x else x
+                        currentY = if (isRelative) currentY + y else y
+                        startX = currentX
+                        startY = currentY
+                        nodes.add(BezierNode(anchorX = currentX, anchorY = currentY, isMoveTo = true, isCurve = false))
+                    }
+                }
+                "L", "l" -> {
+                    val isRelative = cmd == "l"
+                    while (i + 1 < tokens.size && tokens[i].toFloatOrNull() != null) {
+                        val x = tokens[i].toFloatOrNull() ?: 0f
+                        val y = tokens[i+1].toFloatOrNull() ?: 0f
+                        i += 2
+                        currentX = if (isRelative) currentX + x else x
+                        currentY = if (isRelative) currentY + y else y
+                        nodes.add(BezierNode(anchorX = currentX, anchorY = currentY, isMoveTo = false, isCurve = false))
+                    }
+                }
+                "H", "h" -> {
+                    val isRelative = cmd == "h"
+                    if (i < tokens.size) {
+                        val x = tokens[i].toFloatOrNull() ?: 0f
+                        i += 1
+                        currentX = if (isRelative) currentX + x else x
+                        nodes.add(BezierNode(anchorX = currentX, anchorY = currentY, isMoveTo = false, isCurve = false))
+                    }
+                }
+                "V", "v" -> {
+                    val isRelative = cmd == "v"
+                    if (i < tokens.size) {
+                        val y = tokens[i].toFloatOrNull() ?: 0f
+                        i += 1
+                        currentY = if (isRelative) currentY + y else y
+                        nodes.add(BezierNode(anchorX = currentX, anchorY = currentY, isMoveTo = false, isCurve = false))
+                    }
+                }
+                "C", "c" -> {
+                    val isRelative = cmd == "c"
+                    while (i + 5 < tokens.size && tokens[i].toFloatOrNull() != null) {
+                        val c1x = tokens[i].toFloatOrNull() ?: 0f
+                        val c1y = tokens[i+1].toFloatOrNull() ?: 0f
+                        val c2x = tokens[i+2].toFloatOrNull() ?: 0f
+                        val c2y = tokens[i+3].toFloatOrNull() ?: 0f
+                        val x = tokens[i+4].toFloatOrNull() ?: 0f
+                        val y = tokens[i+5].toFloatOrNull() ?: 0f
+                        i += 6
+                        
+                        val absC1X = if (isRelative) currentX + c1x else c1x
+                        val absC1Y = if (isRelative) currentY + c1y else c1y
+                        val absC2X = if (isRelative) currentX + c2x else c2x
+                        val absC2Y = if (isRelative) currentY + c2y else c2y
+                        val absX = if (isRelative) currentX + x else x
+                        val absY = if (isRelative) currentY + y else y
+                        
+                        nodes.add(BezierNode(
+                            anchorX = absX,
+                            anchorY = absY,
+                            isCurve = true,
+                            control1X = absC1X,
+                            control1Y = absC1Y,
+                            control2X = absC2X,
+                            control2Y = absC2Y,
+                            isMoveTo = false
+                        ))
+                        currentX = absX
+                        currentY = absY
+                    }
+                }
+                "Q", "q" -> {
+                    val isRelative = cmd == "q"
+                    while (i + 3 < tokens.size && tokens[i].toFloatOrNull() != null) {
+                        val cx = tokens[i].toFloatOrNull() ?: 0f
+                        val cy = tokens[i+1].toFloatOrNull() ?: 0f
+                        val x = tokens[i+2].toFloatOrNull() ?: 0f
+                        val y = tokens[i+3].toFloatOrNull() ?: 0f
+                        i += 4
+                        
+                        val absCX = if (isRelative) currentX + cx else cx
+                        val absCY = if (isRelative) currentY + cy else cy
+                        val absX = if (isRelative) currentX + x else x
+                        val absY = if (isRelative) currentY + y else y
+                        
+                        val c1x = currentX + (2f / 3f) * (absCX - currentX)
+                        val c1y = currentY + (2f / 3f) * (absCY - currentY)
+                        val c2x = absX + (2f / 3f) * (absCX - absX)
+                        val c2y = absY + (2f / 3f) * (absCY - absY)
+                        
+                        nodes.add(BezierNode(
+                            anchorX = absX,
+                            anchorY = absY,
+                            isCurve = true,
+                            control1X = c1x,
+                            control1Y = c1y,
+                            control2X = c2x,
+                            control2Y = c2y,
+                            isMoveTo = false
+                        ))
+                        currentX = absX
+                        currentY = absY
+                    }
+                }
+                "Z", "z" -> {
+                    currentX = startX
+                    currentY = startY
+                }
+            }
+        }
+        return nodes
+    }
+
+    private fun cmdIndiceWorkaround(i: Int): Int = i
+
+    // --- MULTIPLE PROJECTS PERSISTENCE ENGINE ---
+    var currentProjectId by mutableStateOf<String?>(null)
+    var currentProjectName by mutableStateOf("")
+    var savedProjectsList by mutableStateOf<List<SavedProject>>(emptyList())
+
+    fun refreshSavedProjects() {
+        savedProjectsList = getAllSavedProjects()
+    }
+
+    private fun extractJsonLong(json: String, key: String): Long? {
+        val pattern = "\"$key\"\\s*:\\s*(-?[0-9]+)[,\\s}]".toRegex()
+        return pattern.find(json)?.groupValues?.get(1)?.toLongOrNull()
+    }
+
+    fun parseSavedProject(json: String): SavedProject? {
+        try {
+            val clean = json.trim()
+            val id = extractJsonString(clean, "id") ?: return null
+            val name = extractJsonString(clean, "name") ?: "Project"
+            val canvasWidth = extractJsonFloat(clean, "canvasWidth") ?: 2000f
+            val canvasHeight = extractJsonFloat(clean, "canvasHeight") ?: 2000f
+            val artboardColorHex = extractJsonString(clean, "artboardColorHex") ?: "#FFFFFF"
+            val artboardAlpha = extractJsonFloat(clean, "artboardAlpha") ?: 1f
+            val lastModified = extractJsonLong(clean, "lastModified") ?: System.currentTimeMillis()
+            
+            val shapesBlock = extractJsonBlock(clean, "shapes") ?: ""
+            val shapesList = parseJsonToShapes("[$shapesBlock]")
+            
+            return SavedProject(id, name, canvasWidth, canvasHeight, artboardColorHex, artboardAlpha, lastModified, shapesList)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
+    }
+
+    fun serializeProject(project: SavedProject): String {
+        val sb = java.lang.StringBuilder()
+        sb.append("{")
+        sb.append("\"id\":\"${project.id}\",")
+        sb.append("\"name\":\"${project.name.replace("\"", "\\\"")}\",")
+        sb.append("\"canvasWidth\":${project.canvasWidth},")
+        sb.append("\"canvasHeight\":${project.canvasHeight},")
+        sb.append("\"artboardColorHex\":\"${project.artboardColorHex}\",")
+        sb.append("\"artboardAlpha\":${project.artboardAlpha},")
+        sb.append("\"lastModified\":${project.lastModified},")
+        sb.append("\"shapes\":${convertShapesToJsonStr(project.shapes)}")
+        sb.append("}")
+        return sb.toString()
+    }
+
+    fun getAllSavedProjects(): List<SavedProject> {
+        val plist = mutableListOf<SavedProject>()
+        try {
+            val allPrefs = sharedPrefs.all
+            for ((key, value) in allPrefs) {
+                if (key.startsWith("project_") && value is String) {
+                    val proj = parseSavedProject(value)
+                    if (proj != null) {
+                        plist.add(proj)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return plist.sortedByDescending { it.lastModified }
+    }
+
+    fun createNewProject(name: String, width: Float, height: Float) {
+        pushToUndoStack()
+        val newId = "project_" + java.util.UUID.randomUUID().toString()
+        shapes = emptyList()
+        selectedShapeId = null
+        panOffset = Offset.Zero
+        zoomScale = 1f
+        
+        currentProjectId = newId
+        currentProjectName = if (name.isBlank()) "Proyek Baru" else name
+        canvasWidth = width
+        canvasHeight = height
+        artboardColorHex = "#FFFFFF"
+        artboardAlpha = 1f
+        isSetupCompleted = true
+        
+        saveCurrentProject()
+    }
+
+    fun saveCurrentProject() {
+        val id = currentProjectId ?: run {
+            val newId = "project_" + java.util.UUID.randomUUID().toString()
+            currentProjectId = newId
+            newId
+        }
+        if (currentProjectName.isBlank()) {
+            currentProjectName = "Untitled Project"
+        }
+        val proj = SavedProject(
+            id = id,
+            name = currentProjectName,
+            canvasWidth = canvasWidth,
+            canvasHeight = canvasHeight,
+            artboardColorHex = artboardColorHex,
+            artboardAlpha = artboardAlpha,
+            lastModified = System.currentTimeMillis(),
+            shapes = shapes
+        )
+        val serialized = serializeProject(proj)
+        sharedPrefs.edit().putString(id, serialized).apply()
+        
+        // Backward compatibility
+        val oldSerialized = convertShapesToJsonStr(shapes)
+        sharedPrefs.edit().putString("saved_canvas_shapes", oldSerialized).apply()
+        
+        refreshSavedProjects()
+    }
+
+    fun loadProject(project: SavedProject) {
+        pushToUndoStack()
+        currentProjectId = project.id
+        currentProjectName = project.name
+        canvasWidth = project.canvasWidth
+        canvasHeight = project.canvasHeight
+        artboardColorHex = project.artboardColorHex
+        artboardAlpha = project.artboardAlpha
+        shapes = project.shapes
+        selectedShapeId = null
+        panOffset = Offset.Zero
+        zoomScale = 1f
+        isSetupCompleted = true
+    }
+
+    fun deleteProject(projectId: String) {
+        sharedPrefs.edit().remove(projectId).apply()
+        if (currentProjectId == projectId) {
+            currentProjectId = null
+            currentProjectName = ""
+            shapes = emptyList()
+            isSetupCompleted = false
+        }
+        refreshSavedProjects()
+    }
 }
+
+data class SavedProject(
+    val id: String,
+    val name: String,
+    val canvasWidth: Float,
+    val canvasHeight: Float,
+    val artboardColorHex: String,
+    val artboardAlpha: Float,
+    val lastModified: Long,
+    val shapes: List<VectorShape>
+)
+

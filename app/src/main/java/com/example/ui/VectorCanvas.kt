@@ -260,6 +260,7 @@ fun VectorCanvas(
                                         currentTouchPos = canvasPos
                                         dragStartShapes = viewModel.shapes
                                         initialTouchCanvasPos = rawCanvasPos
+                                        viewModel.isAutosaveSuspended = true
                                         
                                         // 1. TOOL SPECIFIC DOWN LOGIC
                                         if (viewModel.currentTool == VectorTool.PEN) {
@@ -663,6 +664,7 @@ fun VectorCanvas(
                                                         if (hypot(dx, dy) > 8f / viewModel.zoomScale) {
                                                             viewModel.duplicateSpecificShape(cloneSourceShape!!, 0f, 0f)
                                                             dragStartShapes = viewModel.shapes
+
                                                             initialTouchCanvasPos = cloneTouchStart
                                                             activeDragHandle = "MOVE"
                                                             hasClonedForDrag = true
@@ -1080,6 +1082,8 @@ fun VectorCanvas(
                             lastDragOffset = null
                             activeDragHandle = null
                             currentTouchPos = null
+                            viewModel.isAutosaveSuspended = false
+                            viewModel.saveCurrentProject()
                         }
                         activePenDragMode = penDragMode
                         activePenIsMovementDetected = penIsMovementDetected
@@ -1455,11 +1459,19 @@ fun VectorCanvas(
                         val activeNodeIdx = if (isShapeSelected) viewModel.selectedDirectSelectionNodeIndex else null
 
                         if (isShapeSelected && shape.type == com.example.model.ShapeType.BEZIER_PATH) {
+                            val bounds = shape.getBoundingBox()
+                            val cx = (bounds.left + bounds.right) / 2f
+                            val cy = (bounds.top + bounds.bottom) / 2f
+                            val centerPt = Offset(cx, cy)
                             shape.bezierNodes.forEachIndexed { idx, node ->
                                 if (node.isCurve && node.nodeType != "HALUS") {
-                                    val anchorPt = Offset(node.anchorX, node.anchorY)
-                                    val c1Pt = Offset(node.control1X, node.control1Y)
-                                    val c2Pt = Offset(node.control2X, node.control2Y)
+                                    val rawAnchor = Offset(node.anchorX, node.anchorY)
+                                    val rawC1 = Offset(node.control1X, node.control1Y)
+                                    val rawC2 = Offset(node.control2X, node.control2Y)
+                                    
+                                    val anchorPt = if (shape.rotationAngle != 0f) rotatePoint(rawAnchor, centerPt, shape.rotationAngle) else rawAnchor
+                                    val c1Pt = if (shape.rotationAngle != 0f) rotatePoint(rawC1, centerPt, shape.rotationAngle) else rawC1
+                                    val c2Pt = if (shape.rotationAngle != 0f) rotatePoint(rawC2, centerPt, shape.rotationAngle) else rawC2
                                     
                                     val isSelectedNode = idx == activeNodeIdx
                                     val handleColor = Color(0xFFEF4444)
