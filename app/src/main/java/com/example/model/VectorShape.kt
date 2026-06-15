@@ -1006,7 +1006,9 @@ data class VectorShape(
                 }
             }
             ShapeType.BEZIER_PATH -> {
-                path.fillType = PathFillType.EvenOdd
+                val hasHole = bezierNodes.any { it.isMoveTo }
+                path.fillType = if (hasHole) PathFillType.EvenOdd
+                                else PathFillType.NonZero
                 if (bezierNodes.isNotEmpty()) {
                     val hasCorners = customCornerRadii.any { it > 0.1f }
                     if (hasCorners) {
