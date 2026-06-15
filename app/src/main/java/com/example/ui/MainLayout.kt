@@ -3594,6 +3594,9 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float): Str
                 }
                 sb.append("  <polygon points=\"${sbPts.toString().trim()}\" $fillAttr $strokeAttr />\n")
             }
+            ShapeType.IMAGE -> {
+                sb.append("  <image href=\"data:image/png;base64,${shape.textContent}\" x=\"${shape.x}\" y=\"${shape.y}\" width=\"${shape.width}\" height=\"${shape.height}\" />\n")
+            }
         }
     }
     
@@ -3705,7 +3708,7 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): Str
         
         val pSb = java.lang.StringBuilder()
         when (shape.type) {
-            ShapeType.RECTANGLE -> {
+            ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 val rx = shape.x
                 val ry = height - shape.y // top of rectangle flipped
                 val rw = shape.width
@@ -3859,7 +3862,32 @@ fun renderShapesToBitmap(
             val fillAlpha = (shape.fillAlpha * 255f).toInt().coerceIn(0, 255)
             val fillColorWithAlpha = (fillColor and 0x00FFFFFF) or (fillAlpha shl 24)
 
-            if (shape.type == com.example.model.ShapeType.TEXT) {
+            if (shape.type == com.example.model.ShapeType.IMAGE) {
+                try {
+                    val base64 = shape.textContent
+                    if (base64.isNotEmpty()) {
+                        val decodedBytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+                        val imgBitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                        if (imgBitmap != null) {
+                            val rect = shape.getBoundingBox()
+                            val drawWidth = rect.width.toInt().coerceAtLeast(1)
+                            val drawHeight = rect.height.toInt().coerceAtLeast(1)
+                            val scaledImg = android.graphics.Bitmap.createScaledBitmap(imgBitmap, drawWidth, drawHeight, true)
+                            
+                            canvas.save()
+                            if (shape.rotationAngle != 0f) {
+                                val cx = (rect.left + rect.right) / 2f
+                                val cy = (rect.top + rect.bottom) / 2f
+                                canvas.rotate(shape.rotationAngle, cx, cy)
+                            }
+                            canvas.drawBitmap(scaledImg, rect.left, rect.top, null)
+                            canvas.restore()
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            } else if (shape.type == com.example.model.ShapeType.TEXT) {
                 val paintText = android.graphics.Paint().apply {
                     color = strokeColorWithAlpha
                     textSize = shape.fontSize

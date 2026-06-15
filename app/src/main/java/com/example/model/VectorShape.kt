@@ -178,7 +178,8 @@ enum class ShapeType {
     BEZIER_PATH,
     TEXT,
     POLYGON,
-    STAR
+    STAR,
+    IMAGE
 }
 
 data class VectorShape(
@@ -259,7 +260,7 @@ data class VectorShape(
     // Computes the outer rectangular bounds of the shape without rotation
     fun getBoundingBox(): Rect {
         return when (type) {
-            ShapeType.RECTANGLE -> {
+            ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 Rect(x, y, x + width, y + height)
             }
             ShapeType.ELLIPSE -> {
@@ -334,7 +335,7 @@ data class VectorShape(
         val tolerance = max(15f, strokeWidth + 10f)
         
         when (type) {
-            ShapeType.RECTANGLE -> {
+            ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 return testX in (bounds.left - tolerance)..(bounds.right + tolerance) &&
                        testY in (bounds.top - tolerance)..(bounds.bottom + tolerance)
             }
@@ -383,7 +384,7 @@ data class VectorShape(
     // Creates a new shape offset by the delta translation
     fun copyWithTransform(dx: Float, dy: Float): VectorShape {
         return when (type) {
-            ShapeType.RECTANGLE, ShapeType.TEXT -> {
+            ShapeType.RECTANGLE, ShapeType.TEXT, ShapeType.IMAGE -> {
                 copy(x = x + dx, y = y + dy)
             }
             ShapeType.ELLIPSE, ShapeType.POLYGON, ShapeType.STAR -> {
@@ -404,7 +405,7 @@ data class VectorShape(
     // Creates a scaled version of the shape from a scale factor and anchor pivot
     fun copyWithScale(scaleX: Float, scaleY: Float, px: Float, py: Float): VectorShape {
         return when (type) {
-            ShapeType.RECTANGLE -> {
+            ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 val newX = px + (x - px) * scaleX
                 val newY = py + (y - py) * scaleY
                 val newW = width * scaleX
@@ -456,7 +457,7 @@ data class VectorShape(
     // Mirrors the shape horizontally or vertically relative to center pivot of the shape
     fun copyWithFlip(horizontal: Boolean, vertical: Boolean, cx: Float, cy: Float): VectorShape {
         return when (type) {
-            ShapeType.RECTANGLE -> {
+            ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 val newX = if (horizontal) cx - (x - cx + width) else x
                 val newY = if (vertical) cy - (y - cy + height) else y
                 copy(x = newX, y = newY)
@@ -507,7 +508,7 @@ data class VectorShape(
     fun getCornerPoints(): List<Offset> {
         val list = mutableListOf<Offset>()
         when (type) {
-            ShapeType.RECTANGLE -> {
+            ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 list.add(Offset(x, y))                  // 0: TL
                 list.add(Offset(x + width, y))          // 1: TR
                 list.add(Offset(x + width, y + height)) // 2: BR
@@ -553,7 +554,7 @@ data class VectorShape(
             ShapeType.LINE -> listOf(Offset(startX, startY), Offset(endX, endY))
             ShapeType.BEZIER_PATH -> bezierNodes.map { Offset(it.anchorX, it.anchorY) }
             ShapeType.FREEHAND -> freehandPoints.map { Offset(it.x, it.y) }
-            ShapeType.RECTANGLE, ShapeType.POLYGON, ShapeType.STAR -> getCornerPoints()
+            ShapeType.RECTANGLE, ShapeType.POLYGON, ShapeType.STAR, ShapeType.IMAGE -> getCornerPoints()
             else -> emptyList()
         }
     }
@@ -960,7 +961,7 @@ data class VectorShape(
     fun asComposePath(): Path {
         val path = Path()
         when (type) {
-            ShapeType.RECTANGLE -> {
+            ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 val vertices = getCornerPoints()
                 if (vertices.isNotEmpty()) {
                     val r0 = getCornerRadius(0)
@@ -1006,9 +1007,7 @@ data class VectorShape(
                 }
             }
             ShapeType.BEZIER_PATH -> {
-                val hasHole = bezierNodes.any { it.isMoveTo }
-                path.fillType = if (hasHole) PathFillType.EvenOdd
-                                else PathFillType.NonZero
+                path.fillType = PathFillType.EvenOdd
                 if (bezierNodes.isNotEmpty()) {
                     val hasCorners = customCornerRadii.any { it > 0.1f }
                     if (hasCorners) {

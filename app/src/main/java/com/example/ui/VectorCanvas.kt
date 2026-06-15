@@ -1310,7 +1310,36 @@ fun VectorCanvas(
                         val strokeColor = shape.getStrokeColor().copy(alpha = shape.strokeAlpha)
                         val fillColor = shape.getFillColor().copy(alpha = shape.fillAlpha)
 
-                        if (shape.type == ShapeType.TEXT) {
+                        if (shape.type == ShapeType.IMAGE) {
+                            val base64 = shape.textContent
+                            if (base64.isNotEmpty()) {
+                                val imageBitmap = viewModel.getCachedImageBitmap(shape.id, base64)
+                                if (imageBitmap != null) {
+                                    val rect = shape.getBoundingBox()
+                                    val cx = (rect.left + rect.right) / 2f
+                                    val cy = (rect.top + rect.bottom) / 2f
+                                    
+                                    val drawWidth = rect.width.toInt().coerceAtLeast(1)
+                                    val drawHeight = rect.height.toInt().coerceAtLeast(1)
+                                    
+                                    if (shape.rotationAngle != 0f) {
+                                        drawContext.transform.rotate(shape.rotationAngle, Offset(cx, cy))
+                                        drawImage(
+                                            image = imageBitmap,
+                                            dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
+                                            dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight)
+                                        )
+                                        drawContext.transform.rotate(-shape.rotationAngle, Offset(cx, cy))
+                                    } else {
+                                        drawImage(
+                                            image = imageBitmap,
+                                            dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
+                                            dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight)
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (shape.type == ShapeType.TEXT) {
                             val paintText = Paint().apply {
                                 color = strokeColor.toArgb()
                                 textSize = shape.fontSize
