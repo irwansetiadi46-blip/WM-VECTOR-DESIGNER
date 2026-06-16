@@ -2450,6 +2450,15 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         selectedShapeIds = emptySet()
     }
 
+    fun deleteShapeById(shapeId: String) {
+        pushToUndoStack()
+        shapes = shapes.filter { it.id != shapeId }
+        if (selectedShapeId == shapeId) selectedShapeId = null
+        if (selectedShapeIds.contains(shapeId)) {
+            selectedShapeIds = selectedShapeIds - shapeId
+        }
+    }
+
     // Mirror / Flip tools (Row 2, Button 3)
     fun flipSelectedShape(horizontal: Boolean, vertical: Boolean) {
         if (selectedShapeIds.isEmpty()) return
@@ -2536,6 +2545,184 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 shape
             }
+        }
+    }
+
+    fun setSelectedShapesSize(newWidth: Float, newHeight: Float) {
+        if (selectedShapeIds.isEmpty() || newWidth <= 0.1f || newHeight <= 0.1f) return
+        pushToUndoStack()
+
+        val activeShapes = shapes.filter { selectedShapeIds.contains(it.id) }
+        if (activeShapes.isEmpty()) return
+
+        val minX = activeShapes.minOfOrNull { it.getBoundingBox().left } ?: 0f
+        val maxX = activeShapes.maxOfOrNull { it.getBoundingBox().right } ?: 0f
+        val minY = activeShapes.minOfOrNull { it.getBoundingBox().top } ?: 0f
+        val maxY = activeShapes.maxOfOrNull { it.getBoundingBox().bottom } ?: 0f
+
+        val currentW = maxX - minX
+        val currentH = maxY - minY
+
+        if (currentW > 0.01f && currentH > 0.01f) {
+            val scaleX = newWidth / currentW
+            val scaleY = newHeight / currentH
+
+            shapes = shapes.map { shape ->
+                if (selectedShapeIds.contains(shape.id)) {
+                    shape.copyWithScale(scaleX, scaleY, minX, minY)
+                } else {
+                    shape
+                }
+            }
+        }
+    }
+
+    fun rotateSelectedShapesToAngle(angleDegrees: Float) {
+        if (selectedShapeIds.isEmpty()) return
+        pushToUndoStack()
+        
+        shapes = shapes.map { shape ->
+            if (selectedShapeIds.contains(shape.id)) {
+                var targetAngle = angleDegrees % 360f
+                if (targetAngle < 0f) targetAngle += 360f
+                shape.copy(rotationAngle = targetAngle)
+            } else {
+                shape
+            }
+        }
+    }
+
+    fun bringSelectedToFront() {
+        if (selectedShapeIds.isEmpty()) return
+        pushToUndoStack()
+        
+        val layerShapes = shapes.filter { it.layerId == activeLayerId }
+        val selected = layerShapes.filter { selectedShapeIds.contains(it.id) }
+        val unselected = layerShapes.filter { !selectedShapeIds.contains(it.id) }
+        val newLayerShapes = unselected + selected
+        
+        var activeShapeIdx = 0
+        shapes = shapes.map { shape ->
+            if (shape.layerId == activeLayerId) {
+                newLayerShapes[activeShapeIdx++]
+            } else {
+                shape
+            }
+        }
+    }
+
+    fun bringSelectedForward() {
+        if (selectedShapeIds.isEmpty()) return
+        pushToUndoStack()
+        
+        val layerShapes = shapes.filter { it.layerId == activeLayerId }
+        val newLayerShapes = layerShapes.toMutableList()
+        for (i in newLayerShapes.size - 2 downTo 0) {
+            val current = newLayerShapes[i]
+            if (selectedShapeIds.contains(current.id)) {
+                val next = newLayerShapes[i + 1]
+                if (!selectedShapeIds.contains(next.id)) {
+                    newLayerShapes[i] = next
+                    newLayerShapes[i + 1] = current
+                }
+            }
+        }
+        
+        var activeShapeIdx = 0
+        shapes = shapes.map { shape ->
+            if (shape.layerId == activeLayerId) {
+                newLayerShapes[activeShapeIdx++]
+            } else {
+                shape
+            }
+        }
+    }
+
+    fun sendSelectedBackward() {
+        if (selectedShapeIds.isEmpty()) return
+        pushToUndoStack()
+        
+        val layerShapes = shapes.filter { it.layerId == activeLayerId }
+        val newLayerShapes = layerShapes.toMutableList()
+        for (i in 1 until newLayerShapes.size) {
+            val current = newLayerShapes[i]
+            if (selectedShapeIds.contains(current.id)) {
+                val prev = newLayerShapes[i - 1]
+                if (!selectedShapeIds.contains(prev.id)) {
+                    newLayerShapes[i] = prev
+                    newLayerShapes[i - 1] = current
+                }
+            }
+        }
+        
+        var activeShapeIdx = 0
+        shapes = shapes.map { shape ->
+            if (shape.layerId == activeLayerId) {
+                newLayerShapes[activeShapeIdx++]
+            } else {
+                shape
+            }
+        }
+    }
+
+    fun sendSelectedToBack() {
+        if (selectedShapeIds.isEmpty()) return
+        pushToUndoStack()
+        
+        val layerShapes = shapes.filter { it.layerId == activeLayerId }
+        val selected = layerShapes.filter { selectedShapeIds.contains(it.id) }
+        val unselected = layerShapes.filter { !selectedShapeIds.contains(it.id) }
+        val newLayerShapes = selected + unselected
+        
+        var activeShapeIdx = 0
+        shapes = shapes.map { shape ->
+            if (shape.layerId == activeLayerId) {
+                newLayerShapes[activeShapeIdx++]
+            } else {
+                shape
+            }
+        }
+    }
+
+    fun moveShapeUpWithinLayer(shapeId: String) {
+        pushToUndoStack()
+        val sList = shapes.toMutableList()
+        val idx = sList.indexOfFirst { it.id == shapeId }
+        if (idx == -1) return
+        val currentShape = sList[idx]
+        
+        var swapIdx = -1
+        for (i in idx + 1 until sList.size) {
+            if (sList[i].layerId == currentShape.layerId) {
+                swapIdx = i
+                break
+            }
+        }
+        if (swapIdx != -1) {
+            sList[idx] = sList[swapIdx]
+            sList[swapIdx] = currentShape
+            shapes = sList
+        }
+    }
+
+    fun moveShapeDownWithinLayer(shapeId: String) {
+        pushToUndoStack()
+        val sList = shapes.toMutableList()
+        val idx = sList.indexOfFirst { it.id == shapeId }
+        if (idx == -1) return
+        val currentShape = sList[idx]
+        
+        var swapIdx = -1
+        for (i in idx - 1 downTo 0) {
+            if (sList[i].layerId == currentShape.layerId) {
+                swapIdx = i
+                break
+            }
+        }
+        if (swapIdx != -1) {
+            sList[idx] = sList[swapIdx]
+            sList[swapIdx] = currentShape
+            shapes = sList
         }
     }
 

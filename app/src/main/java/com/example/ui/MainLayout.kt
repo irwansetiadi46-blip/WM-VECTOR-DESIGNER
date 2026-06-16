@@ -168,6 +168,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     // Dialog & overlay toggles
     var showMenuSheet by remember { mutableStateOf(false) }
     var showLayersPanel by remember { mutableStateOf(false) }
+    var expandedLayers by remember { mutableStateOf(setOf<String>()) }
     var showColorPickerFill by remember { mutableStateOf(false) }
     var showColorPickerStroke by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
@@ -180,6 +181,32 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showExpandOptionsPanel by remember { mutableStateOf(false) }
     var expandFillChecked by remember { mutableStateOf(true) }
     var expandStrokeChecked by remember { mutableStateOf(true) }
+    
+    // Unified Transform Panel state variables
+    var showTransformPanel by remember { mutableStateOf(false) }
+    var activeTransformSubTab by remember { mutableStateOf("SIZE") } // "SIZE", "ROTATE", "FLIP"
+    var transformWidthInput by remember { mutableStateOf("") }
+    var transformHeightInput by remember { mutableStateOf("") }
+    var transformRotateInput by remember { mutableStateOf("") }
+    
+    LaunchedEffect(viewModel.selectedShapeIds, viewModel.shapes) {
+        val selShapes = viewModel.shapes.filter { viewModel.selectedShapeIds.contains(it.id) }
+        if (selShapes.isNotEmpty()) {
+            val minX = selShapes.minOf { it.getBoundingBox().left }
+            val maxX = selShapes.maxOf { it.getBoundingBox().right }
+            val minY = selShapes.minOf { it.getBoundingBox().top }
+            val maxY = selShapes.maxOf { it.getBoundingBox().bottom }
+            val currentW = maxX - minX
+            val currentH = maxY - minY
+            
+            transformWidthInput = String.format(java.util.Locale.US, "%.1f", currentW)
+            transformHeightInput = String.format(java.util.Locale.US, "%.1f", currentH)
+            
+            val firstAngle = selShapes.firstOrNull()?.rotationAngle ?: 0f
+            val displayAngle = if (firstAngle > 180f) firstAngle - 360f else firstAngle
+            transformRotateInput = String.format(java.util.Locale.US, "%.1f", displayAngle)
+        }
+    }
     
     // Text tools state
     var textInputState by remember { mutableStateOf("") }
@@ -727,6 +754,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         viewModel.currentTool = VectorTool.POINTER
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
+                        showTransformPanel = false
                     }
                 )
 
@@ -739,6 +767,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         viewModel.currentTool = VectorTool.DIRECT_SELECTION
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
+                        showTransformPanel = false
                     }
                 )
 
@@ -752,6 +781,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         viewModel.selectedShapeId = null
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
+                        showTransformPanel = false
                     }
                 )
 
@@ -766,6 +796,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         showPrimitiveSelector = !showPrimitiveSelector
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
+                        showTransformPanel = false
                     }
                 )
 
@@ -780,6 +811,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         showColorPickerFill = true
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
+                        showTransformPanel = false
                     }
                 )
 
@@ -792,6 +824,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         viewModel.currentTool = VectorTool.ROUNDED_CORNER
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
+                        showTransformPanel = false
                     }
                 )
 
@@ -807,6 +840,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         } else {
                             showExpandOptionsPanel = !showExpandOptionsPanel
                             showBooleanInBottomScope = false
+                            showTransformPanel = false
                         }
                     }
                 )
@@ -1707,6 +1741,372 @@ fun MainLayout(viewModel: VectorViewModel) {
                             )
                         }
                     }
+                } else if (showTransformPanel) {
+                    // --- TRANSFORM PANELS SLIDER SWITCH ---
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Title bar with Sub Tabs
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF6D00),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "TRANSFORM:",
+                                    color = Color(0xFFFF6D00),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                // Sub Tabs: Size, Rotate, Flip, Order
+                                listOf("SIZE", "ROTATE", "FLIP", "ORDER").forEach { tab ->
+                                    val isSelected = activeTransformSubTab == tab
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isSelected) Color(0xFF334155) else Color.Transparent)
+                                            .border(1.dp, if (isSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
+                                            .clickable { activeTransformSubTab = tab }
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = tab,
+                                            color = if (isSelected) Color(0xFFFF6D00) else Color.LightGray,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Close [X] button
+                            Text(
+                                text = "Tutup [X]",
+                                color = Color.LightGray,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { showTransformPanel = false }
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        // Content based on sub-tab
+                        when (activeTransformSubTab) {
+                            "SIZE" -> {
+                                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
+                                if (!isShapeSelected) {
+                                    Text(
+                                        text = "Pilih objek terlebih dahulu untuk mengubah ukuran",
+                                        color = Color.LightGray,
+                                        fontSize = 11.sp,
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text("W:", color = Color.White, fontSize = 11.sp)
+                                        androidx.compose.foundation.text.BasicTextField(
+                                            value = transformWidthInput,
+                                            onValueChange = { transformWidthInput = it },
+                                            textStyle = androidx.compose.ui.text.TextStyle(
+                                                color = Color(0xFFFF6D00),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace,
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier
+                                                .width(60.dp)
+                                                .height(24.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0xFF0F172A))
+                                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                                                .padding(top = 4.dp),
+                                            singleLine = true
+                                        )
+
+                                        Text("H:", color = Color.White, fontSize = 11.sp)
+                                        androidx.compose.foundation.text.BasicTextField(
+                                            value = transformHeightInput,
+                                            onValueChange = { transformHeightInput = it },
+                                            textStyle = androidx.compose.ui.text.TextStyle(
+                                                color = Color(0xFFFF6D00),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace,
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier
+                                                .width(60.dp)
+                                                .height(24.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0xFF0F172A))
+                                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                                                .padding(top = 4.dp),
+                                            singleLine = true
+                                        )
+
+                                        Button(
+                                            onClick = {
+                                                val wVal = transformWidthInput.toFloatOrNull() ?: 0f
+                                                val hVal = transformHeightInput.toFloatOrNull() ?: 0f
+                                                if (wVal > 0f && hVal > 0f) {
+                                                    viewModel.setSelectedShapesSize(wVal, hVal)
+                                                    Toast.makeText(context, "Sizing: ${wVal}x${hVal}px", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, "Input tidak valid!", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(28.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("Apply", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                            "ROTATE" -> {
+                                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
+                                if (!isShapeSelected) {
+                                    Text(
+                                        text = "Pilih objek terlebih dahulu untuk memutar",
+                                        color = Color.LightGray,
+                                        fontSize = 11.sp,
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text("Sudut (°):", color = Color.White, fontSize = 11.sp)
+                                        androidx.compose.foundation.text.BasicTextField(
+                                            value = transformRotateInput,
+                                            onValueChange = { transformRotateInput = it },
+                                            textStyle = androidx.compose.ui.text.TextStyle(
+                                                color = Color(0xFFFF6D00),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace,
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier
+                                                .width(54.dp)
+                                                .height(24.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0xFF0F172A))
+                                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                                                .padding(top = 4.dp),
+                                            singleLine = true
+                                        )
+
+                                        Button(
+                                            onClick = {
+                                                val degVal = transformRotateInput.toFloatOrNull() ?: 0f
+                                                viewModel.rotateSelectedShapesToAngle(degVal)
+                                                Toast.makeText(context, "Rotasi diatur ke ${degVal}°", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(28.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("Set", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        // Presets
+                                        Button(
+                                            onClick = {
+                                                viewModel.rotateSelectedShapes(-90f)
+                                                Toast.makeText(context, "Putar -90°", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(28.dp),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("-90°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                viewModel.rotateSelectedShapes(90f)
+                                                Toast.makeText(context, "Putar +90°", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(28.dp),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("+90°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        
+                                        Button(
+                                            onClick = {
+                                                viewModel.rotateSelectedShapes(180f)
+                                                Toast.makeText(context, "Putar 180°", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(28.dp),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("180°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                            "FLIP" -> {
+                                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
+                                if (!isShapeSelected) {
+                                    Text(
+                                        text = "Pilih objek terlebih dahulu untuk dicerminkan",
+                                        color = Color.LightGray,
+                                        fontSize = 11.sp,
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                viewModel.flipSelectedShape(horizontal = true, vertical = false)
+                                                Toast.makeText(context, "Mirror Horizontal", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(30.dp).weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Flip, null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Horizontal", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                viewModel.flipSelectedShape(horizontal = false, vertical = true)
+                                                Toast.makeText(context, "Mirror Vertikal", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(30.dp).weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
+                                        ) {
+                                            Icon(Icons.Default.SwapVert, null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Vertikal", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                            "ORDER" -> {
+                                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
+                                if (!isShapeSelected) {
+                                    Text(
+                                        text = "Pilih objek terlebih dahulu untuk mengatur susunan (Order)",
+                                        color = Color.LightGray,
+                                        fontSize = 11.sp,
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                viewModel.bringSelectedToFront()
+                                                Toast.makeText(context, "Bring to Front", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(32.dp).weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Icon(Icons.Default.VerticalAlignTop, null, tint = Color.Black, modifier = Modifier.size(12.dp))
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text("Front", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                viewModel.bringSelectedForward()
+                                                Toast.makeText(context, "Bring Forward", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(32.dp).weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Icon(Icons.Default.ArrowUpward, null, tint = Color.Black, modifier = Modifier.size(12.dp))
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text("Forward", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                viewModel.sendSelectedBackward()
+                                                Toast.makeText(context, "Send Backward", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(32.dp).weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Icon(Icons.Default.ArrowDownward, null, tint = Color.Black, modifier = Modifier.size(12.dp))
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text("Backward", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                viewModel.sendSelectedToBack()
+                                                Toast.makeText(context, "Send to Back", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(32.dp).weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Icon(Icons.Default.VerticalAlignBottom, null, tint = Color.Black, modifier = Modifier.size(12.dp))
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text("Back", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else {
                     // --- DYNAMIC/CONTEXTUAL SLIDERS SECTION ---
                     when (viewModel.currentTool) {
@@ -2183,68 +2583,19 @@ fun MainLayout(viewModel: VectorViewModel) {
                             }
                         )
 
-                        // 6. Unified Rotate/Flip Popup Tool
-                        var showTransformPopup by remember { mutableStateOf(false) }
-                        Box(modifier = Modifier.wrapContentSize()) {
-                            IconButtonWithLabel(
-                                icon = Icons.Default.Refresh,
-                                label = "Transform",
-                                onClick = { showTransformPopup = !showTransformPopup }
-                            )
-                            if (showTransformPopup) {
-                                androidx.compose.ui.window.Popup(
-                                    alignment = Alignment.TopCenter,
-                                    offset = androidx.compose.ui.unit.IntOffset(0, -90),
-                                    onDismissRequest = { showTransformPopup = false }
-                                ) {
-                                    Card(
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF6D00)),
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.width(200.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(6.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            IconButton(
-                                                onClick = {
-                                                    viewModel.rotateSelectedShapes(90f)
-                                                    Toast.makeText(context, "Rotasi +90°", Toast.LENGTH_SHORT).show()
-                                                }
-                                            ) {
-                                                Icon(Icons.Default.RotateRight, "Rotate CW", tint = Color.White)
-                                            }
-                                            IconButton(
-                                                onClick = {
-                                                    viewModel.rotateSelectedShapes(-90f)
-                                                    Toast.makeText(context, "Rotasi -90°", Toast.LENGTH_SHORT).show()
-                                                }
-                                            ) {
-                                                Icon(Icons.Default.RotateLeft, "Rotate CCW", tint = Color.White)
-                                            }
-                                            IconButton(
-                                                onClick = {
-                                                    viewModel.flipSelectedShape(horizontal = true, vertical = false)
-                                                    Toast.makeText(context, "Mirror Horizontal", Toast.LENGTH_SHORT).show()
-                                                }
-                                            ) {
-                                                Icon(Icons.Default.Flip, "Mirror Horizontal", tint = Color.White)
-                                            }
-                                            IconButton(
-                                                onClick = {
-                                                    viewModel.flipSelectedShape(horizontal = false, vertical = true)
-                                                    Toast.makeText(context, "Mirror Vertikal", Toast.LENGTH_SHORT).show()
-                                                }
-                                            ) {
-                                                Icon(Icons.Default.SwapVert, "Mirror Vertikal", tint = Color.White)
-                                            }
-                                        }
-                                    }
+                        // 6. Unified Transform Panel Toggle
+                        IconButtonWithLabel(
+                            icon = Icons.Default.Refresh,
+                            label = "Transform",
+                            onClick = {
+                                showTransformPanel = !showTransformPanel
+                                if (showTransformPanel) {
+                                    bottomBarExpandedLevel = 2
+                                    showBooleanInBottomScope = false
+                                    showExpandOptionsPanel = false
                                 }
                             }
-                        }
+                        )
 
                         // 7. Clone / Duplicate
                         IconButtonWithLabel(
@@ -2361,110 +2712,251 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 val actualIndex = viewModel.layers.indexOf(layer)
                                 val isSelected = viewModel.activeLayerId == layer.id
                                 val shapeCount = viewModel.shapes.count { it.layerId == layer.id }
+                                val isExpanded = expandedLayers.contains(layer.id)
                                 
-                                Row(
+                                androidx.compose.foundation.layout.Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(vertical = 4.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) Color(0x88334155) else Color.Transparent)
-                                        .clickable {
-                                            viewModel.activeLayerId = layer.id
-                                        }
-                                        .padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                        .background(if (isSelected) Color(0x22FFFFFF) else Color.Transparent)
                                 ) {
                                     Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                viewModel.activeLayerId = layer.id
+                                            }
+                                            .padding(6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Layers,
-                                            contentDescription = "Layer Icon",
-                                            tint = if (isSelected) Color(0xFFFF6D00) else Color.Gray,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            IconButton(
+                                                onClick = {
+                                                    expandedLayers = if (isExpanded) {
+                                                        expandedLayers - layer.id
+                                                    } else {
+                                                        expandedLayers + layer.id
+                                                    }
+                                                },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (isExpanded) Icons.Default.ArrowDropDown else Icons.Default.PlayArrow,
+                                                    contentDescription = "Expand",
+                                                    tint = Color.LightGray,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
 
-                                        Column {
-                                            Text(
-                                                text = layer.name,
-                                                color = Color.White,
-                                                fontSize = 13.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                            Icon(
+                                                imageVector = Icons.Default.Layers,
+                                                contentDescription = "Layer Icon",
+                                                tint = if (isSelected) Color(0xFFFF6D00) else Color.Gray,
+                                                modifier = Modifier.size(16.dp)
                                             )
-                                            Text(
-                                                text = "$shapeCount objects",
-                                                color = Color.LightGray,
-                                                fontSize = 10.sp
-                                            )
+
+                                            Column {
+                                                Text(
+                                                    text = layer.name,
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = "$shapeCount objects",
+                                                    color = Color.LightGray,
+                                                    fontSize = 9.sp
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            IconButton(
+                                                onClick = { 
+                                                    viewModel.layers = viewModel.layers.map { 
+                                                        if (it.id == layer.id) it.copy(isVisible = !it.isVisible) else it 
+                                                    }
+                                                },
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (layer.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                    contentDescription = "Toggle Visibility",
+                                                    tint = if (layer.isVisible) Color.LightGray else Color.Red,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = { 
+                                                    viewModel.layers = viewModel.layers.map { 
+                                                        if (it.id == layer.id) it.copy(isLocked = !it.isLocked) else it 
+                                                    }
+                                                },
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (layer.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                                    contentDescription = "Toggle Lock",
+                                                    tint = if (layer.isLocked) Color.Red else Color.LightGray,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = { viewModel.reorderLayers(actualIndex, actualIndex + 1) },
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(Icons.Default.ArrowUpward, "Layer up", tint = Color.White, modifier = Modifier.size(12.dp))
+                                            }
+
+                                            IconButton(
+                                                onClick = { viewModel.reorderLayers(actualIndex, actualIndex - 1) },
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(Icons.Default.ArrowDownward, "Layer down", tint = Color.White, modifier = Modifier.size(12.dp))
+                                            }
+                                            
+                                            IconButton(
+                                                onClick = { viewModel.deleteLayer(layer.id) },
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(12.dp))
+                                            }
                                         }
                                     }
 
-                                    // Controls: Lock toggle & Layer re-order bounds
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        // Visibility toggle
-                                        IconButton(
-                                            onClick = { 
-                                                viewModel.layers = viewModel.layers.map { 
-                                                    if (it.id == layer.id) it.copy(isVisible = !it.isVisible) else it 
-                                                }
-                                            },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = if (layer.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                                contentDescription = "Toggle Visibility",
-                                                tint = if (layer.isVisible) Color.LightGray else Color.Red,
-                                                modifier = Modifier.size(14.dp)
+                                    if (isExpanded) {
+                                        val shapesInLayer = viewModel.shapes.filter { it.layerId == layer.id }
+                                        if (shapesInLayer.isEmpty()) {
+                                            Text(
+                                                text = "Empty layer",
+                                                color = Color.Gray,
+                                                fontSize = 10.sp,
+                                                style = androidx.compose.ui.text.TextStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                                                modifier = Modifier.padding(start = 36.dp, top = 2.dp, bottom = 6.dp)
                                             )
-                                        }
+                                        } else {
+                                            shapesInLayer.reversed().forEach { shape ->
+                                                val isShapeSelected = viewModel.selectedShapeIds.contains(shape.id)
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(start = 24.dp, top = 2.dp, bottom = 2.dp, end = 6.dp)
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(if (isShapeSelected) Color(0x33FF6D00) else Color(0x10FFFFFF))
+                                                        .border(1.dp, if (isShapeSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
+                                                        .clickable {
+                                                            viewModel.selectedShapeIds = setOf(shape.id)
+                                                            viewModel.selectedShapeId = shape.id
+                                                            viewModel.activeLayerId = layer.id
+                                                        }
+                                                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.weight(1f),
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        val shapeIcon = when (shape.type) {
+                                                            com.example.model.ShapeType.RECTANGLE -> Icons.Default.CropSquare
+                                                            com.example.model.ShapeType.ELLIPSE -> Icons.Default.RadioButtonUnchecked
+                                                            com.example.model.ShapeType.LINE -> Icons.Default.HorizontalRule
+                                                            com.example.model.ShapeType.FREEHAND -> Icons.Default.Brush
+                                                            com.example.model.ShapeType.BEZIER_PATH -> Icons.Default.Create
+                                                            com.example.model.ShapeType.TEXT -> Icons.Default.TextFields
+                                                            com.example.model.ShapeType.POLYGON -> Icons.Default.Category
+                                                            com.example.model.ShapeType.STAR -> Icons.Default.Star
+                                                            com.example.model.ShapeType.IMAGE -> Icons.Default.Image
+                                                        }
+                                                        Icon(
+                                                            imageVector = shapeIcon,
+                                                            contentDescription = shape.type.name,
+                                                            tint = if (isShapeSelected) Color(0xFFFF6D00) else Color.LightGray,
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                        Text(
+                                                            text = shape.name,
+                                                            color = Color.White,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = if (isShapeSelected) FontWeight.Bold else FontWeight.Normal,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
 
-                                        // Lock layer toggle
-                                        IconButton(
-                                            onClick = { 
-                                                viewModel.layers = viewModel.layers.map { 
-                                                    if (it.id == layer.id) it.copy(isLocked = !it.isLocked) else it 
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                    ) {
+                                                        IconButton(
+                                                            onClick = {
+                                                                viewModel.shapes = viewModel.shapes.map {
+                                                                    if (it.id == shape.id) it.copy(isVisible = !it.isVisible) else it
+                                                                }
+                                                            },
+                                                            modifier = Modifier.size(18.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = if (shape.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                                contentDescription = "Toggle Visibility",
+                                                                tint = if (shape.isVisible) Color.LightGray else Color.Red,
+                                                                modifier = Modifier.size(10.dp)
+                                                            )
+                                                        }
+
+                                                        IconButton(
+                                                            onClick = {
+                                                                viewModel.shapes = viewModel.shapes.map {
+                                                                    if (it.id == shape.id) it.copy(isLocked = !it.isLocked) else it
+                                                                }
+                                                            },
+                                                            modifier = Modifier.size(18.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = if (shape.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                                                contentDescription = "Toggle Lock",
+                                                                tint = if (shape.isLocked) Color.Red else Color.LightGray,
+                                                                modifier = Modifier.size(10.dp)
+                                                            )
+                                                        }
+
+                                                        IconButton(
+                                                            onClick = { viewModel.moveShapeUpWithinLayer(shape.id) },
+                                                            modifier = Modifier.size(18.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.ArrowUpward, "Shape Up", tint = Color.White, modifier = Modifier.size(10.dp))
+                                                        }
+
+                                                        IconButton(
+                                                            onClick = { viewModel.moveShapeDownWithinLayer(shape.id) },
+                                                            modifier = Modifier.size(18.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.ArrowDownward, "Shape Down", tint = Color.White, modifier = Modifier.size(10.dp))
+                                                        }
+
+                                                        IconButton(
+                                                            onClick = { viewModel.deleteShapeById(shape.id) },
+                                                            modifier = Modifier.size(18.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.Delete, "Delete Shape", tint = Color(0xFFEF4444), modifier = Modifier.size(10.dp))
+                                                        }
+                                                    }
                                                 }
-                                            },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = if (layer.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
-                                                contentDescription = "Toggle Lock",
-                                                tint = if (layer.isLocked) Color.Red else Color.LightGray,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                        }
-
-                                        // Move layer up
-                                        IconButton(
-                                            onClick = { viewModel.reorderLayers(actualIndex, actualIndex + 1) },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(Icons.Default.ArrowUpward, "Layer up", tint = Color.White, modifier = Modifier.size(14.dp))
-                                        }
-
-                                        // Move layer down
-                                        IconButton(
-                                            onClick = { viewModel.reorderLayers(actualIndex, actualIndex - 1) },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(Icons.Default.ArrowDownward, "Layer down", tint = Color.White, modifier = Modifier.size(14.dp))
-                                        }
-                                        
-                                        // Delete layer
-                                        IconButton(
-                                            onClick = { viewModel.deleteLayer(layer.id) },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
+                                            }
                                         }
                                     }
                                 }

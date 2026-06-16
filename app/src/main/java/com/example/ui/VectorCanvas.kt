@@ -240,14 +240,21 @@ fun VectorCanvas(
                                 val change1 = changes[1]
                                 val prevDist = (change0.previousPosition - change1.previousPosition).getDistance()
                                 val currDist = (change0.position - change1.position).getDistance()
-                                if (prevDist > 0f) {
-                                    val scale = currDist / prevDist
-                                    viewModel.zoomScale = (viewModel.zoomScale * scale).coerceIn(0.15f, 6.0f)
-                                }
                                 val prevCenter = (change0.previousPosition + change1.previousPosition) / 2f
                                 val currCenter = (change0.position + change1.position) / 2f
-                                val deltaPan = currCenter - prevCenter
-                                viewModel.panOffset = viewModel.panOffset + deltaPan
+
+                                if (prevDist > 0f) {
+                                    val scale = currDist / prevDist
+                                    val prevScale = viewModel.zoomScale
+                                    val newScale = (prevScale * scale).coerceIn(0.15f, 6.0f)
+                                    viewModel.zoomScale = newScale
+
+                                    val canvasPivot = (prevCenter - viewModel.panOffset) / prevScale
+                                    viewModel.panOffset = currCenter - (canvasPivot * newScale)
+                                } else {
+                                    val deltaPan = currCenter - prevCenter
+                                    viewModel.panOffset = viewModel.panOffset + deltaPan
+                                }
                             } else {
                                 if (isMultiTouch) {
                                     changes.forEach { it.consume() }
