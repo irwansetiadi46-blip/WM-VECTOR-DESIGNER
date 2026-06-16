@@ -1042,6 +1042,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var isGridEnabled by mutableStateOf(false)
     var gridSize by mutableStateOf(40f)
     var isSnapToGrid by mutableStateOf(false)
+    var gridColorHex by mutableStateOf("#CCCCCC")
 
     // Camera panning/zooming variables
     var zoomScale by mutableStateOf(1f)

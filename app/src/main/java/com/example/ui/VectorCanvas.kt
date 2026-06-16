@@ -1280,8 +1280,20 @@ fun VectorCanvas(
 
                 if (viewModel.isGridEnabled) {
                     val gridS = viewModel.gridSize
+                    val paintColor = try {
+                        val hex = viewModel.gridColorHex
+                        if (hex.startsWith("0x") || hex.startsWith("0X")) {
+                            // convert 0xFFD3D3D3 to #D3D3D3 etc
+                            val parseable = "#" + hex.substring(2)
+                            android.graphics.Color.parseColor(parseable)
+                        } else {
+                            android.graphics.Color.parseColor(hex)
+                        }
+                    } catch (e: Exception) {
+                        android.graphics.Color.LTGRAY
+                    }
                     val paint = Paint().apply {
-                        color = android.graphics.Color.LTGRAY
+                        color = paintColor
                         style = Paint.Style.STROKE
                         strokeWidth = 1f
                     }

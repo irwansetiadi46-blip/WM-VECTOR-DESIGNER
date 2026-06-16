@@ -189,6 +189,23 @@ fun MainLayout(viewModel: VectorViewModel) {
     var transformHeightInput by remember { mutableStateOf("") }
     var transformRotateInput by remember { mutableStateOf("") }
     
+    // Grid panel state variables
+    var showGridPanel by remember { mutableStateOf(false) }
+    var activeGridSubTab by remember { mutableStateOf("GRID") } // "GRID", "UKURAN", "WARNA"
+    var showGridColorPicker by remember { mutableStateOf(false) }
+    
+    // Floating toolbar quick states
+    var showPrimitiveSelector by remember { mutableStateOf(false) }
+    var showAlignmentSelector by remember { mutableStateOf(false) }
+
+    LaunchedEffect(viewModel.currentTool) {
+        showBooleanInBottomScope = false
+        showExpandOptionsPanel = false
+        showTransformPanel = false
+        showAlignmentSelector = false
+        showGridPanel = false
+    }
+    
     LaunchedEffect(viewModel.selectedShapeIds, viewModel.shapes) {
         val selShapes = viewModel.shapes.filter { viewModel.selectedShapeIds.contains(it.id) }
         if (selShapes.isNotEmpty()) {
@@ -210,10 +227,6 @@ fun MainLayout(viewModel: VectorViewModel) {
     
     // Text tools state
     var textInputState by remember { mutableStateOf("") }
-
-    // Floating toolbar quick states
-    var showPrimitiveSelector by remember { mutableStateOf(false) }
-    var showAlignmentSelector by remember { mutableStateOf(false) }
 
     if (!viewModel.isSetupCompleted) {
         Column(
@@ -548,7 +561,7 @@ fun MainLayout(viewModel: VectorViewModel) {
             }
             
             Text(
-                text = "Designed by Irwan Setiadi • War Machine Vector Studio v02.2",
+                text = "Designed by Irwan Setiadi • War Machine Vector Studio v02.5",
                 color = Color(0xFF64748B),
                 fontSize = 8.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -841,6 +854,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                             showExpandOptionsPanel = !showExpandOptionsPanel
                             showBooleanInBottomScope = false
                             showTransformPanel = false
+                            showAlignmentSelector = false
+                            showGridPanel = false
                         }
                     }
                 )
@@ -1336,65 +1351,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                 }
             }
 
-            // 2. Align selection bar
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showAlignmentSelector,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 12.dp)
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xF21E293B)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        ) {
-                            Text("Basis Align:", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            FilterChip(
-                                selected = viewModel.alignBasisIsCanvas,
-                                onClick = { viewModel.alignBasisIsCanvas = true },
-                                label = { Text("Canvas", fontSize = 10.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFFFF6D00),
-                                    selectedLabelColor = Color.Black,
-                                    labelColor = Color.LightGray
-                                )
-                            )
-                            FilterChip(
-                                selected = !viewModel.alignBasisIsCanvas,
-                                onClick = { viewModel.alignBasisIsCanvas = false },
-                                label = { Text("Object", fontSize = 10.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFFFF6D00),
-                                    selectedLabelColor = Color.Black,
-                                    labelColor = Color.LightGray
-                                )
-                            )
-                        }
-                        Text(
-                            text = if (viewModel.alignBasisIsCanvas) "Instant Align to Canvas:" else "Instant Align to Closest Object:",
-                            color = Color.LightGray,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            AlignButton("LEFT", Icons.Default.AlignHorizontalLeft) { viewModel.alignSelectedShape("LEFT") }
-                            AlignButton("C.H", Icons.Default.AlignHorizontalCenter) { viewModel.alignSelectedShape("CENTER_HORIZ") }
-                            AlignButton("RIGHT", Icons.Default.AlignHorizontalRight) { viewModel.alignSelectedShape("RIGHT") }
-                            AlignButton("TOP", Icons.Default.AlignVerticalTop) { viewModel.alignSelectedShape("TOP") }
-                            AlignButton("C.V", Icons.Default.AlignVerticalCenter) { viewModel.alignSelectedShape("CENTER_VERT") }
-                            AlignButton("BOTTOM", Icons.Default.AlignVerticalBottom) { viewModel.alignSelectedShape("BOTTOM") }
-                        }
-                    }
-                }
-            }
+
 
 
 
@@ -1739,6 +1696,354 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )
+                        }
+                    }
+                } else if (showAlignmentSelector) {
+                    // --- ALIGNMENT OPTIONS PANEL ---
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GridView,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF6D00),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "ALIGN OPTIONS",
+                                    color = Color(0xFFFF6D00),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "Tutup [X]",
+                                color = Color.LightGray,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { showAlignmentSelector = false }
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Basis Align:", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            FilterChip(
+                                selected = viewModel.alignBasisIsCanvas,
+                                onClick = { viewModel.alignBasisIsCanvas = true },
+                                label = { Text("Canvas", fontSize = 10.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFFFF6D00),
+                                    selectedLabelColor = Color.Black,
+                                    labelColor = Color.LightGray
+                                )
+                            )
+                            FilterChip(
+                                selected = !viewModel.alignBasisIsCanvas,
+                                onClick = { viewModel.alignBasisIsCanvas = false },
+                                label = { Text("Object", fontSize = 10.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFFFF6D00),
+                                    selectedLabelColor = Color.Black,
+                                    labelColor = Color.LightGray
+                                )
+                            )
+                        }
+
+                        Text(
+                            text = if (viewModel.alignBasisIsCanvas) "Instant Align to Canvas:" else "Instant Align to Closest Object:",
+                            color = Color.LightGray,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            AlignButton("LEFT", Icons.Default.AlignHorizontalLeft) { viewModel.alignSelectedShape("LEFT") }
+                            AlignButton("C.H", Icons.Default.AlignHorizontalCenter) { viewModel.alignSelectedShape("CENTER_HORIZ") }
+                            AlignButton("RIGHT", Icons.Default.AlignHorizontalRight) { viewModel.alignSelectedShape("RIGHT") }
+                            AlignButton("TOP", Icons.Default.AlignVerticalTop) { viewModel.alignSelectedShape("TOP") }
+                            AlignButton("C.V", Icons.Default.AlignVerticalCenter) { viewModel.alignSelectedShape("CENTER_VERT") }
+                            AlignButton("BOTTOM", Icons.Default.AlignVerticalBottom) { viewModel.alignSelectedShape("BOTTOM") }
+                        }
+                    }
+                } else if (showGridPanel) {
+                    // --- GRID CONFIGURATION PANEL ---
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Title bar with Sub Tabs
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GridOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF6D00),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "GRID OPTIONS:",
+                                    color = Color(0xFFFF6D00),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                // Sub Tabs: GRID, UKURAN, WARNA
+                                listOf("GRID", "UKURAN", "WARNA").forEach { tab ->
+                                    val isSelected = activeGridSubTab == tab
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isSelected) Color(0xFF334155) else Color.Transparent)
+                                            .border(1.dp, if (isSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
+                                            .clickable { activeGridSubTab = tab }
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = tab,
+                                            color = if (isSelected) Color(0xFFFF6D00) else Color.LightGray,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = "Tutup [X]",
+                                color = Color.LightGray,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { showGridPanel = false }
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        // Tab content switch
+                        when (activeGridSubTab) {
+                            "GRID" -> {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 1. Grid toggle
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0x0AFFFFFF))
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Aktifkan Grid",
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Switch(
+                                            checked = viewModel.isGridEnabled,
+                                            onCheckedChange = { viewModel.isGridEnabled = it },
+                                            colors = SwitchDefaults.colors(
+                                                checkedThumbColor = Color(0xFFFF6D00),
+                                                checkedTrackColor = Color(0x66FF6D00)
+                                            )
+                                        )
+                                    }
+
+                                    // 2. Snap to grid toggle for extra power
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0x0AFFFFFF))
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Snap ke Grid",
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Switch(
+                                            checked = viewModel.isSnapToGrid,
+                                            onCheckedChange = { viewModel.isSnapToGrid = it },
+                                            colors = SwitchDefaults.colors(
+                                                checkedThumbColor = Color(0xFFFF6D00),
+                                                checkedTrackColor = Color(0x66FF6D00)
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                            "UKURAN" -> {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Ukuran Grid:",
+                                        color = Color.LightGray,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.width(80.dp)
+                                    )
+
+                                    Slider(
+                                        value = viewModel.gridSize,
+                                        onValueChange = { 
+                                            viewModel.gridSize = it.coerceIn(5f, 200f)
+                                        },
+                                        valueRange = 5f..200f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = Color(0xFFFF6D00),
+                                            activeTrackColor = Color(0xFFFF6D00),
+                                            inactiveTrackColor = Color(0xFF475569)
+                                        ),
+                                        modifier = Modifier.weight(1f).height(24.dp)
+                                    )
+
+                                    // Numeric input
+                                    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+                                    var sizeText by remember(viewModel.gridSize) { mutableStateOf(viewModel.gridSize.toInt().toString()) }
+                                    androidx.compose.foundation.text.BasicTextField(
+                                        value = sizeText,
+                                        onValueChange = { input ->
+                                            val cleanInput = input.filter { it.isDigit() }
+                                            sizeText = cleanInput
+                                            val parsed = cleanInput.toFloatOrNull()
+                                            if (parsed != null) {
+                                                viewModel.gridSize = parsed.coerceIn(5f, 200f)
+                                            }
+                                        },
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                                        ),
+                                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = {
+                                            focusManager.clearFocus()
+                                        }),
+                                        textStyle = androidx.compose.ui.text.TextStyle(
+                                            color = Color(0xFFFF6D00),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                            textAlign = TextAlign.Center
+                                        ),
+                                        modifier = Modifier
+                                            .width(55.dp)
+                                            .height(26.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF0F172A))
+                                            .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                                            .padding(top = 4.dp),
+                                        singleLine = true
+                                    )
+                                    Text("px", color = Color.Gray, fontSize = 11.sp)
+                                }
+                            }
+                            "WARNA" -> {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Warna Grid:",
+                                        color = Color.LightGray,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.width(80.dp)
+                                    )
+
+                                    // Circular template color pickers
+                                    val templateColors = listOf(
+                                        "#CCCCCC", // Light gray
+                                        "#888888", // Gray
+                                        "#333333", // Dark gray
+                                        "#FF5722", // Orange
+                                        "#E53935", // Red
+                                        "#4CAF50", // Green
+                                        "#2196F3", // Blue
+                                        "#FFEB3B"  // Yellow
+                                    )
+
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        templateColors.forEach { colorString ->
+                                            val isSelected = viewModel.gridColorHex.equals(colorString, ignoreCase = true)
+                                            val colorVal = try {
+                                                Color(android.graphics.Color.parseColor(colorString))
+                                            } catch(e: Exception) {
+                                                Color.Gray
+                                            }
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(22.dp)
+                                                    .clip(CircleShape)
+                                                    .background(colorVal)
+                                                    .border(
+                                                        2.dp,
+                                                        if (isSelected) Color(0xFFFF6D00) else Color.Transparent,
+                                                        CircleShape
+                                                    )
+                                                    .clickable {
+                                                        viewModel.gridColorHex = colorString
+                                                    }
+                                            )
+                                        }
+                                    }
+
+                                    // Button custom color grid
+                                    IconButton(
+                                        onClick = { showGridColorPicker = true },
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .background(Color(0xFF334155), RoundedCornerShape(4.dp))
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Palette,
+                                            contentDescription = "Custom Grid Color",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 } else if (showTransformPanel) {
@@ -2559,7 +2864,13 @@ fun MainLayout(viewModel: VectorViewModel) {
                             label = "Boolean",
                             onClick = {
                                 showBooleanInBottomScope = !showBooleanInBottomScope
-                                showExpandOptionsPanel = false
+                                if (showBooleanInBottomScope) {
+                                    showExpandOptionsPanel = false
+                                    showTransformPanel = false
+                                    showAlignmentSelector = false
+                                    showGridPanel = false
+                                    bottomBarExpandedLevel = 2
+                                }
                             }
                         )
 
@@ -2593,6 +2904,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     bottomBarExpandedLevel = 2
                                     showBooleanInBottomScope = false
                                     showExpandOptionsPanel = false
+                                    showAlignmentSelector = false
+                                    showGridPanel = false
                                 }
                             }
                         )
@@ -2628,11 +2941,19 @@ fun MainLayout(viewModel: VectorViewModel) {
                         IconButtonWithLabel(
                             icon = Icons.Default.GridView,
                             label = "Align",
+                            isActive = showAlignmentSelector,
                             onClick = {
-                                if (viewModel.selectedShapeId == null) {
-                                    Toast.makeText(context, "Select a shape to align", Toast.LENGTH_SHORT).show()
+                                if (viewModel.selectedShapeId == null && viewModel.selectedShapeIds.isEmpty()) {
+                                    Toast.makeText(context, "Pilih objek terlebih dahulu untuk melakukan alignment", Toast.LENGTH_SHORT).show()
                                 } else {
                                     showAlignmentSelector = !showAlignmentSelector
+                                    if (showAlignmentSelector) {
+                                        bottomBarExpandedLevel = 2
+                                        showBooleanInBottomScope = false
+                                        showExpandOptionsPanel = false
+                                        showTransformPanel = false
+                                        showGridPanel = false
+                                    }
                                 }
                             }
                         )
@@ -2641,10 +2962,16 @@ fun MainLayout(viewModel: VectorViewModel) {
                         IconButtonWithLabel(
                             icon = Icons.Default.GridOn,
                             label = "Grid",
-                            isActive = viewModel.isGridEnabled,
+                            isActive = showGridPanel,
                             onClick = {
-                                viewModel.isGridEnabled = !viewModel.isGridEnabled
-                                Toast.makeText(context, if (viewModel.isGridEnabled) "Grid Enabled" else "Grid Disabled", Toast.LENGTH_SHORT).show()
+                                showGridPanel = !showGridPanel
+                                if (showGridPanel) {
+                                    bottomBarExpandedLevel = 2
+                                    showBooleanInBottomScope = false
+                                    showExpandOptionsPanel = false
+                                    showTransformPanel = false
+                                    showAlignmentSelector = false
+                                }
                             }
                         )
 
@@ -3704,6 +4031,20 @@ fun MainLayout(viewModel: VectorViewModel) {
         )
     }
 
+    if (showGridColorPicker) {
+        ColorPickerDialog(
+            title = "Pilih Warna Grid",
+            initialColorHex = viewModel.gridColorHex,
+            initialAlpha = 1.0f,
+            supportNoneButton = false,
+            onColorSelected = { hex, alpha ->
+                viewModel.gridColorHex = hex
+                showGridColorPicker = false
+            },
+            onDismissRequest = { showGridColorPicker = false }
+        )
+    }
+
     // TEXT VECTOR INPUT DEFINITIONS MODAL (Row 2, Button 5)
     if (showTextDialog) {
         AlertDialog(
@@ -3942,38 +4283,6 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
                 modifier = Modifier.weight(1f).height(24.dp)
             )
             Text("Ukuran", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        }
-
-        // Opacity slider
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "${(viewModel.currentStrokeAlpha * 100).toInt()}%",
-                color = Color.White,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier.width(36.dp)
-            )
-            Slider(
-                value = viewModel.currentStrokeAlpha,
-                onValueChange = { opacity ->
-                    viewModel.currentStrokeAlpha = opacity
-                    if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                        viewModel.updateSelectedShapeStyle()
-                    }
-                },
-                valueRange = 0f..1f,
-                colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFFFF6D00),
-                    activeTrackColor = Color(0xFFFF6D00),
-                    inactiveTrackColor = Color(0xFF475569)
-                ),
-                modifier = Modifier.weight(1f).height(24.dp)
-            )
-            Text("Opacity", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
