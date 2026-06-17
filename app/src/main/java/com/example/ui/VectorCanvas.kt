@@ -396,7 +396,12 @@ fun VectorCanvas(
                                                     activeDragHandle = "MARQUEE_SELECT"
                                                 }
                                             } else if (true) {
-                                                val bounds = getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                                                val activeShapeCount = viewModel.selectedShapeIds.size
+                                                val bounds = if (activeShapeCount == 1 && viewModel.shapes.find { it.id == viewModel.selectedShapeIds.first() }?.type != com.example.model.ShapeType.LINE) {
+                                                    getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                                                } else {
+                                                    getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                                                }
                                             val hSize = 30f / viewModel.zoomScale
                                             val clickT = 38f / viewModel.zoomScale
 
@@ -413,16 +418,18 @@ fun VectorCanvas(
                                                 val movPos = Offset(centerX, botB)
                                                 val sclPos = Offset(centerX + 70f / viewModel.zoomScale, botB)
 
-                                                val rotationAngle = 0f
+                                                val rotationAngle = if (activeShapeCount == 1) viewModel.shapes.find { it.id == viewModel.selectedShapeIds.first() }?.rotationAngle ?: 0f else 0f
 
-                                                val localPos = rawCanvasPos
+                                                val localPos = if (rotationAngle != 0f) {
+                                                    rotatePoint(rawCanvasPos, Offset(centerX, centerY), -rotationAngle)
+                                                } else rawCanvasPos
 
                                                 when {
-                                                    hypot(localPos.x - delPos.x, localPos.y - delPos.y) < clickT -> activeDragHandle = "DELETE_HOTSPOT"
-                                                    hypot(localPos.x - dupPos.x, localPos.y - dupPos.y) < clickT -> activeDragHandle = "DUPLICATE_HOTSPOT"
-                                                    hypot(localPos.x - rotPos.x, localPos.y - rotPos.y) < clickT -> activeDragHandle = "ROTATE_HOTSPOT"
-                                                    hypot(localPos.x - movPos.x, localPos.y - movPos.y) < clickT -> activeDragHandle = "MOVE"
-                                                    hypot(localPos.x - sclPos.x, localPos.y - sclPos.y) < clickT -> {
+                                                    hypot(localPos.x - movPos.x, localPos.y - movPos.y) < clickT -> activeDragHandle = "MOVE_HOTSPOT"
+                                                    !viewModel.isBoundingBoxToolsMinimized && hypot(localPos.x - delPos.x, localPos.y - delPos.y) < clickT -> activeDragHandle = "DELETE_HOTSPOT"
+                                                    !viewModel.isBoundingBoxToolsMinimized && hypot(localPos.x - dupPos.x, localPos.y - dupPos.y) < clickT -> activeDragHandle = "DUPLICATE_HOTSPOT"
+                                                    !viewModel.isBoundingBoxToolsMinimized && hypot(localPos.x - rotPos.x, localPos.y - rotPos.y) < clickT -> activeDragHandle = "ROTATE_HOTSPOT"
+                                                    !viewModel.isBoundingBoxToolsMinimized && hypot(localPos.x - sclPos.x, localPos.y - sclPos.y) < clickT -> {
                                                         viewModel.isAspectLocked = !viewModel.isAspectLocked
                                                         activeDragHandle = "LOCK_TOGGLE_HOTSPOT"
                                                     }
@@ -473,6 +480,10 @@ fun VectorCanvas(
                                                 }
                                                 if (shape != null) {
                                                     val nodes = shape.getNodePoints()
+                                                    val localCanvasPos = if (shape.rotationAngle != 0f) {
+                                                        val b = shape.getBoundingBox()
+                                                        rotatePoint(rawCanvasPos, Offset((b.left + b.right)/2f, (b.top + b.bottom)/2f), -shape.rotationAngle)
+                                                    } else rawCanvasPos
                                                     val targetTolerance = 20f / viewModel.zoomScale
                                                     var handleHitIdx = -1
                                                     var handleHitType = ""
@@ -481,12 +492,12 @@ fun VectorCanvas(
                                                         for (i in shape.bezierNodes.indices) {
                                                             val node = shape.bezierNodes[i]
                                                             if (node.isCurve) {
-                                                                if (hypot(rawCanvasPos.x - node.control1X, rawCanvasPos.y - node.control1Y) < hitTolerance) {
+                                                                if (hypot(localCanvasPos.x - node.control1X, localCanvasPos.y - node.control1Y) < hitTolerance) {
                                                                     handleHitIdx = i
                                                                     handleHitType = "in"
                                                                     break
                                                                 }
-                                                                if (hypot(rawCanvasPos.x - node.control2X, rawCanvasPos.y - node.control2Y) < hitTolerance) {
+                                                                if (hypot(localCanvasPos.x - node.control2X, localCanvasPos.y - node.control2Y) < hitTolerance) {
                                                                     handleHitIdx = i
                                                                     handleHitType = "out"
                                                                     break
@@ -494,7 +505,7 @@ fun VectorCanvas(
                                                             }
                                                         }
                                                     }
-                                                    val nodeIdx = nodes.indexOfFirst { hypot(rawCanvasPos.x - it.x, rawCanvasPos.y - it.y) < 24f / viewModel.zoomScale }
+                                                    val nodeIdx = nodes.indexOfFirst { hypot(localCanvasPos.x - it.x, localCanvasPos.y - it.y) < 24f / viewModel.zoomScale }
                                                     if (handleHitIdx != -1) {
                                                         activeDragHandle = "DIRECT_HANDLE"
                                                         directSelectionActiveHandleNodeIndex = handleHitIdx
@@ -506,7 +517,7 @@ fun VectorCanvas(
                                                         activeDragHandle = "DIRECT_NODE"
                                                     } else if (shape.type == com.example.model.ShapeType.BEZIER_PATH) {
                                                         val nearestSeg = findNearestSegment(
-                                                            rawCanvasPos,
+                                                            localCanvasPos,
                                                             shape.bezierNodes,
                                                             isClosed = shape.isPathClosed,
                                                             tolerance = 24f / viewModel.zoomScale
@@ -723,10 +734,15 @@ fun VectorCanvas(
                                                         } else {
                                                             // Absolute resize snapping logic
                                                             val activeIds = if (viewModel.selectedShapeIds.contains(id)) viewModel.selectedShapeIds else setOf(id)
-                                                            val bounds = getRotatedCombinedBoundingBox(activeIds, startShapes)
+                                                            val activeShapeCount = activeIds.size
+                                                            val bounds = if (activeShapeCount == 1 && startShapes.find { it.id == activeIds.first() }?.type != com.example.model.ShapeType.LINE) {
+                                                                getUnrotatedCombinedBoundingBox(activeIds, startShapes)
+                                                            } else {
+                                                                getRotatedCombinedBoundingBox(activeIds, startShapes)
+                                                            }
                                                             if (bounds != null) {
                                                                 val startHandlePos = getHandleStartPos(bounds, handle)
-                                                                val rotationAngle = 0f
+                                                                val rotationAngle = if (activeShapeCount == 1) startShapes.find { it.id == activeIds.first() }?.rotationAngle ?: 0f else 0f
                                                                 val localTotalDX: Float
                                                                 val localTotalDY: Float
                                                                 if (rotationAngle != 0f) {
@@ -763,11 +779,20 @@ fun VectorCanvas(
                                                     if (id != null && (activeDragHandle == "DIRECT_NODE" || activeDragHandle == "DIRECT_HANDLE" || activeDragHandle == "DIRECT_DRAG_ANYWHERE") && dragStartShapes != null && initialTouchCanvasPos != null) {
                                                         val startShape = dragStartShapes!!.find { it.id == id }
                                                         if (startShape != null && startShape.type == com.example.model.ShapeType.BEZIER_PATH) {
+                                                            val localCanvasPosUnsnapped = if (startShape.rotationAngle != 0f) {
+                                                                val b = startShape.getBoundingBox()
+                                                                rotatePoint(rawCanvasPos, Offset((b.left + b.right)/2f, (b.top + b.bottom)/2f), -startShape.rotationAngle)
+                                                            } else rawCanvasPos
+                                                            
+                                                            val localInitialPos = if (startShape.rotationAngle != 0f) {
+                                                                val b = startShape.getBoundingBox()
+                                                                rotatePoint(initialTouchCanvasPos!!, Offset((b.left + b.right)/2f, (b.top + b.bottom)/2f), -startShape.rotationAngle)
+                                                            } else initialTouchCanvasPos!!
+
                                                             var deltaX: Float
                                                             var deltaY: Float
                                                             if (activeDragHandle == "DIRECT_NODE" && nodeIdx != null) {
-                                                                val canvasPosUnsnapped = rawCanvasPos
-                                                                val snappedPos = viewModel.snapNodeComprehensive(canvasPosUnsnapped, id, nodeIdx)
+                                                                val snappedPos = viewModel.snapNodeComprehensive(localCanvasPosUnsnapped, id, nodeIdx)
                                                                 val origNode = startShape.bezierNodes.getOrNull(nodeIdx)
                                                                 if (origNode != null) {
                                                                     deltaX = snappedPos.x - origNode.anchorX
@@ -777,10 +802,9 @@ fun VectorCanvas(
                                                                 }
                                                                 viewModel.translateDirectSelection(id, startShape, deltaX, deltaY)
                                                             } else if (activeDragHandle == "DIRECT_HANDLE" && nodeIdx != null) {
-                                                                val canvasPosUnsnapped = rawCanvasPos
                                                                 val startNode = startShape.bezierNodes.getOrNull(nodeIdx)
-                                                                var targetX = canvasPosUnsnapped.x
-                                                                var targetY = canvasPosUnsnapped.y
+                                                                var targetX = localCanvasPosUnsnapped.x
+                                                                var targetY = localCanvasPosUnsnapped.y
                                                                 if (startNode != null) {
                                                                     val dxFromAnchor = targetX - startNode.anchorX
                                                                     val dyFromAnchor = targetY - startNode.anchorY
@@ -796,21 +820,32 @@ fun VectorCanvas(
                                                                     newPos = snappedPos
                                                                 )
                                                             } else { // DIRECT_DRAG_ANYWHERE
-                                                                val baseDX = rawCanvasPos.x - initialTouchCanvasPos!!.x
-                                                                val baseDY = rawCanvasPos.y - initialTouchCanvasPos!!.y
+                                                                val baseDX = localCanvasPosUnsnapped.x - localInitialPos.x
+                                                                val baseDY = localCanvasPosUnsnapped.y - localInitialPos.y
                                                                 deltaX = baseDX
                                                                 deltaY = baseDY
                                                                 viewModel.translateDirectSelection(id, startShape, deltaX, deltaY)
                                                             }
                                                         }
-                                                    } else if (id != null && activeDragHandle == "DIRECT_SEGMENT" && initialTouchCanvasPos != null) {
-                                                        val deltaX = rawCanvasPos.x - initialTouchCanvasPos!!.x
-                                                        val deltaY = rawCanvasPos.y - initialTouchCanvasPos!!.y
-                                                        val shape = viewModel.shapes.find { it.id == id }
-                                                        if (shape != null && shape.type == com.example.model.ShapeType.BEZIER_PATH) {
+                                                    } else if (id != null && activeDragHandle == "DIRECT_SEGMENT" && initialTouchCanvasPos != null && dragStartShapes != null) {
+                                                        val startShape = dragStartShapes!!.find { it.id == id }
+                                                        if (startShape != null && startShape.type == com.example.model.ShapeType.BEZIER_PATH) {
+                                                            val localCanvasPosUnsnapped = if (startShape.rotationAngle != 0f) {
+                                                                val b = startShape.getBoundingBox()
+                                                                rotatePoint(rawCanvasPos, Offset((b.left + b.right)/2f, (b.top + b.bottom)/2f), -startShape.rotationAngle)
+                                                            } else rawCanvasPos
+                                                            
+                                                            val localInitialPos = if (startShape.rotationAngle != 0f) {
+                                                                val b = startShape.getBoundingBox()
+                                                                rotatePoint(initialTouchCanvasPos!!, Offset((b.left + b.right)/2f, (b.top + b.bottom)/2f), -startShape.rotationAngle)
+                                                            } else initialTouchCanvasPos!!
+
+                                                            val deltaX = localCanvasPosUnsnapped.x - localInitialPos.x
+                                                            val deltaY = localCanvasPosUnsnapped.y - localInitialPos.y
+                                                            
                                                             val isClosedSeg = directSelectionActiveSegmentIndex == 0
                                                             val nextIdx = if (isClosedSeg) 0 else directSelectionActiveSegmentIndex
-                                                            val prevIdx = if (isClosedSeg) shape.bezierNodes.size - 1 else directSelectionActiveSegmentIndex - 1
+                                                            val prevIdx = if (isClosedSeg) startShape.bezierNodes.size - 1 else directSelectionActiveSegmentIndex - 1
                                                             
                                                             viewModel.updateShapeSegmentDelta(
                                                                 shapeId = id,
@@ -828,7 +863,7 @@ fun VectorCanvas(
                                                     } else if (viewModel.currentTool != VectorTool.DIRECT_SELECTION && id != null && dragStartShapes != null && initialTouchCanvasPos != null) {
                                                         val shapeObj = viewModel.shapes.find { it.id == id }
                                                         val isTouchStartedOnShape = shapeObj?.isPointInside(initialTouchCanvasPos!!.x, initialTouchCanvasPos!!.y) == true
-                                                        if (activeDragHandle == "MOVE" || isTouchStartedOnShape) {
+                                                        if (activeDragHandle == "MOVE" || activeDragHandle == "MOVE_HOTSPOT" || isTouchStartedOnShape) {
                                                             val totalDX = rawCanvasPos.x - initialTouchCanvasPos!!.x
                                                             val totalDY = rawCanvasPos.y - initialTouchCanvasPos!!.y
                                                             val primaryShape = dragStartShapes!!.find { it.id == id }
@@ -923,6 +958,10 @@ fun VectorCanvas(
                                                         viewModel.duplicateSelected()
                                                         triggeredTab = true
                                                     }
+                                                    "MOVE_HOTSPOT" -> {
+                                                        viewModel.isBoundingBoxToolsMinimized = !viewModel.isBoundingBoxToolsMinimized
+                                                        triggeredTab = true
+                                                    }
                                                     "LOCK_TOGGLE_HOTSPOT", "ROTATE_HOTSPOT" -> {
                                                         triggeredTab = true
                                                     }
@@ -972,7 +1011,11 @@ fun VectorCanvas(
                                                     val shape = viewModel.shapes.find { it.id == sId }
                                                     if (shape != null && shape.type == com.example.model.ShapeType.BEZIER_PATH) {
                                                         val nodes = shape.getNodePoints()
-                                                        val nodeIdx = nodes.indexOfFirst { hypot(e.x - it.x, e.y - it.y) < 24f / viewModel.zoomScale }
+                                                        val localE = if (shape.rotationAngle != 0f) {
+                                                            val b = shape.getBoundingBox()
+                                                            rotatePoint(e, Offset((b.left + b.right)/2f, (b.top + b.bottom)/2f), -shape.rotationAngle)
+                                                        } else e
+                                                        val nodeIdx = nodes.indexOfFirst { hypot(localE.x - it.x, localE.y - it.y) < 24f / viewModel.zoomScale }
                                                         
                                                         when (viewModel.currentNodeEditMode) {
                                                             com.example.viewmodel.NodeEditMode.REMOVE -> {
@@ -989,7 +1032,7 @@ fun VectorCanvas(
                                                             }
                                                             com.example.viewmodel.NodeEditMode.ADD -> {
                                                                 val nearestSeg = findNearestSegment(
-                                                                    e,
+                                                                    localE,
                                                                     shape.bezierNodes,
                                                                     isClosed = shape.isPathClosed,
                                                                     tolerance = 24f / viewModel.zoomScale
@@ -1001,7 +1044,7 @@ fun VectorCanvas(
                                                             }
                                                             com.example.viewmodel.NodeEditMode.CUT -> {
                                                                 val nearestSeg = findNearestSegment(
-                                                                    e,
+                                                                    localE,
                                                                     shape.bezierNodes,
                                                                     isClosed = shape.isPathClosed,
                                                                     tolerance = 24f / viewModel.zoomScale
@@ -1031,7 +1074,11 @@ fun VectorCanvas(
                                                         }
                                                     } else if (shape != null) {
                                                         val nodes = shape.getNodePoints()
-                                                        val nodeIdx = nodes.indexOfFirst { hypot(e.x - it.x, e.y - it.y) < 24f / viewModel.zoomScale }
+                                                        val localE = if (shape.rotationAngle != 0f) {
+                                                            val b = shape.getBoundingBox()
+                                                            rotatePoint(e, Offset((b.left + b.right)/2f, (b.top + b.bottom)/2f), -shape.rotationAngle)
+                                                        } else e
+                                                        val nodeIdx = nodes.indexOfFirst { hypot(localE.x - it.x, localE.y - it.y) < 24f / viewModel.zoomScale }
                                                         if (nodeIdx != -1) {
                                                             // Multi-select toggle if holding? We don't have shift key, let's just make it simple.
                                                             viewModel.selectedDirectSelectionNodes = setOf(nodeIdx)
@@ -1837,12 +1884,10 @@ fun VectorCanvas(
                 }
 
                 if (viewModel.currentTool == VectorTool.POINTER && viewModel.selectedShapeIds.isNotEmpty()) {
+                    val activeShapeCount = viewModel.selectedShapeIds.size
                     var bAngle = 0f
-                    val bounds = if (viewModel.selectedShapeIds.size == 1 && activeDragHandle == "ROTATE_HOTSPOT") {
-                        val singleId = viewModel.selectedShapeIds.firstOrNull()
-                        val singleShape = viewModel.shapes.find { it.id == singleId }
-                        bAngle = singleShape?.rotationAngle ?: 0f
-                        getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
+                    val bounds = if (activeShapeCount == 1 && viewModel.shapes.find { it.id == viewModel.selectedShapeIds.first() }?.type == com.example.model.ShapeType.LINE) {
+                        getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
                     } else if (activeDragHandle == "ROTATE_HOTSPOT" && dragStartShapes != null && initialTouchCanvasPos != null && currentTouchPos != null) {
                         val startingBounds = getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, dragStartShapes!!)
                         if (startingBounds != null) {
@@ -1854,9 +1899,19 @@ fun VectorCanvas(
                             var diff = currentAngle - startAngle
                             if (diff < -180f) diff += 360f
                             if (diff > 180f) diff -= 360f
-                            bAngle = diff
+                            
+                            if (activeShapeCount == 1) {
+                                val sShape = dragStartShapes!!.find { it.id == viewModel.selectedShapeIds.first() }
+                                bAngle = (sShape?.rotationAngle ?: 0f) + diff
+                            } else {
+                                bAngle = diff
+                            }
                         }
                         startingBounds
+                    } else if (activeShapeCount == 1) {
+                        val singleShape = viewModel.shapes.find { it.id == viewModel.selectedShapeIds.first() }
+                        bAngle = singleShape?.rotationAngle ?: 0f
+                        getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
                     } else {
                         getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
                     }
@@ -1973,12 +2028,19 @@ fun VectorCanvas(
                         val movPos = Offset(centerX, botB)
                         val sclPos = Offset(centerX + 70f / viewModel.zoomScale, botB)
 
-                        val bRadius = 24f / viewModel.zoomScale
-                        val strokeW = 1.8f / viewModel.zoomScale
+                        val bRadius = 28f / viewModel.zoomScale
+                        val strokeW = 2.0f / viewModel.zoomScale
+                        val iconScale = 1.6f
+                        val lockScale = 2.4f
 
                         val drawIconCircle: (Offset, String) -> Unit = { centerPt, iconType ->
+                            val circleBgColor = when(iconType) {
+                                "MOVE" -> if (viewModel.isBoundingBoxToolsMinimized) Color(0xFFFF9800) else Color(0xFF7C4C90)
+                                "LOCK_CLOSED" -> Color(0xFFFF9800)
+                                else -> Color(0xFF7C4C90)
+                            }
                             drawCircle(
-                                color = Color(0xFF7C4C90),
+                                color = circleBgColor,
                                 radius = bRadius,
                                 center = centerPt
                             )
@@ -2041,26 +2103,26 @@ fun VectorCanvas(
                                     )
                                     
                                     // 4. Vertical stripes inside the bin
-                                    val stripeYStart = lidY + 3f/viewModel.zoomScale
-                                    val stripeYEnd = binBottomY - 2.5f/viewModel.zoomScale
+                                    val stripeYStart = lidY + (3f * iconScale)/viewModel.zoomScale
+                                    val stripeYEnd = binBottomY - (2.5f * iconScale)/viewModel.zoomScale
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(centerPt.x - 2f/viewModel.zoomScale, stripeYStart),
-                                        end = Offset(centerPt.x - 2f/viewModel.zoomScale, stripeYEnd),
+                                        start = Offset(centerPt.x - (2f * iconScale)/viewModel.zoomScale, stripeYStart),
+                                        end = Offset(centerPt.x - (2f * iconScale)/viewModel.zoomScale, stripeYEnd),
                                         strokeWidth = strokeW
                                     )
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(centerPt.x + 2f/viewModel.zoomScale, stripeYStart),
-                                        end = Offset(centerPt.x + 2f/viewModel.zoomScale, stripeYEnd),
+                                        start = Offset(centerPt.x + (2f * iconScale)/viewModel.zoomScale, stripeYStart),
+                                        end = Offset(centerPt.x + (2f * iconScale)/viewModel.zoomScale, stripeYEnd),
                                         strokeWidth = strokeW
                                     )
                                 }
                                 "DUPLICATE" -> {
-                                    val w = 10f / viewModel.zoomScale
-                                    val h = 13f / viewModel.zoomScale
-                                    val rCorner = 1.8f / viewModel.zoomScale
-                                    val shift = 3.5f / viewModel.zoomScale
+                                    val w = (10f * iconScale) / viewModel.zoomScale
+                                    val h = (13f * iconScale) / viewModel.zoomScale
+                                    val rCorner = (1.8f * iconScale) / viewModel.zoomScale
+                                    val shift = (3.5f * iconScale) / viewModel.zoomScale
                                     
                                     // Back document
                                     drawRoundRect(
@@ -2072,7 +2134,7 @@ fun VectorCanvas(
                                     )
                                     // Front document fill (obscuring underlying lines)
                                     drawRoundRect(
-                                        color = Color(0xFF7C4C90),
+                                        color = circleBgColor,
                                         topLeft = Offset(centerPt.x - w/2f + shift/2f, centerPt.y - h/2f + shift/2f),
                                         size = Size(w, h),
                                         cornerRadius = CornerRadius(rCorner, rCorner)
@@ -2087,7 +2149,7 @@ fun VectorCanvas(
                                     )
                                 }
                                 "ROTATE" -> {
-                                    val r = 6.5f / viewModel.zoomScale
+                                    val r = (6.5f * iconScale) / viewModel.zoomScale
                                     
                                     // Arc 1: Top-Left to Top-Right
                                     drawArc(
@@ -2117,7 +2179,7 @@ fun VectorCanvas(
                                     val sinT1 = kotlin.math.sin(t1Rad).toFloat()
                                     val tip1X = centerPt.x + r * cosT1
                                     val tip1Y = centerPt.y + r * sinT1
-                                    val arrLen = 3.5f / viewModel.zoomScale
+                                    val arrLen = (3.5f * iconScale) / viewModel.zoomScale
                                     
                                     drawLine(
                                         color = Color.White,
@@ -2153,8 +2215,8 @@ fun VectorCanvas(
                                     )
                                 }
                                 "MOVE" -> {
-                                    val len = 8.5f / viewModel.zoomScale
-                                    val arrSize = 2.8f / viewModel.zoomScale
+                                    val len = (8.5f * iconScale) / viewModel.zoomScale
+                                    val arrSize = (2.8f * iconScale) / viewModel.zoomScale
                                     
                                     // Horizontal Line
                                     drawLine(
@@ -2188,77 +2250,79 @@ fun VectorCanvas(
                                     drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y + len), end = Offset(centerPt.x + arrSize, centerPt.y + len - arrSize), strokeWidth = strokeW)
                                 }
                                 "LOCK_CLOSED" -> {
-                                    val w = 11f / viewModel.zoomScale
-                                    val h = 9f / viewModel.zoomScale
+                                    val w = (11f * lockScale) / viewModel.zoomScale
+                                    val h = (9f * lockScale) / viewModel.zoomScale
                                     // Lock body
                                     drawRoundRect(
                                         color = Color.White,
-                                        topLeft = Offset(centerPt.x - w / 2f, centerPt.y - h / 2f + 2f / viewModel.zoomScale),
+                                        topLeft = Offset(centerPt.x - w / 2f, centerPt.y - h / 2f + (2f * lockScale) / viewModel.zoomScale),
                                         size = Size(w, h),
-                                        cornerRadius = CornerRadius(2f / viewModel.zoomScale, 2f / viewModel.zoomScale),
+                                        cornerRadius = CornerRadius((2f * lockScale) / viewModel.zoomScale, (2f * lockScale) / viewModel.zoomScale),
                                         style = Stroke(width = strokeW)
                                     )
                                     // Shackle (gagang)
-                                    val r = 3.2f / viewModel.zoomScale
+                                    val r = (3.2f * lockScale) / viewModel.zoomScale
                                     drawArc(
                                         color = Color.White,
                                         startAngle = 180f,
                                         sweepAngle = 180f,
                                         useCenter = false,
-                                        topLeft = Offset(centerPt.x - r, centerPt.y - h / 2f - r + 3f / viewModel.zoomScale),
+                                        topLeft = Offset(centerPt.x - r, centerPt.y - h / 2f - r + (3f * lockScale) / viewModel.zoomScale),
                                         size = Size(r * 2f, r * 2f),
                                         style = Stroke(width = strokeW)
                                     )
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(centerPt.x - r, centerPt.y - h / 2f + 3f / viewModel.zoomScale),
-                                        end = Offset(centerPt.x - r, centerPt.y - h / 2f + 1f / viewModel.zoomScale),
+                                        start = Offset(centerPt.x - r, centerPt.y - h / 2f + (3f * lockScale) / viewModel.zoomScale),
+                                        end = Offset(centerPt.x - r, centerPt.y - h / 2f + (1f * lockScale) / viewModel.zoomScale),
                                         strokeWidth = strokeW
                                     )
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(centerPt.x + r, centerPt.y - h / 2f + 3f / viewModel.zoomScale),
-                                        end = Offset(centerPt.x + r, centerPt.y - h / 2f + 1f / viewModel.zoomScale),
+                                        start = Offset(centerPt.x + r, centerPt.y - h / 2f + (3f * lockScale) / viewModel.zoomScale),
+                                        end = Offset(centerPt.x + r, centerPt.y - h / 2f + (1f * lockScale) / viewModel.zoomScale),
                                         strokeWidth = strokeW
                                     )
                                 }
                                 "LOCK_OPEN" -> {
-                                    val w = 11f / viewModel.zoomScale
-                                    val h = 9f / viewModel.zoomScale
+                                    val w = (11f * lockScale) / viewModel.zoomScale
+                                    val h = (9f * lockScale) / viewModel.zoomScale
                                     // Lock body
                                     drawRoundRect(
                                         color = Color.White,
-                                        topLeft = Offset(centerPt.x - w / 2f, centerPt.y - h / 2f + 2f / viewModel.zoomScale),
+                                        topLeft = Offset(centerPt.x - w / 2f, centerPt.y - h / 2f + (2f * lockScale) / viewModel.zoomScale),
                                         size = Size(w, h),
-                                        cornerRadius = CornerRadius(2f / viewModel.zoomScale, 2f / viewModel.zoomScale),
+                                        cornerRadius = CornerRadius((2f * lockScale) / viewModel.zoomScale, (2f * lockScale) / viewModel.zoomScale),
                                         style = Stroke(width = strokeW)
                                     )
                                     // Shackle (unlocked/open)
-                                    val r = 3.2f / viewModel.zoomScale
+                                    val r = (3.2f * lockScale) / viewModel.zoomScale
                                     drawArc(
                                         color = Color.White,
                                         startAngle = 180f,
                                         sweepAngle = 180f,
                                         useCenter = false,
-                                        topLeft = Offset(centerPt.x - r, centerPt.y - h / 2f - r - 1f / viewModel.zoomScale),
+                                        topLeft = Offset(centerPt.x - r, centerPt.y - h / 2f - r - (1f * lockScale) / viewModel.zoomScale),
                                         size = Size(r * 2f, r * 2f),
                                         style = Stroke(width = strokeW)
                                     )
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(centerPt.x - r, centerPt.y - h / 2f - 1f / viewModel.zoomScale),
-                                        end = Offset(centerPt.x - r, centerPt.y - h / 2f + 1f / viewModel.zoomScale),
+                                        start = Offset(centerPt.x - r, centerPt.y - h / 2f - (1f * lockScale) / viewModel.zoomScale),
+                                        end = Offset(centerPt.x - r, centerPt.y - h / 2f + (1f * lockScale) / viewModel.zoomScale),
                                         strokeWidth = strokeW
                                     )
                                 }
                             }
                         }
 
-                        drawIconCircle(delPos, "DELETE")
-                        drawIconCircle(dupPos, "DUPLICATE")
-                        drawIconCircle(rotPos, "ROTATE")
                         drawIconCircle(movPos, "MOVE")
-                        drawIconCircle(sclPos, if (viewModel.isAspectLocked) "LOCK_CLOSED" else "LOCK_OPEN")
+                        if (!viewModel.isBoundingBoxToolsMinimized) {
+                            drawIconCircle(delPos, "DELETE")
+                            drawIconCircle(dupPos, "DUPLICATE")
+                            drawIconCircle(rotPos, "ROTATE")
+                            drawIconCircle(sclPos, if (viewModel.isAspectLocked) "LOCK_CLOSED" else "LOCK_OPEN")
+                        }
 
                         if (viewModel.shapes.any { viewModel.selectedShapeIds.contains(it.id) && it.isLocked }) {
                             val paintIndicator = Paint().apply {

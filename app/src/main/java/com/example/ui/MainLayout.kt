@@ -3035,9 +3035,13 @@ fun MainLayout(viewModel: VectorViewModel) {
                             Text("No layers yet.", color = Color.Gray, fontSize = 13.sp)
                         }
                     } else {
-                        val allGroupIdsInOrder = remember(viewModel.shapes) {
-                            viewModel.shapes.mapNotNull { it.groupId }.distinct()
-                        }
+                        val groupIndexMap = remember { mutableMapOf<String, Int>() }
+                        var currentGroupCounter by remember { mutableStateOf(1) }
+                        
+                        // Clean up deleted groups to avoid memory leaks (optional, but good practice)
+                        val currentGroupIds = viewModel.shapes.mapNotNull { it.groupId }.toSet()
+                        groupIndexMap.keys.retainAll(currentGroupIds)
+                        
                         LazyColumn(modifier = Modifier.weight(1f)) {
                             items(viewModel.layers.reversed()) { layer -> 
                                 val actualIndex = viewModel.layers.indexOf(layer)
@@ -3351,9 +3355,12 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                                         modifier = Modifier.size(16.dp)
                                                                     )
 
-                                                                    val groupIndex = allGroupIdsInOrder.indexOf(groupId) + 1
+                                                                    val groupIndex = groupIndexMap.getOrPut(groupId) { 
+                                                                        val nextId = currentGroupCounter++
+                                                                        nextId
+                                                                    }
                                                                     Text(
-                                                                        text = "Group $groupIndex (${groupShapes.size})",
+                                                                        text = "Group $groupIndex (${groupShapes.size} items)",
                                                                         color = Color.White,
                                                                         fontSize = 11.sp,
                                                                         fontWeight = if (isFolderSelected) FontWeight.Bold else FontWeight.Normal,

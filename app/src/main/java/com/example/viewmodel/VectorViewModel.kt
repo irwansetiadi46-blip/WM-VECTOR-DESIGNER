@@ -77,6 +77,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
 
     var isAutosaveSuspended by mutableStateOf(false)
+    var isBoundingBoxToolsMinimized by mutableStateOf(false)
 
     // Layer Management System
     var layers by mutableStateOf<List<com.example.model.VectorLayer>>(
