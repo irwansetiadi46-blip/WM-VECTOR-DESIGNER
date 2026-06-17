@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -41,12 +42,15 @@ fun ColorPickerDialog(
     initialColorHex: String,
     initialAlpha: Float = 1f,
     supportNoneButton: Boolean = false,
+    initialEnabled: Boolean = true,
     onNoneSelected: (() -> Unit)? = null,
     onColorSelected: (String, Float) -> Unit,
     onDismissRequest: () -> Unit,
     isStrokePanel: Boolean = false,
     viewModel: com.example.viewmodel.VectorViewModel? = null
 ) {
+    var isEnabledState by remember { mutableStateOf(initialEnabled) }
+    
     // Designer built-in standard palette swatches (can be customized or appended via import)
     var palettesState by remember {
         mutableStateOf(
@@ -91,21 +95,58 @@ fun ColorPickerDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Title
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-
-                // Current chosen color preview banner panel
-                val parsedColor = try {
-                    Color(android.graphics.Color.parseColor(hexInput))
-                } catch (_: Exception) {
-                    Color.Gray
+                // Title and Toggle Switch Header Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    if (supportNoneButton) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (isEnabledState) "Aktif" else "Nonaktif",
+                                color = if (isEnabledState) Color(0xFFFF6D00) else Color.LightGray,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Switch(
+                                checked = isEnabledState,
+                                onCheckedChange = { isEnabledState = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.Black,
+                                    checkedTrackColor = Color(0xFFFF6D00),
+                                    uncheckedThumbColor = Color.LightGray,
+                                    uncheckedTrackColor = Color(0xFF334155)
+                                )
+                            )
+                        }
+                    }
                 }
+
+                // Color configuration block (dimmed and disabled if not active)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (isEnabledState) Modifier else Modifier.alpha(0.4f).pointerInput(Unit) {}),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Current chosen color preview banner panel
+                    val parsedColor = try {
+                        Color(android.graphics.Color.parseColor(hexInput))
+                    } catch (_: Exception) {
+                        Color.Gray
+                    }
 
                 Row(
                     modifier = Modifier
@@ -480,32 +521,25 @@ fun ColorPickerDialog(
                             thumbColor = Color(0xFFFF6D00)
                         )
                     )
-                }
+                } // End of Opacity Column
+                } // End of Color configuration block
 
                 // Confirm/Action Row buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (supportNoneButton) {
-                        Button(
-                            onClick = {
-                                onNoneSelected?.invoke()
-                                onDismissRequest()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("NONE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-                    }
                     Button(
                         onClick = {
-                            onColorSelected(hexInput, alphaVal)
+                            if (supportNoneButton && !isEnabledState) {
+                                onNoneSelected?.invoke()
+                            } else {
+                                onColorSelected(hexInput, alphaVal)
+                            }
                             onDismissRequest()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                        modifier = Modifier.weight(if (supportNoneButton) 1.2f else 1f)
+                        modifier = Modifier.weight(1.2f)
                     ) {
                         Text("Confirm", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
@@ -513,7 +547,7 @@ fun ColorPickerDialog(
                     Button(
                         onClick = onDismissRequest,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569)),
-                        modifier = Modifier.weight(if (supportNoneButton) 0.8f else 1f)
+                        modifier = Modifier.weight(0.8f)
                     ) {
                         Text("Cancel", color = Color.White, fontSize = 11.sp)
                     }

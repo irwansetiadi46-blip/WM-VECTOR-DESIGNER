@@ -14,8 +14,6 @@ import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.launch
 import com.example.model.BezierNode
 import com.example.model.SerializedPoint
 import com.example.model.ShapeType
@@ -77,7 +75,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
 
     var isAutosaveSuspended by mutableStateOf(false)
-    var isBoundingBoxToolsMinimized by mutableStateOf(false)
 
     // Layer Management System
     var layers by mutableStateOf<List<com.example.model.VectorLayer>>(
@@ -154,6 +151,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var currentStrokeJoin by mutableStateOf("ROUND") // "MITER", "ROUND", "BEVEL"
     var currentStrokeCap by mutableStateOf("ROUND")   // "ROUND", "BUTT", "SQUARE"
     var hasFillEnabled by mutableStateOf(true)
+    var hasStrokeEnabled by mutableStateOf(true)
     var currentFillColorHex by mutableStateOf("#E0E0E0")
     var currentFillAlpha by mutableStateOf(1f)
 
@@ -1644,7 +1642,10 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return Offset(snappedX, snappedY)
     }
 
-    
+    init {
+        // Load default shapes on startup or present beautiful preset
+        loadDefaultWorkspace()
+    }
 
     fun convertShapeToBezierPath(shapeId: String) {
         shapes = shapes.map { shape ->
@@ -1773,6 +1774,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 currentStrokeAlpha = active.strokeAlpha
                 currentStrokeJoin = active.strokeJoin
                 currentStrokeCap = active.strokeCap
+                hasStrokeEnabled = active.hasStroke
                 hasFillEnabled = active.hasFill
                 currentFillColorHex = active.fillColorHex
                 currentFillAlpha = active.fillAlpha
@@ -1797,6 +1799,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     strokeAlpha = currentStrokeAlpha,
                     strokeJoin = currentStrokeJoin,
                     strokeCap = currentStrokeCap,
+                    hasStroke = hasStrokeEnabled,
                     hasFill = hasFillEnabled,
                     fillColorHex = currentFillColorHex,
                     fillAlpha = currentFillAlpha,
@@ -1836,6 +1839,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     strokeAlpha = currentStrokeAlpha,
                     strokeJoin = currentStrokeJoin,
                     strokeCap = currentStrokeCap,
+                    hasStroke = hasStrokeEnabled,
                     hasFill = hasFillEnabled,
                     fillColorHex = currentFillColorHex,
                     fillAlpha = currentFillAlpha,
@@ -1863,6 +1867,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     strokeAlpha = currentStrokeAlpha,
                     strokeJoin = currentStrokeJoin,
                     strokeCap = currentStrokeCap,
+                    hasStroke = hasStrokeEnabled,
                     hasFill = hasFillEnabled,
                     fillColorHex = currentFillColorHex,
                     fillAlpha = currentFillAlpha,
@@ -1891,6 +1896,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     strokeAlpha = currentStrokeAlpha,
                     strokeJoin = currentStrokeJoin,
                     strokeCap = currentStrokeCap,
+                    hasStroke = hasStrokeEnabled,
                     hasFill = hasFillEnabled,
                     fillColorHex = currentFillColorHex,
                     fillAlpha = currentFillAlpha,
@@ -1919,6 +1925,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     strokeAlpha = currentStrokeAlpha,
                     strokeJoin = currentStrokeJoin,
                     strokeCap = currentStrokeCap,
+                    hasStroke = hasStrokeEnabled,
                     hasFill = hasFillEnabled,
                     fillColorHex = currentFillColorHex,
                     fillAlpha = currentFillAlpha,
@@ -1947,6 +1954,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     strokeAlpha = currentStrokeAlpha,
                     strokeJoin = currentStrokeJoin,
                     strokeCap = currentStrokeCap,
+                    hasStroke = hasStrokeEnabled,
                     hasFill = hasFillEnabled,
                     fillColorHex = currentFillColorHex,
                     fillAlpha = currentFillAlpha,
@@ -1968,6 +1976,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     strokeAlpha = currentStrokeAlpha,
                     strokeJoin = currentStrokeJoin,
                     strokeCap = currentStrokeCap,
+                    hasStroke = hasStrokeEnabled,
                     lineStyle = currentLineStyle,
                     hasFill = false,
                     layerOrder = shapes.size
@@ -1996,6 +2005,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             strokeAlpha = currentStrokeAlpha,
             strokeJoin = currentStrokeJoin,
             strokeCap = currentStrokeCap,
+            hasStroke = hasStrokeEnabled,
             hasFill = false,
             layerOrder = shapes.size
         )
@@ -2372,6 +2382,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             strokeAlpha = currentStrokeAlpha,
             strokeJoin = currentStrokeJoin,
             strokeCap = currentStrokeCap,
+            hasStroke = hasStrokeEnabled,
             hasFill = hasFillEnabled && isClosed,
             fillColorHex = currentFillColorHex,
             fillAlpha = currentFillAlpha,
@@ -5118,6 +5129,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             sb.append("\"strokeAlpha\":${s.strokeAlpha},")
             sb.append("\"strokeJoin\":\"${s.strokeJoin}\",")
             sb.append("\"strokeCap\":\"${s.strokeCap}\",")
+            sb.append("\"hasStroke\":${s.hasStroke},")
             sb.append("\"hasFill\":${s.hasFill},")
             sb.append("\"fillColorHex\":\"${s.fillColorHex}\",")
             sb.append("\"fillAlpha\":${s.fillAlpha},")
@@ -5131,9 +5143,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             sb.append("\"radiusTR\":${s.radiusTR},")
             sb.append("\"radiusBL\":${s.radiusBL},")
             sb.append("\"radiusBR\":${s.radiusBR},")
-            sb.append("\"rotationAngle\":${s.rotationAngle},")
-            sb.append("\"layerOrder\":${s.layerOrder},")
-            sb.append("\"layerId\":\"${s.layerId}\",")
             sb.append("\"customCornerRadii\":[${s.customCornerRadii.joinToString(",")}],")
             if (s.groupId != null) {
                 sb.append("\"groupId\":\"${s.groupId}\",")
@@ -5212,6 +5221,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val strokeAlpha = extractJsonFloat(itemJson, "strokeAlpha") ?: 1f
                 val strokeJoin = extractJsonString(itemJson, "strokeJoin") ?: "ROUND"
                 val strokeCap = extractJsonString(itemJson, "strokeCap") ?: "ROUND"
+                val hasStroke = extractJsonBoolean(itemJson, "hasStroke") ?: true
                 val hasFill = extractJsonBoolean(itemJson, "hasFill") ?: false
                 val fillColorHex = extractJsonString(itemJson, "fillColorHex") ?: "#E0E0E0"
                 val fillAlpha = extractJsonFloat(itemJson, "fillAlpha") ?: 1f
@@ -5225,9 +5235,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val radiusTR = extractJsonFloat(itemJson, "radiusTR") ?: 0f
                 val radiusBL = extractJsonFloat(itemJson, "radiusBL") ?: 0f
                 val radiusBR = extractJsonFloat(itemJson, "radiusBR") ?: 0f
-                val rotationAngle = extractJsonFloat(itemJson, "rotationAngle") ?: 0f
-                val layerOrder = extractJsonFloat(itemJson, "layerOrder")?.toInt() ?: 0
-                val layerId = extractJsonString(itemJson, "layerId") ?: "default_layer"
                 
                 val cRadii = mutableListOf<Float>()
                 val radiiSub = extractJsonBlock(itemJson, "customCornerRadii")
@@ -5289,12 +5296,12 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         x = x, y = y, width = width, height = height, startX = startX, startY = startY,
                         endX = endX, endY = endY, strokeColorHex = strokeColorHex, strokeWidth = strokeWidth,
                         strokeAlpha = strokeAlpha, strokeJoin = strokeJoin, strokeCap = strokeCap,
+                        hasStroke = hasStroke,
                         hasFill = hasFill, fillColorHex = fillColorHex,
                         fillAlpha = fillAlpha, textContent = textContent, fontSize = fontSize,
                         isPathClosed = isPathClosed, freehandPoints = pts, bezierNodes = bNodes,
                         polygonSides = polygonSides, starPoints = starPoints, lineStyle = lineStyle,
                         radiusTL = radiusTL, radiusTR = radiusTR, radiusBL = radiusBL, radiusBR = radiusBR,
-                        rotationAngle = rotationAngle, layerOrder = layerOrder, layerId = layerId,
                         customCornerRadii = cRadii,
                         groupId = groupId
                     )
@@ -5307,7 +5314,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun extractJsonString(json: String, key: String): String? {
-        val pattern = "\"$key\"\\s*:\\s*\"([^\"]*)\"".toRegex()
+        val pattern = "\"$key\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"".toRegex()
         return pattern.find(json)?.groupValues?.get(1)
     }
 
@@ -5322,34 +5329,41 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun extractJsonBlock(json: String, key: String): String? {
-        val startStr = "\"$key\":["
-        var startIdx = json.indexOf(startStr)
-        if (startIdx == -1) {
-            startIdx = json.indexOf("\"$key\" : [")
-        }
-        if (startIdx == -1) {
-            startIdx = json.indexOf("\"$key\": [")
-        }
+        val pattern = "\"$key\"\\s*:".toRegex()
+        val matchResult = pattern.find(json) ?: return null
+        val colonIndex = matchResult.range.last
+        val bracketStart = json.indexOf("[", colonIndex)
+        if (bracketStart == -1) return null
         
-        // Find exact start
-        val pattern = "\"$key\"\\s*:\\s*\\[".toRegex()
-        val match = pattern.find(json) ?: return null
-        val arrayStart = match.range.last
-
         var bracketCount = 1
-        var itemEnd = -1
-        for (j in arrayStart + 1 until json.length) {
-            if (json[j] == '[') bracketCount++
-            if (json[j] == ']') {
-                bracketCount--
-                if (bracketCount == 0) {
-                    itemEnd = j
-                    break
+        var inQuotes = false
+        var escaped = false
+        for (i in (bracketStart + 1) until json.length) {
+            val char = json[i]
+            if (escaped) {
+                escaped = false
+                continue
+            }
+            if (char == '\\') {
+                escaped = true
+                continue
+            }
+            if (char == '"') {
+                inQuotes = !inQuotes
+                continue
+            }
+            if (!inQuotes) {
+                if (char == '[') {
+                    bracketCount++
+                } else if (char == ']') {
+                    bracketCount--
+                    if (bracketCount == 0) {
+                        return json.substring(bracketStart + 1, i)
+                    }
                 }
             }
         }
-        if (itemEnd == -1) return null
-        return json.substring(arrayStart + 1, itemEnd)
+        return null
     }
 
     fun importFileFromUri(
@@ -5774,61 +5788,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return pattern.find(json)?.groupValues?.get(1)?.toLongOrNull()
     }
 
-    private fun convertLayersToJsonStr(layersList: List<com.example.model.VectorLayer>): String {
-        val sb = java.lang.StringBuilder()
-        sb.append("[")
-        for (i in layersList.indices) {
-            val l = layersList[i]
-            sb.append("{")
-            sb.append("\"id\":\"${l.id}\",")
-            sb.append("\"name\":\"${l.name.replace("\"", "\\\"")}\",")
-            sb.append("\"isVisible\":${l.isVisible},")
-            sb.append("\"isLocked\":${l.isLocked},")
-            sb.append("\"opacity\":${l.opacity}")
-            sb.append("}")
-            if (i < layersList.size - 1) sb.append(",")
-        }
-        sb.append("]")
-        return sb.toString()
-    }
-
-    private fun parseJsonToLayers(json: String): List<com.example.model.VectorLayer> {
-        val result = mutableListOf<com.example.model.VectorLayer>()
-        try {
-            val clean = json.trim()
-            if (!clean.startsWith("[")) return result
-            var idx = 1
-            while (idx < clean.lastIndex) {
-                val itemStart = clean.indexOf("{", idx)
-                if (itemStart == -1) break
-                var bracketCount = 0
-                var itemEnd = -1
-                for (j in itemStart until clean.length) {
-                    if (clean[j] == '{') bracketCount++
-                    if (clean[j] == '}') {
-                        bracketCount--
-                        if (bracketCount == 0) {
-                            itemEnd = j
-                            break
-                        }
-                    }
-                }
-                if (itemEnd == -1) break
-                val itemJson = clean.substring(itemStart, itemEnd + 1)
-                idx = itemEnd + 1
-
-                val id = extractJsonString(itemJson, "id") ?: java.util.UUID.randomUUID().toString()
-                val name = extractJsonString(itemJson, "name") ?: "Layer"
-                val isVisible = extractJsonBoolean(itemJson, "isVisible") ?: true
-                val isLocked = extractJsonBoolean(itemJson, "isLocked") ?: false
-                val opacity = extractJsonFloat(itemJson, "opacity") ?: 1f
-                
-                result.add(com.example.model.VectorLayer(id, name, isVisible, isLocked, opacity))
-            }
-        } catch (e: Exception) {}
-        return result
-    }
-
     fun parseSavedProject(json: String): SavedProject? {
         try {
             val clean = json.trim()
@@ -5843,10 +5802,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             val shapesBlock = extractJsonBlock(clean, "shapes") ?: ""
             val shapesList = parseJsonToShapes("[$shapesBlock]")
             
-            val layersBlock = extractJsonBlock(clean, "layers")
-            val layersList = if (layersBlock != null && layersBlock.isNotBlank()) parseJsonToLayers("[$layersBlock]") else listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
-            
-            return SavedProject(id, name, canvasWidth, canvasHeight, artboardColorHex, artboardAlpha, lastModified, shapesList, layersList)
+            return SavedProject(id, name, canvasWidth, canvasHeight, artboardColorHex, artboardAlpha, lastModified, shapesList)
         } catch (e: Exception) {
             e.printStackTrace()
             return null
@@ -5863,8 +5819,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         sb.append("\"artboardColorHex\":\"${project.artboardColorHex}\",")
         sb.append("\"artboardAlpha\":${project.artboardAlpha},")
         sb.append("\"lastModified\":${project.lastModified},")
-        sb.append("\"shapes\":${convertShapesToJsonStr(project.shapes)},")
-        sb.append("\"layers\":${convertLayersToJsonStr(project.layers)}")
+        sb.append("\"shapes\":${convertShapesToJsonStr(project.shapes)}")
         sb.append("}")
         return sb.toString()
     }
@@ -5923,8 +5878,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             artboardColorHex = artboardColorHex,
             artboardAlpha = artboardAlpha,
             lastModified = System.currentTimeMillis(),
-            shapes = shapes,
-            layers = layers
+            shapes = shapes
         )
         val serialized = serializeProject(proj)
         sharedPrefs.edit().putString(id, serialized).apply()
@@ -5944,8 +5898,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         canvasHeight = project.canvasHeight
         artboardColorHex = project.artboardColorHex
         artboardAlpha = project.artboardAlpha
-        layers = project.layers
-        activeLayerId = project.layers.firstOrNull()?.id ?: "default_layer"
         shapes = project.shapes
         selectedShapeId = null
         panOffset = Offset.Zero
@@ -5981,30 +5933,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             e.printStackTrace()
         }
     }
-
-    init {
-        viewModelScope.launch {
-            refreshSavedProjects()
-            val list = savedProjectsList
-            if (list.isNotEmpty()) {
-                loadProject(list.first())
-            } else {
-                val data = sharedPrefs.getString("saved_canvas_shapes", null)
-                if (!data.isNullOrBlank()) {
-                    val loaded = parseJsonToShapes(data)
-                    if (loaded.isNotEmpty()) {
-                        shapes = loaded
-                        selectedShapeId = null
-                        isSetupCompleted = true
-                    } else {
-                        loadDefaultWorkspace()
-                    }
-                } else {
-                    loadDefaultWorkspace()
-                }
-            }
-        }
-    }
 }
 
 data class SavedProject(
@@ -6015,7 +5943,6 @@ data class SavedProject(
     val artboardColorHex: String,
     val artboardAlpha: Float,
     val lastModified: Long,
-    val shapes: List<VectorShape>,
-    val layers: List<com.example.model.VectorLayer> = listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
+    val shapes: List<VectorShape>
 )
 

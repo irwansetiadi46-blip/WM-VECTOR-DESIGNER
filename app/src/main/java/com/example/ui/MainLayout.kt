@@ -723,10 +723,20 @@ fun MainLayout(viewModel: VectorViewModel) {
                         .size(28.dp)
                         .clip(CircleShape)
                         .background(Color.White)
-                        .border(4.dp, strokeC, CircleShape)
+                        .border(4.dp, if (viewModel.hasStrokeEnabled) strokeC else Color.LightGray, CircleShape)
                         .clickable { showColorPickerStroke = true }
-                        .testTag("stroke_color_indicator")
-                )
+                        .testTag("stroke_color_indicator"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!viewModel.hasStrokeEnabled) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(Color.Red)
+                        )
+                    }
+                }
             }
 
             // Right: Layers stack panel toggle
@@ -3035,13 +3045,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                             Text("No layers yet.", color = Color.Gray, fontSize = 13.sp)
                         }
                     } else {
-                        val groupIndexMap = remember { mutableMapOf<String, Int>() }
-                        var currentGroupCounter by remember { mutableStateOf(1) }
-                        
-                        // Clean up deleted groups to avoid memory leaks (optional, but good practice)
-                        val currentGroupIds = viewModel.shapes.mapNotNull { it.groupId }.toSet()
-                        groupIndexMap.keys.retainAll(currentGroupIds)
-                        
                         LazyColumn(modifier = Modifier.weight(1f)) {
                             items(viewModel.layers.reversed()) { layer -> 
                                 val actualIndex = viewModel.layers.indexOf(layer)
@@ -3355,12 +3358,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                                         modifier = Modifier.size(16.dp)
                                                                     )
 
-                                                                    val groupIndex = groupIndexMap.getOrPut(groupId) { 
-                                                                        val nextId = currentGroupCounter++
-                                                                        nextId
-                                                                    }
                                                                     Text(
-                                                                        text = "Group $groupIndex (${groupShapes.size} items)",
+                                                                        text = "Group (${groupShapes.size})",
                                                                         color = Color.White,
                                                                         fontSize = 11.sp,
                                                                         fontWeight = if (isFolderSelected) FontWeight.Bold else FontWeight.Normal,
@@ -3751,8 +3750,9 @@ fun MainLayout(viewModel: VectorViewModel) {
         var exportSelectionOnly by remember { mutableStateOf(false) }
         var chosenFormat by remember { mutableStateOf("SVG") } // "EPS", "SVG", "JPG", "PNG", "PNG transparent"
 
-        val shapesToExport = if (exportSelectionOnly && viewModel.selectedShapeId != null) {
-            viewModel.shapes.filter { it.id == viewModel.selectedShapeId }
+        val shapesToExport = if (exportSelectionOnly && (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty())) {
+            val activeIds = if (viewModel.selectedShapeIds.isNotEmpty()) viewModel.selectedShapeIds else setOfNotNull(viewModel.selectedShapeId)
+            viewModel.shapes.filter { activeIds.contains(it.id) }
         } else {
             viewModel.shapes
         }
@@ -3816,8 +3816,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                         FilterChip(
                             selected = exportSelectionOnly,
                             onClick = { 
-                                if (viewModel.selectedShapeId == null) {
-                                    Toast.makeText(context, "Pilih salah satu objek terlebih dahulu!", Toast.LENGTH_SHORT).show()
+                                if (viewModel.selectedShapeId == null && viewModel.selectedShapeIds.isEmpty()) {
+                                    Toast.makeText(context, "Pilih objek terlebih dahulu menggunakan selection tool.", Toast.LENGTH_SHORT).show()
                                 } else {
                                     exportSelectionOnly = true
                                 }
@@ -4355,6 +4355,7 @@ fun MainLayout(viewModel: VectorViewModel) {
             initialColorHex = viewModel.currentFillColorHex,
             initialAlpha = viewModel.currentFillAlpha,
             supportNoneButton = true,
+            initialEnabled = viewModel.hasFillEnabled,
             onNoneSelected = {
                 viewModel.hasFillEnabled = false
                 if (viewModel.selectedShapeId != null) {
@@ -4379,8 +4380,9 @@ fun MainLayout(viewModel: VectorViewModel) {
             initialColorHex = viewModel.currentStrokeColorHex,
             initialAlpha = viewModel.currentStrokeAlpha,
             supportNoneButton = true,
+            initialEnabled = viewModel.hasStrokeEnabled,
             onNoneSelected = {
-                viewModel.currentStrokeWidth = 0f
+                viewModel.hasStrokeEnabled = false
                 if (viewModel.selectedShapeId != null) {
                     viewModel.updateSelectedShapeStyle()
                 }
@@ -4388,6 +4390,7 @@ fun MainLayout(viewModel: VectorViewModel) {
             onColorSelected = { hex, alpha ->
                 viewModel.currentStrokeColorHex = hex
                 viewModel.currentStrokeAlpha = alpha
+                viewModel.hasStrokeEnabled = true
                 if (viewModel.currentStrokeWidth <= 0f) {
                     viewModel.currentStrokeWidth = 4f // Restore outline if previously none
                 }
@@ -4568,7 +4571,11 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float): Str
         } else {
             "fill=\"none\""
         }
-        val strokeAttr = "stroke=\"${shape.strokeColorHex}\" stroke-width=\"${shape.strokeWidth}\" stroke-opacity=\"${shape.strokeAlpha}\" stroke-linecap=\"${shape.strokeCap.lowercase()}\" stroke-linejoin=\"${shape.strokeJoin.lowercase()}\""
+        val strokeAttr = if (shape.hasStroke && shape.strokeWidth > 0f) {
+            "stroke=\"${shape.strokeColorHex}\" stroke-width=\"${shape.strokeWidth}\" stroke-opacity=\"${shape.strokeAlpha}\" stroke-linecap=\"${shape.strokeCap.lowercase()}\" stroke-linejoin=\"${shape.strokeJoin.lowercase()}\""
+        } else {
+            "stroke=\"none\" stroke-width=\"0\""
+        }
         
         when (shape.type) {
             ShapeType.RECTANGLE -> {
@@ -4720,7 +4727,7 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): Str
         
         // Function to write stroke and fill in proper PostScript order
         val applyPathColoring = { pathBuilder: java.lang.StringBuilder, isClosedShape: Boolean ->
-            val hasStroke = shape.strokeWidth > 0f
+            val hasStroke = shape.hasStroke && shape.strokeWidth > 0f
             val hasFill = shape.hasFill && shape.type != ShapeType.LINE
             
             if (hasFill || hasStroke) {

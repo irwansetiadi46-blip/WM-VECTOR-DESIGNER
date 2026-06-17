@@ -212,6 +212,7 @@ data class VectorShape(
     val strokeColorHex: String = "#000000",
     val strokeWidth: Float = 4f,
     val strokeAlpha: Float = 1f,
+    val hasStroke: Boolean = true,
     val hasFill: Boolean = false,
     val fillColorHex: String = "#E0E0E0",
     val fillAlpha: Float = 1f,
