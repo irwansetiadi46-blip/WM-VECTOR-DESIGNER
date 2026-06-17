@@ -123,8 +123,21 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         shapes = shapes.map { if (it.id == objectId) it.copy(layerId = targetLayerId) else it }
     }
 
-    var selectedShapeId by mutableStateOf<String?>(null)
-    var selectedShapeIds by mutableStateOf<Set<String>>(emptySet())
+    private var _selectedShapeId by mutableStateOf<String?>(null)
+    var selectedShapeId: String?
+        get() = _selectedShapeId
+        set(value) {
+            _selectedShapeId = value
+            updateFrozenBoundsForSelection()
+        }
+
+    private var _selectedShapeIds by mutableStateOf<Set<String>>(emptySet())
+    var selectedShapeIds: Set<String>
+        get() = _selectedShapeIds
+        set(value) {
+            _selectedShapeIds = value
+            updateFrozenBoundsForSelection()
+        }
     var isCloneModeActive by mutableStateOf(false)
     
     // Tools parameters
@@ -136,11 +149,103 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var currentTool: VectorTool
         get() = _currentTool
         set(value) {
+            val oldTool = _currentTool
             _currentTool = value
             activeEditNodeIndex = null
             selectedDirectSelectionNodes = emptySet()
             isCloneModeActive = false
+            
+            if (value == VectorTool.DIRECT_SELECTION && oldTool != VectorTool.DIRECT_SELECTION) {
+                updateFrozenBoundsForSelection()
+            } else if (value != VectorTool.DIRECT_SELECTION && oldTool == VectorTool.DIRECT_SELECTION) {
+                // Unfreeze bounding boxes and compensate pivot shift
+                shapes = shapes.map { shape -> 
+                    if (shape.frozenBoundsLeft != null && shape.frozenBoundsTop != null && shape.frozenBoundsRight != null && shape.frozenBoundsBottom != null) {
+                        val frozenCx = (shape.frozenBoundsLeft + shape.frozenBoundsRight) / 2f
+                        val frozenCy = (shape.frozenBoundsTop + shape.frozenBoundsBottom) / 2f
+                        
+                        val tempShape = shape.copy(frozenBoundsLeft = null, frozenBoundsTop = null, frozenBoundsRight = null, frozenBoundsBottom = null)
+                        val unfrozenBounds = tempShape.getBoundingBox()
+                        val unfrozenCx = (unfrozenBounds.left + unfrozenBounds.right) / 2f
+                        val unfrozenCy = (unfrozenBounds.top + unfrozenBounds.bottom) / 2f
+                        
+                        if (shape.rotationAngle != 0f) {
+                            val dx = unfrozenCx - frozenCx
+                            val dy = unfrozenCy - frozenCy
+                            
+                            val rad = Math.toRadians(shape.rotationAngle.toDouble())
+                            val cos = kotlin.math.cos(rad).toFloat()
+                            val sin = kotlin.math.sin(rad).toFloat()
+                            
+                            val rotX = dx * cos - dy * sin
+                            val rotY = dx * sin + dy * cos
+                            
+                            val deltaPx = rotX - dx
+                            val deltaPy = rotY - dy
+                            
+                            if (tempShape.type == com.example.model.ShapeType.BEZIER_PATH) {
+                                tempShape.copy(
+                                    bezierNodes = tempShape.bezierNodes.map { node ->
+                                        node.copy(
+                                            anchorX = node.anchorX + deltaPx,
+                                            anchorY = node.anchorY + deltaPy,
+                                            control1X = node.control1X + deltaPx,
+                                            control1Y = node.control1Y + deltaPy,
+                                            control2X = node.control2X + deltaPx,
+                                            control2Y = node.control2Y + deltaPy
+                                        )
+                                    }
+                                )
+                            } else if (tempShape.type == com.example.model.ShapeType.FREEHAND) {
+                                tempShape.copy(
+                                    freehandPoints = tempShape.freehandPoints.map {
+                                        com.example.model.SerializedPoint(it.x + deltaPx, it.y + deltaPy)
+                                    }
+                                )
+                            } else {
+                                tempShape.copy(
+                                    x = tempShape.x + deltaPx,
+                                    y = tempShape.y + deltaPy,
+                                    startX = tempShape.startX + deltaPx,
+                                    startY = tempShape.startY + deltaPy,
+                                    endX = tempShape.endX + deltaPx,
+                                    endY = tempShape.endY + deltaPy
+                                )
+                            }
+                        } else {
+                            tempShape
+                        }
+                    } else {
+                        shape
+                    }
+                }
+            }
         }
+
+    private fun updateFrozenBoundsForSelection() {
+        if (_currentTool == VectorTool.DIRECT_SELECTION) {
+            shapes = shapes.map { shape -> 
+                if (_selectedShapeIds.contains(shape.id) || shape.id == _selectedShapeId) {
+                    // Temporarily unfreeze to get real bounds
+                    val tempShape = shape.copy(frozenBoundsLeft = null, frozenBoundsTop = null, frozenBoundsRight = null, frozenBoundsBottom = null)
+                    val bounds = tempShape.getBoundingBox()
+                    shape.copy(
+                        frozenBoundsLeft = bounds.left,
+                        frozenBoundsTop = bounds.top,
+                        frozenBoundsRight = bounds.right,
+                        frozenBoundsBottom = bounds.bottom
+                    )
+                } else {
+                    shape.copy(
+                        frozenBoundsLeft = null,
+                        frozenBoundsTop = null,
+                        frozenBoundsRight = null,
+                        frozenBoundsBottom = null
+                    )
+                }
+            }
+        }
+    }
     var activePrimitiveType by mutableStateOf(PrimitiveType.RECTANGLE)
     var isAspectLocked by mutableStateOf(true)
 
@@ -2894,8 +2999,11 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     // Alignment operations (Row 2, Button 6)
     fun alignSelectedShape(alignment: String) {
         val id = selectedShapeId ?: return
-        val target = shapes.find { it.id == id } ?: return
-        val bounds = target.getBoundingBox()
+        val targets = if (selectedShapeIds.isNotEmpty()) selectedShapeIds else setOf(id)
+        val groupsToMove = shapes.filter { targets.contains(it.id) && it.groupId != null }.mapNotNull { it.groupId }.toSet()
+        val shapesToMoveIds = shapes.filter { targets.contains(it.id) || (it.groupId != null && groupsToMove.contains(it.groupId)) }.map { it.id }.toSet()
+        
+        val bounds = getCombinedBoundingBox(shapesToMoveIds, shapes) ?: return
         pushToUndoStack()
 
         val dx: Float
@@ -2937,8 +3045,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         } else {
-            // Align based on Object
-            val otherShapes = shapes.filter { it.id != id && it.isVisible }
+            // Align based on Object - compare against the closest object NOT in the moving selection
+            val otherShapes = shapes.filter { !shapesToMoveIds.contains(it.id) && it.isVisible }
             if (otherShapes.isEmpty()) {
                 dx = 0f
                 dy = 0f
@@ -2989,8 +3097,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         shapes = shapes.map { shape ->
-            if (shape.id == id) {
-                shape.copyWithTransform(dx, dy)
+            if (shapesToMoveIds.contains(shape.id)) {
+                if (shape.isLocked) shape else shape.copyWithTransform(dx, dy)
             } else {
                 shape
             }

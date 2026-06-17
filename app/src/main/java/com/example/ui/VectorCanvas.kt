@@ -122,6 +122,7 @@ fun VectorCanvas(
 
     var dragStartShapes by remember { mutableStateOf<List<VectorShape>?>(null) }
     var initialTouchCanvasPos by remember { mutableStateOf<Offset?>(null) }
+    var initialDragPivot by remember { mutableStateOf<Offset?>(null) }
 
     fun getPrimaryAnchor(shape: VectorShape): Offset {
         return when (shape.type) {
@@ -493,7 +494,18 @@ fun VectorCanvas(
                                                     viewModel.convertShapeToBezierPath(sId)
                                                     shape = viewModel.shapes.find { s -> s.id == sId }
                                                 }
-                                                if (shape != null) {
+                                                 if (shape != null) {
+                                                    val bounds = shape.getBoundingBox()
+                                                    val cx = (bounds.left + bounds.right) / 2f
+                                                    val cy = (bounds.top + bounds.bottom) / 2f
+                                                    val centerPt = Offset(cx, cy)
+                                                    initialDragPivot = centerPt
+                                                    val localClickPos = if (shape.rotationAngle != 0f) {
+                                                        rotatePoint(rawCanvasPos, centerPt, -shape.rotationAngle)
+                                                    } else {
+                                                        rawCanvasPos
+                                                     }
+
                                                     val nodes = shape.getNodePoints()
                                                     val targetTolerance = 20f / viewModel.zoomScale
                                                     var handleHitIdx = -1
@@ -503,12 +515,12 @@ fun VectorCanvas(
                                                         for (i in shape.bezierNodes.indices) {
                                                             val node = shape.bezierNodes[i]
                                                             if (node.isCurve) {
-                                                                if (hypot(rawCanvasPos.x - node.control1X, rawCanvasPos.y - node.control1Y) < hitTolerance) {
+                                                                if (hypot(localClickPos.x - node.control1X, localClickPos.y - node.control1Y) < hitTolerance) {
                                                                     handleHitIdx = i
                                                                     handleHitType = "in"
                                                                     break
                                                                 }
-                                                                if (hypot(rawCanvasPos.x - node.control2X, rawCanvasPos.y - node.control2Y) < hitTolerance) {
+                                                                if (hypot(localClickPos.x - node.control2X, localClickPos.y - node.control2Y) < hitTolerance) {
                                                                     handleHitIdx = i
                                                                     handleHitType = "out"
                                                                     break
@@ -516,7 +528,7 @@ fun VectorCanvas(
                                                             }
                                                         }
                                                     }
-                                                    val nodeIdx = nodes.indexOfFirst { hypot(rawCanvasPos.x - it.x, rawCanvasPos.y - it.y) < 24f / viewModel.zoomScale }
+                                                    val nodeIdx = nodes.indexOfFirst { hypot(localClickPos.x - it.x, localClickPos.y - it.y) < 24f / viewModel.zoomScale }
                                                     if (handleHitIdx != -1) {
                                                         activeDragHandle = "DIRECT_HANDLE"
                                                         directSelectionActiveHandleNodeIndex = handleHitIdx
@@ -528,7 +540,7 @@ fun VectorCanvas(
                                                         activeDragHandle = "DIRECT_NODE"
                                                     } else if (shape.type == com.example.model.ShapeType.BEZIER_PATH) {
                                                         val nearestSeg = findNearestSegment(
-                                                            rawCanvasPos,
+                                                            localClickPos,
                                                             shape.bezierNodes,
                                                             isClosed = shape.isPathClosed,
                                                             tolerance = 24f / viewModel.zoomScale
@@ -794,13 +806,22 @@ fun VectorCanvas(
                                                     if (id != null && (activeDragHandle == "DIRECT_NODE" || activeDragHandle == "DIRECT_HANDLE" || activeDragHandle == "DIRECT_DRAG_ANYWHERE") && dragStartShapes != null && initialTouchCanvasPos != null) {
                                                         val startShape = dragStartShapes!!.find { it.id == id }
                                                         if (startShape != null && startShape.type == com.example.model.ShapeType.BEZIER_PATH) {
+                                                            val dragAmountX = rawCanvasPos.x - initialTouchCanvasPos!!.x
+                                                            val dragAmountY = rawCanvasPos.y - initialTouchCanvasPos!!.y
+
+                                                            val rad = Math.toRadians(-startShape.rotationAngle.toDouble())
+                                                            val localDeltaX = (dragAmountX * kotlin.math.cos(rad) - dragAmountY * kotlin.math.sin(rad)).toFloat()
+                                                            val localDeltaY = (dragAmountX * kotlin.math.sin(rad) + dragAmountY * kotlin.math.cos(rad)).toFloat()
+                                                            val localDelta = Offset(localDeltaX, localDeltaY)
+
                                                             var deltaX: Float
                                                             var deltaY: Float
                                                             if (activeDragHandle == "DIRECT_NODE" && nodeIdx != null) {
-                                                                val canvasPosUnsnapped = rawCanvasPos
-                                                                val snappedPos = viewModel.snapNodeComprehensive(canvasPosUnsnapped, id, nodeIdx)
                                                                 val origNode = startShape.bezierNodes.getOrNull(nodeIdx)
                                                                 if (origNode != null) {
+                                                                    val targetLocalX = origNode.anchorX + localDelta.x
+                                                                    val targetLocalY = origNode.anchorY + localDelta.y
+                                                                    val snappedPos = viewModel.snapNodeComprehensive(Offset(targetLocalX, targetLocalY), id, nodeIdx)
                                                                     deltaX = snappedPos.x - origNode.anchorX
                                                                     deltaY = snappedPos.y - origNode.anchorY
                                                                 } else {
@@ -808,10 +829,12 @@ fun VectorCanvas(
                                                                 }
                                                                 viewModel.translateDirectSelection(id, startShape, deltaX, deltaY)
                                                             } else if (activeDragHandle == "DIRECT_HANDLE" && nodeIdx != null) {
-                                                                val canvasPosUnsnapped = rawCanvasPos
                                                                 val startNode = startShape.bezierNodes.getOrNull(nodeIdx)
-                                                                var targetX = canvasPosUnsnapped.x
-                                                                var targetY = canvasPosUnsnapped.y
+                                                                var targetX = if (directSelectionActiveHandleType == "in") startNode?.control1X ?: 0f else startNode?.control2X ?: 0f
+                                                                targetX += localDelta.x
+                                                                var targetY = if (directSelectionActiveHandleType == "in") startNode?.control1Y ?: 0f else startNode?.control2Y ?: 0f
+                                                                targetY += localDelta.y
+
                                                                 if (startNode != null) {
                                                                     val dxFromAnchor = targetX - startNode.anchorX
                                                                     val dyFromAnchor = targetY - startNode.anchorY
@@ -829,16 +852,28 @@ fun VectorCanvas(
                                                             } else { // DIRECT_DRAG_ANYWHERE
                                                                 val baseDX = rawCanvasPos.x - initialTouchCanvasPos!!.x
                                                                 val baseDY = rawCanvasPos.y - initialTouchCanvasPos!!.y
-                                                                deltaX = baseDX
-                                                                deltaY = baseDY
+                                                                val rotatedDelta = if (startShape.rotationAngle != 0f) {
+                                                                    rotatePoint(Offset(baseDX, baseDY), Offset(0f, 0f), -startShape.rotationAngle)
+                                                                } else {
+                                                                    Offset(baseDX, baseDY)
+                                                                }
+                                                                deltaX = rotatedDelta.x
+                                                                deltaY = rotatedDelta.y
                                                                 viewModel.translateDirectSelection(id, startShape, deltaX, deltaY)
                                                             }
                                                         }
                                                     } else if (id != null && activeDragHandle == "DIRECT_SEGMENT" && initialTouchCanvasPos != null) {
-                                                        val deltaX = rawCanvasPos.x - initialTouchCanvasPos!!.x
-                                                        val deltaY = rawCanvasPos.y - initialTouchCanvasPos!!.y
                                                         val shape = viewModel.shapes.find { it.id == id }
                                                         if (shape != null && shape.type == com.example.model.ShapeType.BEZIER_PATH) {
+                                                            val baseDX = rawCanvasPos.x - initialTouchCanvasPos!!.x
+                                                            val baseDY = rawCanvasPos.y - initialTouchCanvasPos!!.y
+                                                            val rotatedDelta = if (shape.rotationAngle != 0f) {
+                                                                rotatePoint(Offset(baseDX, baseDY), Offset(0f, 0f), -shape.rotationAngle)
+                                                            } else {
+                                                                Offset(baseDX, baseDY)
+                                                            }
+                                                            val deltaX = rotatedDelta.x
+                                                            val deltaY = rotatedDelta.y
                                                             val isClosedSeg = directSelectionActiveSegmentIndex == 0
                                                             val nextIdx = if (isClosedSeg) 0 else directSelectionActiveSegmentIndex
                                                             val prevIdx = if (isClosedSeg) shape.bezierNodes.size - 1 else directSelectionActiveSegmentIndex - 1
@@ -1001,9 +1036,20 @@ fun VectorCanvas(
                                                 var hitNode = false
                                                 if (sId != null) {
                                                     val shape = viewModel.shapes.find { it.id == sId }
-                                                    if (shape != null && shape.type == com.example.model.ShapeType.BEZIER_PATH) {
-                                                        val nodes = shape.getNodePoints()
-                                                        val nodeIdx = nodes.indexOfFirst { hypot(e.x - it.x, e.y - it.y) < 24f / viewModel.zoomScale }
+                                                    if (shape != null) {
+                                                        val bounds = shape.getBoundingBox()
+                                                        val cx = (bounds.left + bounds.right) / 2f
+                                                        val cy = (bounds.top + bounds.bottom) / 2f
+                                                        val centerPt = Offset(cx, cy)
+                                                        val localE = if (shape.rotationAngle != 0f) {
+                                                            rotatePoint(e, centerPt, -shape.rotationAngle)
+                                                        } else {
+                                                            e
+                                                        }
+
+                                                        if (shape.type == com.example.model.ShapeType.BEZIER_PATH) {
+                                                            val nodes = shape.getNodePoints()
+                                                            val nodeIdx = nodes.indexOfFirst { hypot(localE.x - it.x, localE.y - it.y) < 24f / viewModel.zoomScale }
                                                         
                                                         when (viewModel.currentNodeEditMode) {
                                                             com.example.viewmodel.NodeEditMode.REMOVE -> {
@@ -1020,7 +1066,7 @@ fun VectorCanvas(
                                                             }
                                                             com.example.viewmodel.NodeEditMode.ADD -> {
                                                                 val nearestSeg = findNearestSegment(
-                                                                    e,
+                                                                    localE,
                                                                     shape.bezierNodes,
                                                                     isClosed = shape.isPathClosed,
                                                                     tolerance = 24f / viewModel.zoomScale
@@ -1032,7 +1078,7 @@ fun VectorCanvas(
                                                             }
                                                             com.example.viewmodel.NodeEditMode.CUT -> {
                                                                 val nearestSeg = findNearestSegment(
-                                                                    e,
+                                                                    localE,
                                                                     shape.bezierNodes,
                                                                     isClosed = shape.isPathClosed,
                                                                     tolerance = 24f / viewModel.zoomScale
@@ -1062,13 +1108,14 @@ fun VectorCanvas(
                                                         }
                                                     } else if (shape != null) {
                                                         val nodes = shape.getNodePoints()
-                                                        val nodeIdx = nodes.indexOfFirst { hypot(e.x - it.x, e.y - it.y) < 24f / viewModel.zoomScale }
+                                                        val nodeIdx = nodes.indexOfFirst { hypot(localE.x - it.x, localE.y - it.y) < 24f / viewModel.zoomScale }
                                                         if (nodeIdx != -1) {
                                                             // Multi-select toggle if holding? We don't have shift key, let's just make it simple.
                                                             viewModel.selectedDirectSelectionNodes = setOf(nodeIdx)
                                                             // removed selection reset
                                                             hitNode = true
                                                         }
+                                                    }
                                                     }
                                                 }
                                                 if (!hitNode) {
@@ -1125,6 +1172,7 @@ fun VectorCanvas(
                             lastDragOffset = null
                             activeDragHandle = null
                             currentTouchPos = null
+                            initialDragPivot = null
                             viewModel.isAutosaveSuspended = false
                             viewModel.saveCurrentProject()
                         }

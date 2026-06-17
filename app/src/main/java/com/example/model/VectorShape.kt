@@ -243,6 +243,12 @@ data class VectorShape(
     val cornerRadius: Float = 0f,
     val customCornerRadii: List<Float> = emptyList(),
     
+    // Frozen Bounding Box for Direct Selection tool editing
+    val frozenBoundsLeft: Float? = null,
+    val frozenBoundsTop: Float? = null,
+    val frozenBoundsRight: Float? = null,
+    val frozenBoundsBottom: Float? = null,
+    
     // Selection Group grouping ID
     val groupId: String? = null
 ) {
@@ -260,7 +266,10 @@ data class VectorShape(
 
     // Computes the outer rectangular bounds of the shape without rotation
     fun getBoundingBox(): Rect {
-        return when (type) {
+        if (frozenBoundsLeft != null && frozenBoundsTop != null && frozenBoundsRight != null && frozenBoundsBottom != null) {
+            return Rect(frozenBoundsLeft, frozenBoundsTop, frozenBoundsRight, frozenBoundsBottom)
+        }
+        val baseBox = when (type) {
             ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 Rect(x, y, x + width, y + height)
             }
@@ -292,11 +301,74 @@ data class VectorShape(
             }
             ShapeType.BEZIER_PATH -> {
                 if (bezierNodes.isEmpty()) return Rect(0f, 0f, 0f, 0f)
-                val minX = bezierNodes.minOf { it.anchorX }
-                val maxX = bezierNodes.maxOf { it.anchorX }
-                val minY = bezierNodes.minOf { it.anchorY }
-                val maxY = bezierNodes.maxOf { it.anchorY }
-                Rect(minX, minY, maxX, maxY)
+                val subpaths = mutableListOf<MutableList<BezierNode>>()
+                var currentSubpath = mutableListOf<BezierNode>()
+                for (node in bezierNodes) {
+                    if (node.isMoveTo && currentSubpath.isNotEmpty()) {
+                        subpaths.add(currentSubpath)
+                        currentSubpath = mutableListOf()
+                    }
+                    currentSubpath.add(node)
+                }
+                if (currentSubpath.isNotEmpty()) {
+                    subpaths.add(currentSubpath)
+                }
+
+                var minX = Float.MAX_VALUE
+                var maxX = -Float.MAX_VALUE
+                var minY = Float.MAX_VALUE
+                var maxY = -Float.MAX_VALUE
+
+                fun updateBounds(x: Float, y: Float) {
+                    minX = minOf(minX, x)
+                    maxX = maxOf(maxX, x)
+                    minY = minOf(minY, y)
+                    maxY = maxOf(maxY, y)
+                }
+
+                for (sub in subpaths) {
+                    if (sub.isEmpty()) continue
+                    val startNode = sub.first()
+                    updateBounds(startNode.anchorX, startNode.anchorY)
+                    for (j in 1 until sub.size) {
+                        val node = sub[j]
+                        val prev = sub[j - 1]
+                        if (prev.isCurve || node.isCurve) {
+                            val cp1X = if (prev.isCurve) prev.control2X else prev.anchorX
+                            val cp1Y = if (prev.isCurve) prev.control2Y else prev.anchorY
+                            val cp2X = if (node.isCurve) node.control1X else node.anchorX
+                            val cp2Y = if (node.isCurve) node.control1Y else node.anchorY
+                            
+                            val (xMin, xMax) = getCubicBezierExtrema(prev.anchorX, cp1X, cp2X, node.anchorX)
+                            val (yMin, yMax) = getCubicBezierExtrema(prev.anchorY, cp1Y, cp2Y, node.anchorY)
+                            minX = minOf(minX, xMin)
+                            maxX = maxOf(maxX, xMax)
+                            minY = minOf(minY, yMin)
+                            maxY = maxOf(maxY, yMax)
+                        } else {
+                            updateBounds(node.anchorX, node.anchorY)
+                        }
+                    }
+                    if (isPathClosed) {
+                        val last = sub.last()
+                        if (last.isCurve || startNode.isCurve) {
+                            val cp1X = if (last.isCurve) last.control2X else last.anchorX
+                            val cp1Y = if (last.isCurve) last.control2Y else last.anchorY
+                            val cp2X = if (startNode.isCurve) startNode.control1X else startNode.anchorX
+                            val cp2Y = if (startNode.isCurve) startNode.control1Y else startNode.anchorY
+                            
+                            val (xMin, xMax) = getCubicBezierExtrema(last.anchorX, cp1X, cp2X, startNode.anchorX)
+                            val (yMin, yMax) = getCubicBezierExtrema(last.anchorY, cp1Y, cp2Y, startNode.anchorY)
+                            minX = minOf(minX, xMin)
+                            maxX = maxOf(maxX, xMax)
+                            minY = minOf(minY, yMin)
+                            maxY = maxOf(maxY, yMax)
+                        } else {
+                            updateBounds(startNode.anchorX, startNode.anchorY)
+                        }
+                    }
+                }
+                if (minX == Float.MAX_VALUE) Rect(0f, 0f, 0f, 0f) else Rect(minX, minY, maxX, maxY)
             }
             ShapeType.TEXT -> {
                 // Estimated size based on character count and font size
@@ -304,14 +376,81 @@ data class VectorShape(
                 Rect(x, y - fontSize, x + estWidth, y + fontSize * 0.2f)
             }
         }
+        return if (hasStroke && strokeWidth > 0f) {
+            val halfStroke = strokeWidth / 2f
+            Rect(
+                left = baseBox.left - halfStroke,
+                top = baseBox.top - halfStroke,
+                right = baseBox.right + halfStroke,
+                bottom = baseBox.bottom + halfStroke
+            )
+        } else {
+            baseBox
+        }
+    }
+
+    private fun getCubicBezierExtrema(p0: Float, p1: Float, p2: Float, p3: Float): Pair<Float, Float> {
+        var minVal = minOf(p0, p3)
+        var maxVal = maxOf(p0, p3)
+        
+        val a = p3 - 3 * p2 + 3 * p1 - p0
+        val b = 2 * (p2 - 2 * p1 + p0)
+        val c = p1 - p0
+        
+        fun evaluateBezier(t: Float): Float {
+            val mt = 1f - t
+            return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3
+        }
+        
+        if (kotlin.math.abs(a) < 1e-6f) {
+            if (kotlin.math.abs(b) > 1e-6f) {
+                val t = -c / b
+                if (t > 0f && t < 1f) {
+                    val valAtT = evaluateBezier(t)
+                    minVal = minOf(minVal, valAtT)
+                    maxVal = maxOf(maxVal, valAtT)
+                }
+            }
+        } else {
+            val discriminant = b * b - 4 * a * c
+            if (discriminant >= 0f) {
+                val sqrtD = kotlin.math.sqrt(discriminant)
+                val t1 = (-b - sqrtD) / (2 * a)
+                val t2 = (-b + sqrtD) / (2 * a)
+                
+                if (t1 > 0f && t1 < 1f) {
+                    val valAtT1 = evaluateBezier(t1)
+                    minVal = minOf(minVal, valAtT1)
+                    maxVal = maxOf(maxVal, valAtT1)
+                }
+                if (t2 > 0f && t2 < 1f) {
+                    val valAtT2 = evaluateBezier(t2)
+                    minVal = minOf(minVal, valAtT2)
+                    maxVal = maxOf(maxVal, valAtT2)
+                }
+            }
+        }
+        return Pair(minVal, maxVal)
     }
 
     fun getRotatedBounds(): Rect {
-        if (type == ShapeType.TEXT) {
+        val baseBox = if (type == ShapeType.TEXT) {
             val estWidth = textContent.length * fontSize * 0.6f
-            return Rect(x, y - fontSize, x + estWidth, y + fontSize * 0.2f)
+            Rect(x, y - fontSize, x + estWidth, y + fontSize * 0.2f)
+        } else {
+            asComposePath().getBounds()
         }
-        return asComposePath().getBounds()
+        return if (hasStroke && strokeWidth > 0f) {
+            val halfStroke = strokeWidth / 2f
+            Rect(
+                left = baseBox.left - halfStroke,
+                top = baseBox.top - halfStroke,
+                right = baseBox.right + halfStroke,
+                bottom = baseBox.bottom + halfStroke
+            )
+        } else {
+            baseBox
+        }
     }
 
     // Easy collision test: check if a point (mouse/finger touch) strikes the shape
