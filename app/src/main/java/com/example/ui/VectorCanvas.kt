@@ -1941,60 +1941,64 @@ fun VectorCanvas(
                     }
 
                     if (bounds != null) {
+                        val isRotating = activeDragHandle == "ROTATE_HOTSPOT"
+                        val isMoving = activeDragHandle == "MOVE"
+                        val borderW = 1.8f / viewModel.zoomScale
                         val cX = (bounds.left + bounds.right) / 2f
                         val cY = (bounds.top + bounds.bottom) / 2f
                         if (bAngle != 0f) {
                             drawContext.transform.rotate(bAngle, Offset(cX, cY))
                         }
-                        // 1. Draw solid purple bounding box outline (slightly thicker for high definition)
-                        drawRect(
-                            color = Color(0xFF7C4C90),
-                            topLeft = Offset(bounds.left, bounds.top),
-                            size = Size(bounds.width, bounds.height),
-                            style = Stroke(
-                                width = 2.5f / viewModel.zoomScale
-                            )
-                        )
-
-                        // 2. Draw beautifully larger white-filled rounded corner handles with purple borders
-                        val hRad = 12f / viewModel.zoomScale
-                        val borderW = 1.8f / viewModel.zoomScale
-                        val cornerPoints = listOf(
-                            Offset(bounds.left, bounds.top),
-                            Offset(bounds.right, bounds.top),
-                            Offset(bounds.left, bounds.bottom),
-                            Offset(bounds.right, bounds.bottom)
-                        )
-                        for (pt in cornerPoints) {
-                            drawCircle(
-                                color = Color.White,
-                                radius = hRad,
-                                center = pt
-                            )
-                            drawCircle(
+                        
+                        if (!isRotating && !isMoving) {
+                            // 1. Draw solid purple bounding box outline (slightly thicker for high definition)
+                            drawRect(
                                 color = Color(0xFF7C4C90),
-                                radius = hRad,
-                                center = pt,
-                                style = Stroke(width = borderW)
+                                topLeft = Offset(bounds.left, bounds.top),
+                                size = Size(bounds.width, bounds.height),
+                                style = Stroke(
+                                    width = 2.5f / viewModel.zoomScale
+                                )
                             )
-                        }
+
+                            // 2. Draw beautifully larger white-filled rounded corner handles with purple borders
+                            val hRad = 12f / viewModel.zoomScale
+                            val cornerPoints = listOf(
+                                Offset(bounds.left, bounds.top),
+                                Offset(bounds.right, bounds.top),
+                                Offset(bounds.left, bounds.bottom),
+                                Offset(bounds.right, bounds.bottom)
+                            )
+                            for (pt in cornerPoints) {
+                                drawCircle(
+                                    color = Color.White,
+                                    radius = hRad,
+                                    center = pt
+                                )
+                                drawCircle(
+                                    color = Color(0xFF7C4C90),
+                                    radius = hRad,
+                                    center = pt,
+                                    style = Stroke(width = borderW)
+                                )
+                            }
 
                         // 3. Draw 4 larger elongated side pills (untuk mempermudah resize sisi) dengan fill putih & border ungu
                         val pillW = 28f / viewModel.zoomScale
                         val pillH = 12f / viewModel.zoomScale
-                        val centerX = (bounds.left + bounds.right) / 2f
-                        val centerY = (bounds.top + bounds.bottom) / 2f
+                        val centerXLocal = (bounds.left + bounds.right) / 2f
+                        val centerYLocal = (bounds.top + bounds.bottom) / 2f
 
                         // Top pill (horizontal)
                         drawRoundRect(
                             color = Color.White,
-                            topLeft = Offset(centerX - pillW / 2f, bounds.top - pillH / 2f),
+                            topLeft = Offset(centerXLocal - pillW / 2f, bounds.top - pillH / 2f),
                             size = Size(pillW, pillH),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
                         )
                         drawRoundRect(
                             color = Color(0xFF7C4C90),
-                            topLeft = Offset(centerX - pillW / 2f, bounds.top - pillH / 2f),
+                            topLeft = Offset(centerXLocal - pillW / 2f, bounds.top - pillH / 2f),
                             size = Size(pillW, pillH),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
                             style = Stroke(width = borderW)
@@ -2002,13 +2006,13 @@ fun VectorCanvas(
                         // Bottom pill (horizontal)
                         drawRoundRect(
                             color = Color.White,
-                            topLeft = Offset(centerX - pillW / 2f, bounds.bottom - pillH / 2f),
+                            topLeft = Offset(centerXLocal - pillW / 2f, bounds.bottom - pillH / 2f),
                             size = Size(pillW, pillH),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
                         )
                         drawRoundRect(
                             color = Color(0xFF7C4C90),
-                            topLeft = Offset(centerX - pillW / 2f, bounds.bottom - pillH / 2f),
+                            topLeft = Offset(centerXLocal - pillW / 2f, bounds.bottom - pillH / 2f),
                             size = Size(pillW, pillH),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
                             style = Stroke(width = borderW)
@@ -2016,13 +2020,13 @@ fun VectorCanvas(
                         // Left pill (vertical)
                         drawRoundRect(
                             color = Color.White,
-                            topLeft = Offset(bounds.left - pillH / 2f, centerY - pillW / 2f),
+                            topLeft = Offset(bounds.left - pillH / 2f, centerYLocal - pillW / 2f),
                             size = Size(pillH, pillW),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
                         )
                         drawRoundRect(
                             color = Color(0xFF7C4C90),
-                            topLeft = Offset(bounds.left - pillH / 2f, centerY - pillW / 2f),
+                            topLeft = Offset(bounds.left - pillH / 2f, centerYLocal - pillW / 2f),
                             size = Size(pillH, pillW),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
                             style = Stroke(width = borderW)
@@ -2030,19 +2034,21 @@ fun VectorCanvas(
                         // Right pill (vertical)
                         drawRoundRect(
                             color = Color.White,
-                            topLeft = Offset(bounds.right - pillH / 2f, centerY - pillW / 2f),
+                            topLeft = Offset(bounds.right - pillH / 2f, centerYLocal - pillW / 2f),
                             size = Size(pillH, pillW),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
                         )
                         drawRoundRect(
                             color = Color(0xFF7C4C90),
-                            topLeft = Offset(bounds.right - pillH / 2f, centerY - pillW / 2f),
+                            topLeft = Offset(bounds.right - pillH / 2f, centerYLocal - pillW / 2f),
                             size = Size(pillH, pillW),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
                             style = Stroke(width = borderW)
                         )
+                        }
 
                         // 4. Draw action buttons (centered floating further out & much larger with high-contrast borders)
+                        val centerX = (bounds.left + bounds.right) / 2f
                         val topB = bounds.top - 54f / viewModel.zoomScale
                         val botB = bounds.bottom + 54f / viewModel.zoomScale
 
@@ -2056,14 +2062,22 @@ fun VectorCanvas(
                         val strokeW = 1.8f / viewModel.zoomScale
 
                         val drawIconCircle: (Offset, String) -> Unit = { centerPt, iconType ->
+                            if (bAngle != 0f) drawContext.transform.rotate(-bAngle, centerPt)
+                            
+                            val isRotateActive = iconType == "ROTATE" && isRotating
+                            val isMoveActive = iconType == "MOVE" && isMoving
+                            val isActionActive = isRotateActive || isMoveActive
+                            val currentCircleRadius = if (isActionActive) bRadius * 1.35f else bRadius
+                            val currentCircleColor = if (isActionActive) Color(0xFF22C55E) else Color(0xFF7C4C90)
+
                             drawCircle(
-                                color = Color(0xFF7C4C90),
-                                radius = bRadius,
+                                color = currentCircleColor,
+                                radius = currentCircleRadius,
                                 center = centerPt
                             )
                             drawCircle(
                                 color = Color.White,
-                                radius = bRadius,
+                                radius = currentCircleRadius,
                                 center = centerPt,
                                 style = Stroke(width = borderW)
                             )
@@ -2166,7 +2180,10 @@ fun VectorCanvas(
                                     )
                                 }
                                 "ROTATE" -> {
-                                    val r = 6.5f / viewModel.zoomScale
+                                    val iconScale = if (isRotating) 1.35f else 1.0f
+                                    val r = (6.5f / viewModel.zoomScale) * iconScale
+                                    val arrLen = (3.5f / viewModel.zoomScale) * iconScale
+                                    val currentStrokeW = strokeW * iconScale
                                     
                                     // Arc 1: Top-Left to Top-Right
                                     drawArc(
@@ -2176,7 +2193,7 @@ fun VectorCanvas(
                                         useCenter = false,
                                         topLeft = Offset(centerPt.x - r, centerPt.y - r),
                                         size = Size(r*2f, r*2f),
-                                        style = Stroke(width = strokeW)
+                                        style = Stroke(width = currentStrokeW)
                                     )
                                     
                                     // Arc 2: Bottom-Right to Bottom-Left
@@ -2187,7 +2204,7 @@ fun VectorCanvas(
                                         useCenter = false,
                                         topLeft = Offset(centerPt.x - r, centerPt.y - r),
                                         size = Size(r*2f, r*2f),
-                                        style = Stroke(width = strokeW)
+                                        style = Stroke(width = currentStrokeW)
                                     )
                                     
                                     // Arrowhead 1 at tip of Arc 1 (which ends at 190 + 140 = 330 degrees)
@@ -2196,19 +2213,18 @@ fun VectorCanvas(
                                     val sinT1 = kotlin.math.sin(t1Rad).toFloat()
                                     val tip1X = centerPt.x + r * cosT1
                                     val tip1Y = centerPt.y + r * sinT1
-                                    val arrLen = 3.5f / viewModel.zoomScale
                                     
                                     drawLine(
                                         color = Color.White,
                                         start = Offset(tip1X, tip1Y),
                                         end = Offset(tip1X - arrLen * cosT1, tip1Y - arrLen * sinT1),
-                                        strokeWidth = strokeW
+                                        strokeWidth = currentStrokeW
                                     )
                                     drawLine(
                                         color = Color.White,
                                         start = Offset(tip1X, tip1Y),
                                         end = Offset(tip1X + arrLen * sinT1, tip1Y - arrLen * cosT1),
-                                        strokeWidth = strokeW
+                                        strokeWidth = currentStrokeW
                                     )
                                     
                                     // Arrowhead 2 at tip of Arc 2 (which ends at 10 + 140 = 150 degrees)
@@ -2222,49 +2238,51 @@ fun VectorCanvas(
                                         color = Color.White,
                                         start = Offset(tip2X, tip2Y),
                                         end = Offset(tip2X - arrLen * cosT2, tip2Y - arrLen * sinT2),
-                                        strokeWidth = strokeW
+                                        strokeWidth = currentStrokeW
                                     )
                                     drawLine(
                                         color = Color.White,
                                         start = Offset(tip2X, tip2Y),
                                         end = Offset(tip2X + arrLen * sinT2, tip2Y - arrLen * cosT2),
-                                        strokeWidth = strokeW
+                                        strokeWidth = currentStrokeW
                                     )
                                 }
                                 "MOVE" -> {
-                                    val len = 8.5f / viewModel.zoomScale
-                                    val arrSize = 2.8f / viewModel.zoomScale
+                                    val iconScale = if (isMoving) 1.35f else 1.0f
+                                    val len = (8.5f / viewModel.zoomScale) * iconScale
+                                    val arrSize = (2.8f / viewModel.zoomScale) * iconScale
+                                    val currentStrokeW = strokeW * iconScale
                                     
                                     // Horizontal Line
                                     drawLine(
                                         color = Color.White,
                                         start = Offset(centerPt.x - len, centerPt.y),
                                         end = Offset(centerPt.x + len, centerPt.y),
-                                        strokeWidth = strokeW
+                                        strokeWidth = currentStrokeW
                                     )
                                     // Vertical Line
                                     drawLine(
                                         color = Color.White,
                                         start = Offset(centerPt.x, centerPt.y - len),
                                         end = Offset(centerPt.x, centerPt.y + len),
-                                        strokeWidth = strokeW
+                                        strokeWidth = currentStrokeW
                                     )
                                     
                                     // Left arrowhead
-                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y), end = Offset(centerPt.x - len + arrSize, centerPt.y - arrSize), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y), end = Offset(centerPt.x - len + arrSize, centerPt.y + arrSize), strokeWidth = strokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y), end = Offset(centerPt.x - len + arrSize, centerPt.y - arrSize), strokeWidth = currentStrokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x - len, centerPt.y), end = Offset(centerPt.x - len + arrSize, centerPt.y + arrSize), strokeWidth = currentStrokeW)
                                     
                                     // Right arrowhead
-                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y), end = Offset(centerPt.x + len - arrSize, centerPt.y - arrSize), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y), end = Offset(centerPt.x + len - arrSize, centerPt.y + arrSize), strokeWidth = strokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y), end = Offset(centerPt.x + len - arrSize, centerPt.y - arrSize), strokeWidth = currentStrokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x + len, centerPt.y), end = Offset(centerPt.x + len - arrSize, centerPt.y + arrSize), strokeWidth = currentStrokeW)
                                     
                                     // Top arrowhead
-                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y - len), end = Offset(centerPt.x - arrSize, centerPt.y - len + arrSize), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y - len), end = Offset(centerPt.x + arrSize, centerPt.y - len + arrSize), strokeWidth = strokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y - len), end = Offset(centerPt.x - arrSize, centerPt.y - len + arrSize), strokeWidth = currentStrokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y - len), end = Offset(centerPt.x + arrSize, centerPt.y - len + arrSize), strokeWidth = currentStrokeW)
                                     
                                     // Bottom arrowhead
-                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y + len), end = Offset(centerPt.x - arrSize, centerPt.y + len - arrSize), strokeWidth = strokeW)
-                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y + len), end = Offset(centerPt.x + arrSize, centerPt.y + len - arrSize), strokeWidth = strokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y + len), end = Offset(centerPt.x - arrSize, centerPt.y + len - arrSize), strokeWidth = currentStrokeW)
+                                    drawLine(color = Color.White, start = Offset(centerPt.x, centerPt.y + len), end = Offset(centerPt.x + arrSize, centerPt.y + len - arrSize), strokeWidth = currentStrokeW)
                                 }
                                 "LOCK_CLOSED" -> {
                                     val w = 11f / viewModel.zoomScale
@@ -2331,22 +2349,29 @@ fun VectorCanvas(
                                     )
                                 }
                             }
+                            if (bAngle != 0f) drawContext.transform.rotate(bAngle, centerPt)
                         }
 
-                        drawIconCircle(delPos, "DELETE")
-                        drawIconCircle(dupPos, "DUPLICATE")
-                        drawIconCircle(rotPos, "ROTATE")
-                        drawIconCircle(movPos, "MOVE")
-                        drawIconCircle(sclPos, if (viewModel.isAspectLocked) "LOCK_CLOSED" else "LOCK_OPEN")
+                        if (isRotating) {
+                            drawIconCircle(rotPos, "ROTATE")
+                        } else if (isMoving) {
+                            drawIconCircle(movPos, "MOVE")
+                        } else {
+                            drawIconCircle(delPos, "DELETE")
+                            drawIconCircle(dupPos, "DUPLICATE")
+                            drawIconCircle(rotPos, "ROTATE")
+                            drawIconCircle(movPos, "MOVE")
+                            drawIconCircle(sclPos, if (viewModel.isAspectLocked) "LOCK_CLOSED" else "LOCK_OPEN")
 
-                        if (viewModel.shapes.any { viewModel.selectedShapeIds.contains(it.id) && it.isLocked }) {
-                            val paintIndicator = Paint().apply {
-                                color = android.graphics.Color.RED
-                                style = Paint.Style.FILL
-                                textSize = 15f / viewModel.zoomScale
-                                typeface = Typeface.DEFAULT_BOLD
+                            if (viewModel.shapes.any { viewModel.selectedShapeIds.contains(it.id) && it.isLocked }) {
+                                val paintIndicator = Paint().apply {
+                                    color = android.graphics.Color.RED
+                                    style = Paint.Style.FILL
+                                    textSize = 15f / viewModel.zoomScale
+                                    typeface = Typeface.DEFAULT_BOLD
+                                }
+                                canvas.nativeCanvas.drawText("LOCKED 🔒", bounds.left + 5f, bounds.top - 5f, paintIndicator)
                             }
-                            canvas.nativeCanvas.drawText("LOCKED 🔒", bounds.left + 5f, bounds.top - 5f, paintIndicator)
                         }
                         if (bAngle != 0f) {
                             drawContext.transform.rotate(-bAngle, Offset(cX, cY))

@@ -2862,26 +2862,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun snapAngle(angleDegrees: Float, threshold: Float = 4.0f): Float {
-        val targets = listOf(0f, 25f, -25f, 45f, -45f, 50f, -50f, 75f, -75f, 90f, -90f, 100f, -100f, 125f, -125f, 135f, -135f, 150f, -150f, 175f, -175f, 180f, -180f)
-        var closestSnap = angleDegrees
-        var minDiff = Float.MAX_VALUE
-        
-        for (step in targets) {
-            val diff = kotlin.math.abs(angleDegrees - step)
-            if (diff < minDiff) {
-                minDiff = diff
-                closestSnap = step
-            }
-        }
-        
-        return if (minDiff < threshold) {
-            closestSnap
-        } else {
-            angleDegrees
-        }
-    }
-
     fun rotateSelectedShapesAbsolute(startShapes: List<VectorShape>, angleOffset: Float) {
         if (selectedShapeIds.isEmpty()) return
 
@@ -2907,15 +2887,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 var targetAngle = (startVal.rotationAngle + angleOffset) % 360f
                 if (targetAngle < 0f) targetAngle += 360f
                 
-                var normalized = targetAngle
-                if (normalized > 180f) normalized -= 360f
-                
-                val snapped = snapAngle(normalized, 4.0f)
-                
-                var finalAngle = snapped
-                if (finalAngle < 0f) finalAngle += 360f
-                
-                startVal.copyWithTransform(dx, dy).copy(rotationAngle = finalAngle)
+                startVal.copyWithTransform(dx, dy).copy(rotationAngle = targetAngle)
             } else {
                 shape
             }
