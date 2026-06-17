@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import com.example.model.BezierNode
 import com.example.model.SerializedPoint
 import com.example.model.ShapeType
@@ -212,7 +214,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     fun bakeBezierCorners() {
         val sId = selectedShapeId ?: return
         var changed = false
-        shapes = shapes.map { s ->
+        val oldShapes = ArrayList(shapes)
+        val updated = shapes.map { s ->
             if (s.id == sId && s.type == ShapeType.BEZIER_PATH && s.customCornerRadii.any { it > 0.1f }) {
                 changed = true
                 s.bakedRoundedCorners()
@@ -221,7 +224,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         if (changed) {
-            pushToUndoStack()
+            pushCustomListToUndoStack(oldShapes)
+            shapes = updated
             selectedRoundedCornerIndex = null
             manualCornerRadiusText = "0"
         }
@@ -1639,10 +1643,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return Offset(snappedX, snappedY)
     }
 
-    init {
-        // Load default shapes on startup or present beautiful preset
-        loadDefaultWorkspace()
-    }
+    
 
     fun convertShapeToBezierPath(shapeId: String) {
         shapes = shapes.map { shape ->
@@ -1685,14 +1686,28 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun pushToUndoStack() {
-        undoStack.add(ArrayList(shapes))
-        redoStack.clear()
+        val currentShapes = ArrayList(shapes)
+        if (undoStack.isEmpty() || undoStack.last() != currentShapes) {
+            undoStack.add(currentShapes)
+            redoStack.clear()
+        }
+    }
+
+    fun pushCustomListToUndoStack(customList: List<VectorShape>) {
+        val listCopy = ArrayList(customList)
+        if (undoStack.isEmpty() || undoStack.last() != listCopy) {
+            undoStack.add(listCopy)
+            redoStack.clear()
+        }
     }
 
     fun undo() {
         if (undoStack.isNotEmpty()) {
             val prevState = undoStack.removeAt(undoStack.size - 1)
-            redoStack.add(ArrayList(shapes))
+            val currentState = ArrayList(shapes)
+            if (redoStack.isEmpty() || redoStack.last() != currentState) {
+                redoStack.add(currentState)
+            }
             shapes = prevState
             // Clear invalid select
             if (shapes.none { it.id == selectedShapeId }) {
@@ -1704,7 +1719,10 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     fun redo() {
         if (redoStack.isNotEmpty()) {
             val nextState = redoStack.removeAt(redoStack.size - 1)
-            undoStack.add(ArrayList(shapes))
+            val currentState = ArrayList(shapes)
+            if (undoStack.isEmpty() || undoStack.last() != currentState) {
+                undoStack.add(currentState)
+            }
             shapes = nextState
         }
     }
@@ -2814,11 +2832,22 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         
         val sortedActiveShapes = shapes.filter { activeIds.contains(it.id) }
         
+        // Map old group ID -> new group ID to separate cloned groups from original groups
+        val groupIdMap = mutableMapOf<String, String>()
+        
         for (original in sortedActiveShapes) {
+            val originalGroupId = original.groupId
+            val newGroupId = if (originalGroupId != null) {
+                groupIdMap.getOrPut(originalGroupId) { UUID.randomUUID().toString() }
+            } else {
+                null
+            }
+            
             val newId = UUID.randomUUID().toString()
             val duplicated = original.copyWithTransform(30f, 30f).copy(
                 id = newId,
-                name = "${original.name} Copy"
+                name = "${original.name} Copy",
+                groupId = newGroupId
             )
             val shapeWithLayer = duplicated.copy(layerId = activeLayerId)
             newDuplicatedShapes.add(shapeWithLayer)
@@ -3106,7 +3135,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun finishTransformation() {
-        pushToUndoStack()
+        // No-op. Unified pointerup handler handles pushing the original state to the undo stack.
     }
 
     fun getCombinedBoundingBox(shapeIds: Set<String>, list: List<VectorShape>): Rect? {
@@ -5101,6 +5130,9 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             sb.append("\"radiusTR\":${s.radiusTR},")
             sb.append("\"radiusBL\":${s.radiusBL},")
             sb.append("\"radiusBR\":${s.radiusBR},")
+            sb.append("\"rotationAngle\":${s.rotationAngle},")
+            sb.append("\"layerOrder\":${s.layerOrder},")
+            sb.append("\"layerId\":\"${s.layerId}\",")
             sb.append("\"customCornerRadii\":[${s.customCornerRadii.joinToString(",")}],")
             if (s.groupId != null) {
                 sb.append("\"groupId\":\"${s.groupId}\",")
@@ -5192,6 +5224,9 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val radiusTR = extractJsonFloat(itemJson, "radiusTR") ?: 0f
                 val radiusBL = extractJsonFloat(itemJson, "radiusBL") ?: 0f
                 val radiusBR = extractJsonFloat(itemJson, "radiusBR") ?: 0f
+                val rotationAngle = extractJsonFloat(itemJson, "rotationAngle") ?: 0f
+                val layerOrder = extractJsonFloat(itemJson, "layerOrder")?.toInt() ?: 0
+                val layerId = extractJsonString(itemJson, "layerId") ?: "default_layer"
                 
                 val cRadii = mutableListOf<Float>()
                 val radiiSub = extractJsonBlock(itemJson, "customCornerRadii")
@@ -5258,6 +5293,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         isPathClosed = isPathClosed, freehandPoints = pts, bezierNodes = bNodes,
                         polygonSides = polygonSides, starPoints = starPoints, lineStyle = lineStyle,
                         radiusTL = radiusTL, radiusTR = radiusTR, radiusBL = radiusBL, radiusBR = radiusBR,
+                        rotationAngle = rotationAngle, layerOrder = layerOrder, layerId = layerId,
                         customCornerRadii = cRadii,
                         groupId = groupId
                     )
@@ -5285,8 +5321,34 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun extractJsonBlock(json: String, key: String): String? {
-        val pattern = "\"$key\"\\s*:\\s*\\[(.*?)\\]".toRegex()
-        return pattern.find(json)?.groupValues?.get(1)
+        val startStr = "\"$key\":["
+        var startIdx = json.indexOf(startStr)
+        if (startIdx == -1) {
+            startIdx = json.indexOf("\"$key\" : [")
+        }
+        if (startIdx == -1) {
+            startIdx = json.indexOf("\"$key\": [")
+        }
+        
+        // Find exact start
+        val pattern = "\"$key\"\\s*:\\s*\\[".toRegex()
+        val match = pattern.find(json) ?: return null
+        val arrayStart = match.range.last
+
+        var bracketCount = 1
+        var itemEnd = -1
+        for (j in arrayStart + 1 until json.length) {
+            if (json[j] == '[') bracketCount++
+            if (json[j] == ']') {
+                bracketCount--
+                if (bracketCount == 0) {
+                    itemEnd = j
+                    break
+                }
+            }
+        }
+        if (itemEnd == -1) return null
+        return json.substring(arrayStart + 1, itemEnd)
     }
 
     fun importFileFromUri(
@@ -5711,6 +5773,61 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return pattern.find(json)?.groupValues?.get(1)?.toLongOrNull()
     }
 
+    private fun convertLayersToJsonStr(layersList: List<com.example.model.VectorLayer>): String {
+        val sb = java.lang.StringBuilder()
+        sb.append("[")
+        for (i in layersList.indices) {
+            val l = layersList[i]
+            sb.append("{")
+            sb.append("\"id\":\"${l.id}\",")
+            sb.append("\"name\":\"${l.name.replace("\"", "\\\"")}\",")
+            sb.append("\"isVisible\":${l.isVisible},")
+            sb.append("\"isLocked\":${l.isLocked},")
+            sb.append("\"opacity\":${l.opacity}")
+            sb.append("}")
+            if (i < layersList.size - 1) sb.append(",")
+        }
+        sb.append("]")
+        return sb.toString()
+    }
+
+    private fun parseJsonToLayers(json: String): List<com.example.model.VectorLayer> {
+        val result = mutableListOf<com.example.model.VectorLayer>()
+        try {
+            val clean = json.trim()
+            if (!clean.startsWith("[")) return result
+            var idx = 1
+            while (idx < clean.lastIndex) {
+                val itemStart = clean.indexOf("{", idx)
+                if (itemStart == -1) break
+                var bracketCount = 0
+                var itemEnd = -1
+                for (j in itemStart until clean.length) {
+                    if (clean[j] == '{') bracketCount++
+                    if (clean[j] == '}') {
+                        bracketCount--
+                        if (bracketCount == 0) {
+                            itemEnd = j
+                            break
+                        }
+                    }
+                }
+                if (itemEnd == -1) break
+                val itemJson = clean.substring(itemStart, itemEnd + 1)
+                idx = itemEnd + 1
+
+                val id = extractJsonString(itemJson, "id") ?: java.util.UUID.randomUUID().toString()
+                val name = extractJsonString(itemJson, "name") ?: "Layer"
+                val isVisible = extractJsonBoolean(itemJson, "isVisible") ?: true
+                val isLocked = extractJsonBoolean(itemJson, "isLocked") ?: false
+                val opacity = extractJsonFloat(itemJson, "opacity") ?: 1f
+                
+                result.add(com.example.model.VectorLayer(id, name, isVisible, isLocked, opacity))
+            }
+        } catch (e: Exception) {}
+        return result
+    }
+
     fun parseSavedProject(json: String): SavedProject? {
         try {
             val clean = json.trim()
@@ -5725,7 +5842,10 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             val shapesBlock = extractJsonBlock(clean, "shapes") ?: ""
             val shapesList = parseJsonToShapes("[$shapesBlock]")
             
-            return SavedProject(id, name, canvasWidth, canvasHeight, artboardColorHex, artboardAlpha, lastModified, shapesList)
+            val layersBlock = extractJsonBlock(clean, "layers")
+            val layersList = if (layersBlock != null && layersBlock.isNotBlank()) parseJsonToLayers("[$layersBlock]") else listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
+            
+            return SavedProject(id, name, canvasWidth, canvasHeight, artboardColorHex, artboardAlpha, lastModified, shapesList, layersList)
         } catch (e: Exception) {
             e.printStackTrace()
             return null
@@ -5742,7 +5862,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         sb.append("\"artboardColorHex\":\"${project.artboardColorHex}\",")
         sb.append("\"artboardAlpha\":${project.artboardAlpha},")
         sb.append("\"lastModified\":${project.lastModified},")
-        sb.append("\"shapes\":${convertShapesToJsonStr(project.shapes)}")
+        sb.append("\"shapes\":${convertShapesToJsonStr(project.shapes)},")
+        sb.append("\"layers\":${convertLayersToJsonStr(project.layers)}")
         sb.append("}")
         return sb.toString()
     }
@@ -5801,7 +5922,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             artboardColorHex = artboardColorHex,
             artboardAlpha = artboardAlpha,
             lastModified = System.currentTimeMillis(),
-            shapes = shapes
+            shapes = shapes,
+            layers = layers
         )
         val serialized = serializeProject(proj)
         sharedPrefs.edit().putString(id, serialized).apply()
@@ -5821,6 +5943,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         canvasHeight = project.canvasHeight
         artboardColorHex = project.artboardColorHex
         artboardAlpha = project.artboardAlpha
+        layers = project.layers
+        activeLayerId = project.layers.firstOrNull()?.id ?: "default_layer"
         shapes = project.shapes
         selectedShapeId = null
         panOffset = Offset.Zero
@@ -5856,6 +5980,30 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             e.printStackTrace()
         }
     }
+
+    init {
+        viewModelScope.launch {
+            refreshSavedProjects()
+            val list = savedProjectsList
+            if (list.isNotEmpty()) {
+                loadProject(list.first())
+            } else {
+                val data = sharedPrefs.getString("saved_canvas_shapes", null)
+                if (!data.isNullOrBlank()) {
+                    val loaded = parseJsonToShapes(data)
+                    if (loaded.isNotEmpty()) {
+                        shapes = loaded
+                        selectedShapeId = null
+                        isSetupCompleted = true
+                    } else {
+                        loadDefaultWorkspace()
+                    }
+                } else {
+                    loadDefaultWorkspace()
+                }
+            }
+        }
+    }
 }
 
 data class SavedProject(
@@ -5866,6 +6014,7 @@ data class SavedProject(
     val artboardColorHex: String,
     val artboardAlpha: Float,
     val lastModified: Long,
-    val shapes: List<VectorShape>
+    val shapes: List<VectorShape>,
+    val layers: List<com.example.model.VectorLayer> = listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
 )
 

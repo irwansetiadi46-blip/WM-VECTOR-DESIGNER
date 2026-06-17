@@ -169,6 +169,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showMenuSheet by remember { mutableStateOf(false) }
     var showLayersPanel by remember { mutableStateOf(false) }
     var expandedLayers by remember { mutableStateOf(setOf<String>()) }
+    var expandedGroups by remember { mutableStateOf(setOf<String>()) }
     var showColorPickerFill by remember { mutableStateOf(false) }
     var showColorPickerStroke by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
@@ -3034,6 +3035,9 @@ fun MainLayout(viewModel: VectorViewModel) {
                             Text("No layers yet.", color = Color.Gray, fontSize = 13.sp)
                         }
                     } else {
+                        val allGroupIdsInOrder = remember(viewModel.shapes) {
+                            viewModel.shapes.mapNotNull { it.groupId }.distinct()
+                        }
                         LazyColumn(modifier = Modifier.weight(1f)) {
                             items(viewModel.layers.reversed()) { layer -> 
                                 val actualIndex = viewModel.layers.indexOf(layer)
@@ -3175,111 +3179,350 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                 modifier = Modifier.padding(start = 36.dp, top = 2.dp, bottom = 6.dp)
                                             )
                                         } else {
+                                            val renderedGroupIdsInLayer = remember { mutableSetOf<String>() }
+                                            renderedGroupIdsInLayer.clear()
+
                                             shapesInLayer.reversed().forEach { shape ->
-                                                val isShapeSelected = viewModel.selectedShapeIds.contains(shape.id)
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(start = 24.dp, top = 2.dp, bottom = 2.dp, end = 6.dp)
-                                                        .clip(RoundedCornerShape(4.dp))
-                                                        .background(if (isShapeSelected) Color(0x33FF6D00) else Color(0x10FFFFFF))
-                                                        .border(1.dp, if (isShapeSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
-                                                        .clickable {
-                                                            viewModel.selectedShapeIds = setOf(shape.id)
-                                                            viewModel.selectedShapeId = shape.id
-                                                            viewModel.activeLayerId = layer.id
-                                                        }
-                                                        .padding(horizontal = 6.dp, vertical = 4.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.SpaceBetween
-                                                ) {
+                                                if (shape.groupId == null) {
+                                                    // 1. RENDER UNGROUPED SHAPE ROW
+                                                    val isShapeSelected = viewModel.selectedShapeIds.contains(shape.id)
                                                     Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(start = 24.dp, top = 2.dp, bottom = 2.dp, end = 6.dp)
+                                                            .clip(RoundedCornerShape(4.dp))
+                                                            .background(if (isShapeSelected) Color(0x33FF6D00) else Color(0x10FFFFFF))
+                                                            .border(1.dp, if (isShapeSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
+                                                            .clickable {
+                                                                viewModel.selectedShapeIds = setOf(shape.id)
+                                                                viewModel.selectedShapeId = shape.id
+                                                                viewModel.activeLayerId = layer.id
+                                                            }
+                                                            .padding(horizontal = 6.dp, vertical = 4.dp),
                                                         verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.weight(1f),
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        horizontalArrangement = Arrangement.SpaceBetween
                                                     ) {
-                                                        val shapeIcon = when (shape.type) {
-                                                            com.example.model.ShapeType.RECTANGLE -> Icons.Default.CropSquare
-                                                            com.example.model.ShapeType.ELLIPSE -> Icons.Default.RadioButtonUnchecked
-                                                            com.example.model.ShapeType.LINE -> Icons.Default.HorizontalRule
-                                                            com.example.model.ShapeType.FREEHAND -> Icons.Default.Brush
-                                                            com.example.model.ShapeType.BEZIER_PATH -> Icons.Default.Create
-                                                            com.example.model.ShapeType.TEXT -> Icons.Default.TextFields
-                                                            com.example.model.ShapeType.POLYGON -> Icons.Default.Category
-                                                            com.example.model.ShapeType.STAR -> Icons.Default.Star
-                                                            com.example.model.ShapeType.IMAGE -> Icons.Default.Image
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            modifier = Modifier.weight(1f),
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        ) {
+                                                            val shapeIcon = when (shape.type) {
+                                                                com.example.model.ShapeType.RECTANGLE -> Icons.Default.CropSquare
+                                                                com.example.model.ShapeType.ELLIPSE -> Icons.Default.RadioButtonUnchecked
+                                                                com.example.model.ShapeType.LINE -> Icons.Default.HorizontalRule
+                                                                com.example.model.ShapeType.FREEHAND -> Icons.Default.Brush
+                                                                com.example.model.ShapeType.BEZIER_PATH -> Icons.Default.Create
+                                                                com.example.model.ShapeType.TEXT -> Icons.Default.TextFields
+                                                                com.example.model.ShapeType.POLYGON -> Icons.Default.Category
+                                                                com.example.model.ShapeType.STAR -> Icons.Default.Star
+                                                                com.example.model.ShapeType.IMAGE -> Icons.Default.Image
+                                                            }
+                                                            Icon(
+                                                                imageVector = shapeIcon,
+                                                                contentDescription = shape.type.name,
+                                                                tint = if (isShapeSelected) Color(0xFFFF6D00) else Color.LightGray,
+                                                                modifier = Modifier.size(12.dp)
+                                                            )
+                                                            Text(
+                                                                text = shape.name,
+                                                                color = Color.White,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = if (isShapeSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
                                                         }
-                                                        Icon(
-                                                            imageVector = shapeIcon,
-                                                            contentDescription = shape.type.name,
-                                                            tint = if (isShapeSelected) Color(0xFFFF6D00) else Color.LightGray,
-                                                            modifier = Modifier.size(12.dp)
-                                                        )
-                                                        Text(
-                                                            text = shape.name,
-                                                            color = Color.White,
-                                                            fontSize = 11.sp,
-                                                            fontWeight = if (isShapeSelected) FontWeight.Bold else FontWeight.Normal,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
+
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                        ) {
+                                                            IconButton(
+                                                                onClick = {
+                                                                    viewModel.shapes = viewModel.shapes.map {
+                                                                        if (it.id == shape.id) it.copy(isVisible = !it.isVisible) else it
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(18.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = if (shape.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                                    contentDescription = "Toggle Visibility",
+                                                                    tint = if (shape.isVisible) Color.LightGray else Color.Red,
+                                                                    modifier = Modifier.size(10.dp)
+                                                                )
+                                                            }
+
+                                                            IconButton(
+                                                                onClick = {
+                                                                    viewModel.shapes = viewModel.shapes.map {
+                                                                        if (it.id == shape.id) it.copy(isLocked = !it.isLocked) else it
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(18.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = if (shape.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                                                    contentDescription = "Toggle Lock",
+                                                                    tint = if (shape.isLocked) Color.Red else Color.LightGray,
+                                                                    modifier = Modifier.size(10.dp)
+                                                                 )
+                                                            }
+
+                                                            IconButton(
+                                                                onClick = { viewModel.moveShapeUpWithinLayer(shape.id) },
+                                                                modifier = Modifier.size(18.dp)
+                                                            ) {
+                                                                Icon(Icons.Default.ArrowUpward, "Shape Up", tint = Color.White, modifier = Modifier.size(10.dp))
+                                                            }
+
+                                                            IconButton(
+                                                                onClick = { viewModel.moveShapeDownWithinLayer(shape.id) },
+                                                                modifier = Modifier.size(18.dp)
+                                                            ) {
+                                                                Icon(Icons.Default.ArrowDownward, "Shape Down", tint = Color.White, modifier = Modifier.size(10.dp))
+                                                            }
+
+                                                            IconButton(
+                                                                onClick = { viewModel.deleteShapeById(shape.id) },
+                                                                modifier = Modifier.size(18.dp)
+                                                            ) {
+                                                                Icon(Icons.Default.Delete, "Delete Shape", tint = Color(0xFFEF4444), modifier = Modifier.size(10.dp))
+                                                            }
+                                                        }
                                                     }
+                                                } else {
+                                                    // 2. RENDER GROUPED SHAPE FOLDER ROW & MEMBER DROPDOWN
+                                                    val groupId = shape.groupId!!
+                                                    if (!renderedGroupIdsInLayer.contains(groupId)) {
+                                                        renderedGroupIdsInLayer.add(groupId)
+                                                        val groupShapes = shapesInLayer.filter { it.groupId == groupId }
+                                                        val isGroupExpanded = expandedGroups.contains(groupId)
+                                                        val isFolderSelected = groupShapes.any { viewModel.selectedShapeIds.contains(it.id) }
 
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                                    ) {
-                                                        IconButton(
-                                                            onClick = {
-                                                                viewModel.shapes = viewModel.shapes.map {
-                                                                    if (it.id == shape.id) it.copy(isVisible = !it.isVisible) else it
+                                                        androidx.compose.foundation.layout.Column(
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        ) {
+                                                            // FOLDER HEADER ROW
+                                                            Row(
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth()
+                                                                    .padding(start = 24.dp, top = 2.dp, bottom = 2.dp, end = 6.dp)
+                                                                    .clip(RoundedCornerShape(4.dp))
+                                                                    .background(if (isFolderSelected) Color(0x22FF6D00) else Color(0x0AFFFFFF))
+                                                                    .border(1.dp, if (isFolderSelected) Color(0x66FF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
+                                                                    .clickable {
+                                                                        viewModel.selectedShapeIds = groupShapes.map { it.id }.toSet()
+                                                                        viewModel.selectedShapeId = groupShapes.firstOrNull()?.id
+                                                                        viewModel.activeLayerId = layer.id
+                                                                    }
+                                                                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.SpaceBetween
+                                                            ) {
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    modifier = Modifier.weight(1f),
+                                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                                ) {
+                                                                    IconButton(
+                                                                        onClick = {
+                                                                            expandedGroups = if (isGroupExpanded) {
+                                                                                expandedGroups - groupId
+                                                                            } else {
+                                                                                expandedGroups + groupId
+                                                                            }
+                                                                        },
+                                                                        modifier = Modifier.size(20.dp)
+                                                                    ) {
+                                                                        Icon(
+                                                                            imageVector = if (isGroupExpanded) Icons.Default.ArrowDropDown else Icons.Default.PlayArrow,
+                                                                            contentDescription = "Expand Group",
+                                                                            tint = Color.LightGray,
+                                                                            modifier = Modifier.size(14.dp)
+                                                                        )
+                                                                    }
+
+                                                                    Icon(
+                                                                        imageVector = Icons.Default.Folder,
+                                                                        contentDescription = "Group Folder",
+                                                                        tint = Color(0xFFFFB300),
+                                                                        modifier = Modifier.size(16.dp)
+                                                                    )
+
+                                                                    val groupIndex = allGroupIdsInOrder.indexOf(groupId) + 1
+                                                                    Text(
+                                                                        text = "Group $groupIndex (${groupShapes.size})",
+                                                                        color = Color.White,
+                                                                        fontSize = 11.sp,
+                                                                        fontWeight = if (isFolderSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                        maxLines = 1,
+                                                                        overflow = TextOverflow.Ellipsis
+                                                                    )
                                                                 }
-                                                            },
-                                                            modifier = Modifier.size(18.dp)
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = if (shape.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                                                contentDescription = "Toggle Visibility",
-                                                                tint = if (shape.isVisible) Color.LightGray else Color.Red,
-                                                                modifier = Modifier.size(10.dp)
-                                                            )
-                                                        }
 
-                                                        IconButton(
-                                                            onClick = {
-                                                                viewModel.shapes = viewModel.shapes.map {
-                                                                    if (it.id == shape.id) it.copy(isLocked = !it.isLocked) else it
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                                ) {
+                                                                    val isAnyGroupVisible = groupShapes.any { it.isVisible }
+                                                                    IconButton(
+                                                                        onClick = {
+                                                                            viewModel.shapes = viewModel.shapes.map {
+                                                                                if (it.groupId == groupId) it.copy(isVisible = !isAnyGroupVisible) else it
+                                                                            }
+                                                                        },
+                                                                        modifier = Modifier.size(18.dp)
+                                                                    ) {
+                                                                        Icon(
+                                                                            imageVector = if (isAnyGroupVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                                            contentDescription = "Toggle Group Visibility",
+                                                                            tint = if (isAnyGroupVisible) Color.LightGray else Color.Red,
+                                                                            modifier = Modifier.size(10.dp)
+                                                                        )
+                                                                    }
+
+                                                                    val isAllGroupLocked = groupShapes.all { it.isLocked }
+                                                                    IconButton(
+                                                                        onClick = {
+                                                                            viewModel.shapes = viewModel.shapes.map {
+                                                                                if (it.groupId == groupId) it.copy(isLocked = !isAllGroupLocked) else it
+                                                                            }
+                                                                        },
+                                                                        modifier = Modifier.size(18.dp)
+                                                                    ) {
+                                                                        Icon(
+                                                                            imageVector = if (isAllGroupLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                                                            contentDescription = "Toggle Group Lock",
+                                                                            tint = if (isAllGroupLocked) Color.Red else Color.LightGray,
+                                                                            modifier = Modifier.size(10.dp)
+                                                                        )
+                                                                    }
+
+                                                                    IconButton(
+                                                                        onClick = {
+                                                                            groupShapes.forEach { gs -> viewModel.deleteShapeById(gs.id) }
+                                                                        },
+                                                                        modifier = Modifier.size(18.dp)
+                                                                    ) {
+                                                                        Icon(Icons.Default.Delete, "Delete Group", tint = Color(0xFFEF4444), modifier = Modifier.size(10.dp))
+                                                                    }
                                                                 }
-                                                            },
-                                                            modifier = Modifier.size(18.dp)
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = if (shape.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
-                                                                contentDescription = "Toggle Lock",
-                                                                tint = if (shape.isLocked) Color.Red else Color.LightGray,
-                                                                modifier = Modifier.size(10.dp)
-                                                            )
-                                                        }
+                                                            }
 
-                                                        IconButton(
-                                                            onClick = { viewModel.moveShapeUpWithinLayer(shape.id) },
-                                                            modifier = Modifier.size(18.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.ArrowUpward, "Shape Up", tint = Color.White, modifier = Modifier.size(10.dp))
-                                                        }
+                                                            // NESTED DROPDOWN LIST FOR GROUP MEMBERS
+                                                            if (isGroupExpanded) {
+                                                                groupShapes.reversed().forEach { groupShape ->
+                                                                    val isSubShapeSelected = viewModel.selectedShapeIds.contains(groupShape.id)
+                                                                    Row(
+                                                                        modifier = Modifier
+                                                                            .fillMaxWidth()
+                                                                            .padding(start = 44.dp, top = 2.dp, bottom = 2.dp, end = 6.dp)
+                                                                            .clip(RoundedCornerShape(4.dp))
+                                                                            .background(if (isSubShapeSelected) Color(0x33FF6D00) else Color(0x06FFFFFF))
+                                                                            .border(1.dp, if (isSubShapeSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
+                                                                            .clickable {
+                                                                                viewModel.selectedShapeIds = setOf(groupShape.id)
+                                                                                viewModel.selectedShapeId = groupShape.id
+                                                                                viewModel.activeLayerId = layer.id
+                                                                            }
+                                                                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                                                                        verticalAlignment = Alignment.CenterVertically,
+                                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                                    ) {
+                                                                        Row(
+                                                                            verticalAlignment = Alignment.CenterVertically,
+                                                                            modifier = Modifier.weight(1f),
+                                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                                        ) {
+                                                                            val shapeIcon = when (groupShape.type) {
+                                                                                com.example.model.ShapeType.RECTANGLE -> Icons.Default.CropSquare
+                                                                                com.example.model.ShapeType.ELLIPSE -> Icons.Default.RadioButtonUnchecked
+                                                                                com.example.model.ShapeType.LINE -> Icons.Default.HorizontalRule
+                                                                                com.example.model.ShapeType.FREEHAND -> Icons.Default.Brush
+                                                                                com.example.model.ShapeType.BEZIER_PATH -> Icons.Default.Create
+                                                                                com.example.model.ShapeType.TEXT -> Icons.Default.TextFields
+                                                                                com.example.model.ShapeType.POLYGON -> Icons.Default.Category
+                                                                                com.example.model.ShapeType.STAR -> Icons.Default.Star
+                                                                                com.example.model.ShapeType.IMAGE -> Icons.Default.Image
+                                                                            }
+                                                                            Icon(
+                                                                                imageVector = shapeIcon,
+                                                                                contentDescription = groupShape.type.name,
+                                                                                tint = if (isSubShapeSelected) Color(0xFFFF6D00) else Color.LightGray,
+                                                                                modifier = Modifier.size(12.dp)
+                                                                            )
+                                                                            Text(
+                                                                                text = groupShape.name,
+                                                                                color = Color.White,
+                                                                                fontSize = 11.sp,
+                                                                                fontWeight = if (isSubShapeSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                                maxLines = 1,
+                                                                                overflow = TextOverflow.Ellipsis
+                                                                            )
+                                                                        }
 
-                                                        IconButton(
-                                                            onClick = { viewModel.moveShapeDownWithinLayer(shape.id) },
-                                                            modifier = Modifier.size(18.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.ArrowDownward, "Shape Down", tint = Color.White, modifier = Modifier.size(10.dp))
-                                                        }
+                                                                        Row(
+                                                                            verticalAlignment = Alignment.CenterVertically,
+                                                                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                                        ) {
+                                                                            IconButton(
+                                                                                onClick = {
+                                                                                    viewModel.shapes = viewModel.shapes.map {
+                                                                                        if (it.id == groupShape.id) it.copy(isVisible = !it.isVisible) else it
+                                                                                    }
+                                                                                },
+                                                                                modifier = Modifier.size(18.dp)
+                                                                            ) {
+                                                                                Icon(
+                                                                                    imageVector = if (groupShape.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                                                    contentDescription = "Toggle Visibility",
+                                                                                    tint = if (groupShape.isVisible) Color.LightGray else Color.Red,
+                                                                                    modifier = Modifier.size(10.dp)
+                                                                                )
+                                                                            }
 
-                                                        IconButton(
-                                                            onClick = { viewModel.deleteShapeById(shape.id) },
-                                                            modifier = Modifier.size(18.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.Delete, "Delete Shape", tint = Color(0xFFEF4444), modifier = Modifier.size(10.dp))
+                                                                            IconButton(
+                                                                                onClick = {
+                                                                                    viewModel.shapes = viewModel.shapes.map {
+                                                                                        if (it.id == groupShape.id) it.copy(isLocked = !it.isLocked) else it
+                                                                                    }
+                                                                                },
+                                                                                modifier = Modifier.size(18.dp)
+                                                                            ) {
+                                                                                Icon(
+                                                                                    imageVector = if (groupShape.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                                                                    contentDescription = "Toggle Lock",
+                                                                                    tint = if (groupShape.isLocked) Color.Red else Color.LightGray,
+                                                                                    modifier = Modifier.size(10.dp)
+                                                                                )
+                                                                            }
+
+                                                                            IconButton(
+                                                                                onClick = { viewModel.moveShapeUpWithinLayer(groupShape.id) },
+                                                                                modifier = Modifier.size(18.dp)
+                                                                            ) {
+                                                                                Icon(Icons.Default.ArrowUpward, "Shape Up", tint = Color.White, modifier = Modifier.size(10.dp))
+                                                                            }
+
+                                                                            IconButton(
+                                                                                onClick = { viewModel.moveShapeDownWithinLayer(groupShape.id) },
+                                                                                modifier = Modifier.size(18.dp)
+                                                                            ) {
+                                                                                Icon(Icons.Default.ArrowDownward, "Shape Down", tint = Color.White, modifier = Modifier.size(10.dp))
+                                                                            }
+
+                                                                            IconButton(
+                                                                                onClick = { viewModel.deleteShapeById(groupShape.id) },
+                                                                                modifier = Modifier.size(18.dp)
+                                                                            ) {
+                                                                                Icon(Icons.Default.Delete, "Delete Shape", tint = Color(0xFFEF4444), modifier = Modifier.size(10.dp))
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }

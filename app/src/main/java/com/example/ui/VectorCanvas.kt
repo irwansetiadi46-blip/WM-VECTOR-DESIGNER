@@ -396,12 +396,7 @@ fun VectorCanvas(
                                                     activeDragHandle = "MARQUEE_SELECT"
                                                 }
                                             } else if (true) {
-                                            val singleIdTemp = viewModel.selectedShapeIds.firstOrNull()
-                                            val bounds = if (viewModel.selectedShapeIds.size == 1 && singleIdTemp != null) {
-                                                getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
-                                            } else {
-                                                getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
-                                            }
+                                                val bounds = getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
                                             val hSize = 30f / viewModel.zoomScale
                                             val clickT = 38f / viewModel.zoomScale
 
@@ -418,26 +413,9 @@ fun VectorCanvas(
                                                 val movPos = Offset(centerX, botB)
                                                 val sclPos = Offset(centerX + 70f / viewModel.zoomScale, botB)
 
-                                                val singleId = viewModel.selectedShapeIds.firstOrNull()
-                                                val rotationAngle = if (viewModel.selectedShapeIds.size == 1 && singleId != null) {
-                                                    viewModel.shapes.find { it.id == singleId }?.rotationAngle ?: 0f
-                                                } else {
-                                                    0f
-                                                }
+                                                val rotationAngle = 0f
 
-                                                val localPos = if (rotationAngle != 0f) {
-                                                    val rad = Math.toRadians(-rotationAngle.toDouble())
-                                                    val cos = kotlin.math.cos(rad).toFloat()
-                                                    val sin = kotlin.math.sin(rad).toFloat()
-                                                    val dx = rawCanvasPos.x - centerX
-                                                    val dy = rawCanvasPos.y - centerY
-                                                    Offset(
-                                                        centerX + (dx * cos - dy * sin),
-                                                        centerY + (dx * sin + dy * cos)
-                                                    )
-                                                } else {
-                                                    rawCanvasPos
-                                                }
+                                                val localPos = rawCanvasPos
 
                                                 when {
                                                     hypot(localPos.x - delPos.x, localPos.y - delPos.y) < clickT -> activeDragHandle = "DELETE_HOTSPOT"
@@ -745,19 +723,10 @@ fun VectorCanvas(
                                                         } else {
                                                             // Absolute resize snapping logic
                                                             val activeIds = if (viewModel.selectedShapeIds.contains(id)) viewModel.selectedShapeIds else setOf(id)
-                                                            val bounds = if (activeIds.size == 1) {
-                                                                getUnrotatedCombinedBoundingBox(activeIds, startShapes)
-                                                            } else {
-                                                                getRotatedCombinedBoundingBox(activeIds, startShapes)
-                                                            }
+                                                            val bounds = getRotatedCombinedBoundingBox(activeIds, startShapes)
                                                             if (bounds != null) {
                                                                 val startHandlePos = getHandleStartPos(bounds, handle)
-                                                                val singleId = activeIds.firstOrNull()
-                                                                val rotationAngle = if (activeIds.size == 1 && singleId != null) {
-                                                                    viewModel.shapes.find { it.id == singleId }?.rotationAngle ?: 0f
-                                                                } else {
-                                                                    0f
-                                                                }
+                                                                val rotationAngle = 0f
                                                                 val localTotalDX: Float
                                                                 val localTotalDY: Float
                                                                 if (rotationAngle != 0f) {
@@ -1113,6 +1082,11 @@ fun VectorCanvas(
                             cloneSourceShape = null
                             cloneTouchStart = null
                             hasClonedForDrag = false
+
+                            val initialShapesBeforeDrag = dragStartShapes
+                            if (initialShapesBeforeDrag != null && viewModel.shapes != initialShapesBeforeDrag) {
+                                viewModel.pushCustomListToUndoStack(initialShapesBeforeDrag)
+                            }
 
                             isDragging = false
                             isMultiTouch = false
@@ -1864,7 +1838,7 @@ fun VectorCanvas(
 
                 if (viewModel.currentTool == VectorTool.POINTER && viewModel.selectedShapeIds.isNotEmpty()) {
                     var bAngle = 0f
-                    val bounds = if (viewModel.selectedShapeIds.size == 1) {
+                    val bounds = if (viewModel.selectedShapeIds.size == 1 && activeDragHandle == "ROTATE_HOTSPOT") {
                         val singleId = viewModel.selectedShapeIds.firstOrNull()
                         val singleShape = viewModel.shapes.find { it.id == singleId }
                         bAngle = singleShape?.rotationAngle ?: 0f
