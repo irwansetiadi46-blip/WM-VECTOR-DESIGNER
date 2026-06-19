@@ -213,6 +213,7 @@ fun VectorCanvas(
                     var penSegmentStartControl2Y = 0f
                     var penSegmentStartControl1X = 0f
                     var penSegmentStartControl1Y = 0f
+                    var lastPenDragUpdateTime = 0L
                     
                     var directSelectionActiveSegmentIndex = -1
                     var directSelectionActiveSegmentT = 0f
@@ -642,7 +643,8 @@ fun VectorCanvas(
                                                 penIsMovementDetected = true
                                             }
                                             
-                                            if (penIsMovementDetected) {
+                                            if (penIsMovementDetected && System.currentTimeMillis() - lastPenDragUpdateTime >= 16L) {
+                                                lastPenDragUpdateTime = System.currentTimeMillis()
                                                 when (penDragMode) {
                                                     "handle" -> {
                                                         // Update koordinat handle yang sedang ditarik dengan snapping
@@ -1184,26 +1186,42 @@ fun VectorCanvas(
                 }
             }
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val canvasWidthVal = viewModel.canvasWidth
-            val canvasHeightVal = viewModel.canvasHeight
+        val canvasWidthVal = viewModel.canvasWidth
+        val canvasHeightVal = viewModel.canvasHeight
 
+        // LAYER 1: STATIC BACKGROUND & VECTOR SHAPES CANVAS
+        // Using stable parameter references to allow Compose to skip recomposition when drawing active nodes
+        val shapesList = viewModel.shapes
+        val layersList = viewModel.layers
+        val activeTracer = viewModel.activeTracerImageIndex
+        val isGridOn = viewModel.isGridEnabled
+        val gridSz = viewModel.gridSize
+        val gridCol = viewModel.gridColorHex
+        val artColor = viewModel.artboardColorHex
+        val artAlpha = viewModel.artboardAlpha
+
+        StaticShapesCanvas(
+            viewModel = viewModel,
+            canvasWidthVal = canvasWidthVal,
+            canvasHeightVal = canvasHeightVal,
+            panOffset = viewModel.panOffset,
+            zoomScale = viewModel.zoomScale,
+            isGridEnabled = isGridOn,
+            gridSize = gridSz,
+            gridColorHex = gridCol,
+            activeTracerImageIndex = activeTracer,
+            layers = layersList,
+            shapes = shapesList,
+            artboardColorHex = artColor,
+            artboardAlpha = artAlpha
+        )
+
+        // LAYER 2: DYNAMIC ACTIVE OVERLAY CANVAS (Takes transparent background, handles high-performance real-time drawing overlays)
+        Canvas(modifier = Modifier.fillMaxSize()) {
             drawIntoCanvas { canvas ->
                 canvas.save()
                 canvas.translate(viewModel.panOffset.x, viewModel.panOffset.y)
                 canvas.scale(viewModel.zoomScale, viewModel.zoomScale)
-
-                val bgCol = try {
-                    Color(android.graphics.Color.parseColor(viewModel.artboardColorHex))
-                } catch (_: Exception) {
-                    Color.White
-                }.copy(alpha = viewModel.artboardAlpha)
-
-                drawRect(
-                    color = bgCol,
-                    topLeft = Offset.Zero,
-                    size = Size(canvasWidthVal, canvasHeightVal)
-                )
 
                 viewModel.activeSmartGuideHorizontal?.let { y ->
                     drawLine(
@@ -1322,132 +1340,6 @@ fun VectorCanvas(
                                 midY + (rectBounds.height() / 2f) / viewModel.zoomScale,
                                 textPaint
                             )
-                        }
-                    }
-                }
-
-                val activeTracer = viewModel.activeTracerImageIndex
-                if (activeTracer != null) {
-                    drawWorkspacePresets(activeTracer, canvasWidthVal, canvasHeightVal)
-                }
-
-                if (viewModel.isGridEnabled) {
-                    val gridS = viewModel.gridSize
-                    val paintColor = try {
-                        val hex = viewModel.gridColorHex
-                        if (hex.startsWith("0x") || hex.startsWith("0X")) {
-                            // convert 0xFFD3D3D3 to #D3D3D3 etc
-                            val parseable = "#" + hex.substring(2)
-                            android.graphics.Color.parseColor(parseable)
-                        } else {
-                            android.graphics.Color.parseColor(hex)
-                        }
-                    } catch (e: Exception) {
-                        android.graphics.Color.LTGRAY
-                    }
-                    val paint = Paint().apply {
-                        color = paintColor
-                        style = Paint.Style.STROKE
-                        strokeWidth = 1f
-                    }
-                    var gx = 0f
-                    while (gx <= canvasWidthVal) {
-                        canvas.nativeCanvas.drawLine(gx, 0f, gx, canvasHeightVal, paint)
-                        gx += gridS
-                    }
-                    var gy = 0f
-                    while (gy <= canvasHeightVal) {
-                        canvas.nativeCanvas.drawLine(0f, gy, canvasWidthVal, gy, paint)
-                        gy += gridS
-                    }
-                }
-
-                // Melakukan looping berurutan dari layer indeks paling bawah (latar belakang) ke layer indeks paling atas
-                for (layer in viewModel.layers) {
-                    // Pengecekan status isVisible
-                    if (!layer.isVisible) continue
-
-                    val shapesInLayer = viewModel.shapes.filter { it.layerId == layer.id }
-                    if (shapesInLayer.isEmpty()) continue
-
-                    val layerOpacity = layer.opacity
-                    val isOptimizeTracing = layer.optimizeTracing
-
-                    for (shape in shapesInLayer) {
-                        if (!shape.isVisible) continue
-
-                        val strokeColor = shape.getStrokeColor().copy(alpha = shape.strokeAlpha * layerOpacity)
-                        val fillColor = shape.getFillColor().copy(alpha = shape.fillAlpha * layerOpacity)
-
-                        if (shape.type == ShapeType.IMAGE) {
-                            val base64 = shape.textContent
-                            if (base64.isNotEmpty()) {
-                                val imageBitmap = viewModel.getCachedImageBitmap(shape.id, base64, lowRes = isOptimizeTracing)
-                                if (imageBitmap != null) {
-                                    val rect = shape.getBoundingBox()
-                                    val cx = (rect.left + rect.right) / 2f
-                                    val cy = (rect.top + rect.bottom) / 2f
-                                    
-                                    val drawWidth = rect.width.toInt().coerceAtLeast(1)
-                                    val drawHeight = rect.height.toInt().coerceAtLeast(1)
-                                    
-                                    val filterQuality = if (isOptimizeTracing) androidx.compose.ui.graphics.FilterQuality.None else androidx.compose.ui.graphics.FilterQuality.Low
-
-                                    if (shape.rotationAngle != 0f) {
-                                        drawContext.transform.rotate(shape.rotationAngle, Offset(cx, cy))
-                                        drawImage(
-                                            image = imageBitmap,
-                                            dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
-                                            dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight),
-                                            alpha = layerOpacity,
-                                            filterQuality = filterQuality
-                                        )
-                                        drawContext.transform.rotate(-shape.rotationAngle, Offset(cx, cy))
-                                    } else {
-                                        drawImage(
-                                            image = imageBitmap,
-                                            dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
-                                            dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight),
-                                            alpha = layerOpacity,
-                                            filterQuality = filterQuality
-                                        )
-                                    }
-                                }
-                            }
-                        } else if (shape.type == ShapeType.TEXT) {
-                            val paintText = Paint().apply {
-                                color = strokeColor.toArgb()
-                                textSize = shape.fontSize
-                                typeface = viewModel.importedTypeface ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                                isAntiAlias = !isOptimizeTracing
-                            }
-                            canvas.nativeCanvas.drawText(
-                                shape.textContent,
-                                shape.x,
-                                shape.y,
-                                paintText
-                            )
-                        } else {
-                            val composePath = shape.asComposePath()
-
-                            if (shape.hasFill && shape.type != ShapeType.LINE) {
-                                drawPath(
-                                    path = composePath,
-                                    color = fillColor
-                                )
-                            }
-
-                            if (shape.hasStroke && shape.strokeWidth > 0f) {
-                                drawPath(
-                                    path = composePath,
-                                    color = strokeColor,
-                                    style = Stroke(
-                                        width = shape.strokeWidth,
-                                        join = mapStrokeJoin(shape.strokeJoin),
-                                        cap = mapStrokeCap(shape.strokeCap)
-                                    )
-                                )
-                            }
                         }
                     }
                 }
@@ -2417,6 +2309,173 @@ fun VectorCanvas(
         }
 
 
+    }
+}
+
+@Composable
+private fun StaticShapesCanvas(
+    viewModel: VectorViewModel,
+    canvasWidthVal: Float,
+    canvasHeightVal: Float,
+    panOffset: Offset,
+    zoomScale: Float,
+    isGridEnabled: Boolean,
+    gridSize: Float,
+    gridColorHex: String,
+    activeTracerImageIndex: Int?,
+    layers: List<com.example.model.VectorLayer>,
+    shapes: List<VectorShape>,
+    artboardColorHex: String,
+    artboardAlpha: Float
+) {
+    Canvas(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer() // Enabled hardware-accelerated layer caching
+    ) {
+        drawIntoCanvas { canvas ->
+            canvas.save()
+            canvas.translate(panOffset.x, panOffset.y)
+            canvas.scale(zoomScale, zoomScale)
+
+            val bgCol = try {
+                Color(android.graphics.Color.parseColor(artboardColorHex))
+            } catch (_: Exception) {
+                Color.White
+            }.copy(alpha = artboardAlpha)
+
+            drawRect(
+                color = bgCol,
+                topLeft = Offset.Zero,
+                size = Size(canvasWidthVal, canvasHeightVal)
+            )
+
+            val activeTracer = activeTracerImageIndex
+            if (activeTracer != null) {
+                drawWorkspacePresets(activeTracer, canvasWidthVal, canvasHeightVal)
+            }
+
+            if (isGridEnabled) {
+                val gridS = gridSize
+                val paintColor = try {
+                    val hex = gridColorHex
+                    if (hex.startsWith("0x") || hex.startsWith("0X")) {
+                        val parseable = "#" + hex.substring(2)
+                        android.graphics.Color.parseColor(parseable)
+                    } else {
+                        android.graphics.Color.parseColor(hex)
+                    }
+                } catch (e: Exception) {
+                    android.graphics.Color.LTGRAY
+                }
+                val paint = Paint().apply {
+                    color = paintColor
+                    style = Paint.Style.STROKE
+                    strokeWidth = 1f
+                }
+                var gx = 0f
+                while (gx <= canvasWidthVal) {
+                    canvas.nativeCanvas.drawLine(gx, 0f, gx, canvasHeightVal, paint)
+                    gx += gridS
+                }
+                var gy = 0f
+                while (gy <= canvasHeightVal) {
+                    canvas.nativeCanvas.drawLine(0f, gy, canvasWidthVal, gy, paint)
+                    gy += gridS
+                }
+            }
+
+            // Melakukan looping berurutan dari layer indeks paling bawah ke paling atas
+            for (layer in layers) {
+                if (!layer.isVisible) continue
+
+                val shapesInLayer = shapes.filter { it.layerId == layer.id }
+                if (shapesInLayer.isEmpty()) continue
+
+                val layerOpacity = layer.opacity
+                val isOptimizeTracing = layer.optimizeTracing
+
+                for (shape in shapesInLayer) {
+                    if (!shape.isVisible) continue
+
+                    val strokeColor = shape.getStrokeColor().copy(alpha = shape.strokeAlpha * layerOpacity)
+                    val fillColor = shape.getFillColor().copy(alpha = shape.fillAlpha * layerOpacity)
+
+                    if (shape.type == com.example.model.ShapeType.IMAGE) {
+                        val base64 = shape.textContent
+                        if (base64.isNotEmpty()) {
+                            val imageBitmap = viewModel.getCachedImageBitmap(shape.id, base64, lowRes = isOptimizeTracing)
+                            if (imageBitmap != null) {
+                                val rect = shape.getBoundingBox()
+                                val cx = (rect.left + rect.right) / 2f
+                                val cy = (rect.top + rect.bottom) / 2f
+                                
+                                val drawWidth = rect.width.toInt().coerceAtLeast(1)
+                                val drawHeight = rect.height.toInt().coerceAtLeast(1)
+                                
+                                val filterQuality = if (isOptimizeTracing) androidx.compose.ui.graphics.FilterQuality.None else androidx.compose.ui.graphics.FilterQuality.Low
+
+                                if (shape.rotationAngle != 0f) {
+                                    drawContext.transform.rotate(shape.rotationAngle, Offset(cx, cy))
+                                    drawImage(
+                                        image = imageBitmap,
+                                        dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
+                                        dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight),
+                                        alpha = layerOpacity,
+                                        filterQuality = filterQuality
+                                    )
+                                    drawContext.transform.rotate(-shape.rotationAngle, Offset(cx, cy))
+                                } else {
+                                    drawImage(
+                                        image = imageBitmap,
+                                        dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
+                                        dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight),
+                                        alpha = layerOpacity,
+                                        filterQuality = filterQuality
+                                    )
+                                }
+                            }
+                        }
+                    } else if (shape.type == com.example.model.ShapeType.TEXT) {
+                        val paintText = Paint().apply {
+                            color = strokeColor.toArgb()
+                            textSize = shape.fontSize
+                            typeface = viewModel.importedTypeface ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                            isAntiAlias = !isOptimizeTracing
+                        }
+                        canvas.nativeCanvas.drawText(
+                            shape.textContent,
+                            shape.x,
+                            shape.y,
+                            paintText
+                        )
+                    } else {
+                        val composePath = shape.asComposePath()
+
+                        if (shape.hasFill && shape.type != com.example.model.ShapeType.LINE) {
+                            drawPath(
+                                path = composePath,
+                                color = fillColor
+                            )
+                        }
+
+                        if (shape.hasStroke && shape.strokeWidth > 0f) {
+                            drawPath(
+                                path = composePath,
+                                color = strokeColor,
+                                style = Stroke(
+                                    width = shape.strokeWidth,
+                                    join = mapStrokeJoin(shape.strokeJoin),
+                                    cap = mapStrokeCap(shape.strokeCap)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            canvas.restore()
+        }
     }
 }
 
