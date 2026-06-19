@@ -77,10 +77,27 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var isAutosaveSuspended by mutableStateOf(false)
 
     // Layer Management System
-    var layers by mutableStateOf<List<com.example.model.VectorLayer>>(
+    private var _layers by mutableStateOf<List<com.example.model.VectorLayer>>(
         listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
     )
-    var activeLayerId by mutableStateOf("default_layer")
+    var layers: List<com.example.model.VectorLayer>
+        get() = _layers
+        set(value) {
+            _layers = value
+            if (isSetupCompleted && !isAutosaveSuspended) {
+                saveCurrentProject()
+            }
+        }
+
+    private var _activeLayerId by mutableStateOf("default_layer")
+    var activeLayerId: String
+        get() = _activeLayerId
+        set(value) {
+            _activeLayerId = value
+            if (isSetupCompleted && !isAutosaveSuspended) {
+                saveCurrentProject()
+            }
+        }
 
     // Operations for Layers
     fun addNewLayer() {
@@ -1191,15 +1208,31 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     private val imageBitmapCache = mutableMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()
     private val androidBitmapCache = mutableMapOf<String, android.graphics.Bitmap>()
 
-    fun getCachedImageBitmap(shapeId: String, base64Str: String): androidx.compose.ui.graphics.ImageBitmap? {
-        val cached = imageBitmapCache[shapeId]
+    fun getCachedImageBitmap(shapeId: String, base64Str: String, lowRes: Boolean = false): androidx.compose.ui.graphics.ImageBitmap? {
+        val cacheKey = if (lowRes) "${shapeId}_low" else shapeId
+        val cached = imageBitmapCache[cacheKey]
         if (cached != null) return cached
         return try {
             val decodedBytes = android.util.Base64.decode(base64Str, android.util.Base64.DEFAULT)
-            val bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+            var bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
             if (bitmap != null) {
+                if (lowRes) {
+                    val maxLowRes = 512
+                    if (maxOf(bitmap.width, bitmap.height) > maxLowRes) {
+                        val factor = maxLowRes.toFloat() / maxOf(bitmap.width, bitmap.height).toFloat()
+                        val w = (bitmap.width * factor).toInt().coerceAtLeast(1)
+                        val h = (bitmap.height * factor).toInt().coerceAtLeast(1)
+                        val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, w, h, true)
+                        if (scaled != bitmap) {
+                            try {
+                                bitmap.recycle()
+                            } catch (re: Exception) {}
+                            bitmap = scaled
+                        }
+                    }
+                }
                 val imageBitmap = bitmap.asImageBitmap()
-                imageBitmapCache[shapeId] = imageBitmap
+                imageBitmapCache[cacheKey] = imageBitmap
                 imageBitmap
             } else {
                 null
@@ -5194,6 +5227,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             sb.append("\"id\":\"${s.id}\",")
             sb.append("\"name\":\"${s.name}\",")
             sb.append("\"type\":\"${s.type.name}\",")
+            sb.append("\"layerId\":\"${s.layerId}\",")
             sb.append("\"isVisible\":${s.isVisible},")
             sb.append("\"isLocked\":${s.isLocked},")
             sb.append("\"x\":${s.x},")
@@ -5285,6 +5319,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val id = extractJsonString(itemJson, "id") ?: UUID.randomUUID().toString()
                 val name = extractJsonString(itemJson, "name") ?: "Layer"
                 val typeStr = extractJsonString(itemJson, "type") ?: "RECTANGLE"
+                val layerId = extractJsonString(itemJson, "layerId") ?: "default_layer"
                 val type = try { ShapeType.valueOf(typeStr) } catch(_: Exception) { ShapeType.RECTANGLE }
                 val isVisible = extractJsonBoolean(itemJson, "isVisible") ?: true
                 val isLocked = extractJsonBoolean(itemJson, "isLocked") ?: false
@@ -5383,12 +5418,75 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         polygonSides = polygonSides, starPoints = starPoints, lineStyle = lineStyle,
                         radiusTL = radiusTL, radiusTR = radiusTR, radiusBL = radiusBL, radiusBR = radiusBR,
                         customCornerRadii = cRadii,
-                        groupId = groupId
+                        groupId = groupId,
+                        layerId = layerId
                     )
                 )
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+        return result
+    }
+
+    private fun convertLayersToJsonStr(layersList: List<com.example.model.VectorLayer>): String {
+        val sb = java.lang.StringBuilder()
+        sb.append("[")
+        for (i in layersList.indices) {
+            val l = layersList[i]
+            sb.append("{")
+            sb.append("\"id\":\"${l.id}\",")
+            sb.append("\"name\":\"${l.name.replace("\"", "\\\"")}\",")
+            sb.append("\"isVisible\":${l.isVisible},")
+            sb.append("\"isLocked\":${l.isLocked},")
+            sb.append("\"opacity\":${l.opacity},")
+            sb.append("\"optimizeTracing\":${l.optimizeTracing}")
+            sb.append("}")
+            if (i < layersList.size - 1) sb.append(",")
+        }
+        sb.append("]")
+        return sb.toString()
+    }
+
+    private fun parseJsonToLayers(json: String): List<com.example.model.VectorLayer> {
+        val result = mutableListOf<com.example.model.VectorLayer>()
+        try {
+            val clean = json.trim()
+            if (!clean.startsWith("[")) return listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
+            var idx = 1
+            while (idx < clean.lastIndex) {
+                val itemStart = clean.indexOf("{", idx)
+                if (itemStart == -1) break
+                var bracketCount = 0
+                var itemEnd = -1
+                for (j in itemStart until clean.length) {
+                    if (clean[j] == '{') bracketCount++
+                    if (clean[j] == '}') {
+                        bracketCount--
+                        if (bracketCount == 0) {
+                            itemEnd = j
+                            break
+                        }
+                    }
+                }
+                if (itemEnd == -1) break
+                val itemJson = clean.substring(itemStart, itemEnd + 1)
+                idx = itemEnd + 1
+
+                val id = extractJsonString(itemJson, "id") ?: "default_layer"
+                val name = extractJsonString(itemJson, "name") ?: "Layer"
+                val isVisible = extractJsonBoolean(itemJson, "isVisible") ?: true
+                val isLocked = extractJsonBoolean(itemJson, "isLocked") ?: false
+                val opacity = extractJsonFloat(itemJson, "opacity") ?: 1f
+                val optimizeTracing = extractJsonBoolean(itemJson, "optimizeTracing") ?: false
+
+                result.add(com.example.model.VectorLayer(id, name, isVisible, isLocked, opacity, optimizeTracing))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        if (result.isEmpty()) {
+            return listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
         }
         return result
     }
@@ -5531,6 +5629,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
                     val imageShape = VectorShape(
                         id = java.util.UUID.randomUUID().toString(),
+                        layerId = activeLayerId,
                         name = "Gambar ${shapes.count { it.type == ShapeType.IMAGE } + 1}",
                         type = ShapeType.IMAGE,
                         x = startCanvasX,
@@ -5545,6 +5644,15 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
                     pushToUndoStack()
                     shapes = shapes + imageShape
+                    
+                    // Otomatis aktifkan akselerasi tracing pada layer aktif tempat gambar di-import
+                    layers = layers.map {
+                        if (it.id == activeLayerId) {
+                            it.copy(optimizeTracing = true)
+                        } else {
+                            it
+                        }
+                    }
                     onSuccess("Berhasil mengimpor gambar raster!")
                 } else {
                     onError("Gagal men-decode file gambar.")
@@ -5882,7 +5990,11 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             val shapesBlock = extractJsonBlock(clean, "shapes") ?: ""
             val shapesList = parseJsonToShapes("[$shapesBlock]")
             
-            return SavedProject(id, name, canvasWidth, canvasHeight, artboardColorHex, artboardAlpha, lastModified, shapesList)
+            val layersBlock = extractJsonBlock(clean, "layers")
+            val layersList = if (layersBlock != null) parseJsonToLayers("[$layersBlock]") else listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
+            val activeLayerId = extractJsonString(clean, "activeLayerId") ?: "default_layer"
+            
+            return SavedProject(id, name, canvasWidth, canvasHeight, artboardColorHex, artboardAlpha, lastModified, shapesList, layersList, activeLayerId)
         } catch (e: Exception) {
             e.printStackTrace()
             return null
@@ -5899,6 +6011,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         sb.append("\"artboardColorHex\":\"${project.artboardColorHex}\",")
         sb.append("\"artboardAlpha\":${project.artboardAlpha},")
         sb.append("\"lastModified\":${project.lastModified},")
+        sb.append("\"activeLayerId\":\"${project.activeLayerId}\",")
+        sb.append("\"layers\":${convertLayersToJsonStr(project.layers)},")
         sb.append("\"shapes\":${convertShapesToJsonStr(project.shapes)}")
         sb.append("}")
         return sb.toString()
@@ -5925,6 +6039,11 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     fun createNewProject(name: String, width: Float, height: Float) {
         pushToUndoStack()
         val newId = "project_" + java.util.UUID.randomUUID().toString()
+        
+        // Reset layers to defaults for new project
+        _layers = listOf(com.example.model.VectorLayer(id = "default_layer", name = "Layer 1"))
+        _activeLayerId = "default_layer"
+        
         shapes = emptyList()
         selectedShapeId = null
         panOffset = Offset.Zero
@@ -5958,7 +6077,9 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             artboardColorHex = artboardColorHex,
             artboardAlpha = artboardAlpha,
             lastModified = System.currentTimeMillis(),
-            shapes = shapes
+            shapes = shapes,
+            layers = layers,
+            activeLayerId = activeLayerId
         )
         val serialized = serializeProject(proj)
         sharedPrefs.edit().putString(id, serialized).apply()
@@ -5978,6 +6099,11 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         canvasHeight = project.canvasHeight
         artboardColorHex = project.artboardColorHex
         artboardAlpha = project.artboardAlpha
+        
+        // Restore layers first before shapes
+        _layers = project.layers
+        _activeLayerId = project.activeLayerId
+        
         shapes = project.shapes
         selectedShapeId = null
         panOffset = Offset.Zero
@@ -6023,6 +6149,8 @@ data class SavedProject(
     val artboardColorHex: String,
     val artboardAlpha: Float,
     val lastModified: Long,
-    val shapes: List<VectorShape>
+    val shapes: List<VectorShape>,
+    val layers: List<com.example.model.VectorLayer>,
+    val activeLayerId: String
 )
 

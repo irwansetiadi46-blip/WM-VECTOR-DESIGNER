@@ -8,6 +8,7 @@ data class VectorLayer(
     var isVisible: Boolean = true,
     var isLocked: Boolean = false,
     var opacity: Float = 1f,
+    var optimizeTracing: Boolean = false,
     // Note: Untuk reaktivitas state Compose yang lebih efisien dan performa ringan,
     // daftar objek ("MutableList<VectorObject>") diikat menggunakan properti 'layerId'
     // yang terdapat di dalam VectorShape. Objects dapat di-filter secara on-the-fly.

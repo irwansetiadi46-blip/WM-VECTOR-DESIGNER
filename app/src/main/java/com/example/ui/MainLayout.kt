@@ -171,6 +171,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showLayerSettingsPopupForId by remember { mutableStateOf<String?>(null) }
     var tempLayerNameInput by remember { mutableStateOf("") }
     var tempLayerOpacityInput by remember { mutableFloatStateOf(1f) }
+    var tempLayerOptimizeTracingInput by remember { mutableStateOf(false) }
     var expandedLayers by remember { mutableStateOf(setOf<String>()) }
     var expandedGroups by remember { mutableStateOf(setOf<String>()) }
     var showColorPickerFill by remember { mutableStateOf(false) }
@@ -231,6 +232,47 @@ fun MainLayout(viewModel: VectorViewModel) {
     
     // Text tools state
     var textInputState by remember { mutableStateOf("") }
+
+    if (renameProjectTarget != null) {
+        AlertDialog(
+            onDismissRequest = { renameProjectTarget = null },
+            title = { Text("Ubah Nama Proyek", color = Color.White) },
+            text = {
+                OutlinedTextField(
+                    value = newProjectNameInput,
+                    onValueChange = { newProjectNameInput = it },
+                    label = { Text("Nama Proyek", color = Color.LightGray) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFFF6D00),
+                        unfocusedBorderColor = Color.Gray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            containerColor = Color(0xFF1E293B),
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newProjectNameInput.isNotBlank()) {
+                            viewModel.renameProject(renameProjectTarget!!.id, newProjectNameInput)
+                            Toast.makeText(context, "Nama proyek diubah", Toast.LENGTH_SHORT).show()
+                            renameProjectTarget = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00))
+                ) {
+                    Text("Simpan", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameProjectTarget = null }) {
+                    Text("Batal", color = Color.LightGray)
+                }
+            }
+        )
+    }
 
     if (!viewModel.isSetupCompleted) {
         Column(
@@ -3186,6 +3228,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                     showLayerSettingsPopupForId = layer.id
                                                     tempLayerNameInput = layer.name
                                                     tempLayerOpacityInput = layer.opacity
+                                                    tempLayerOptimizeTracingInput = layer.optimizeTracing
                                                 },
                                                 modifier = Modifier.size(22.dp)
                                             ) {
@@ -4244,47 +4287,6 @@ fun MainLayout(viewModel: VectorViewModel) {
         }
     }
 
-    if (renameProjectTarget != null) {
-        AlertDialog(
-            onDismissRequest = { renameProjectTarget = null },
-            title = { Text("Ubah Nama Proyek", color = Color.White) },
-            text = {
-                OutlinedTextField(
-                    value = newProjectNameInput,
-                    onValueChange = { newProjectNameInput = it },
-                    label = { Text("Nama Proyek", color = Color.LightGray) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFFFF6D00),
-                        unfocusedBorderColor = Color.Gray,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            containerColor = Color(0xFF1E293B),
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newProjectNameInput.isNotBlank()) {
-                            viewModel.renameProject(renameProjectTarget!!.id, newProjectNameInput)
-                            Toast.makeText(context, "Nama proyek diubah", Toast.LENGTH_SHORT).show()
-                            renameProjectTarget = null
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00))
-                ) {
-                    Text("Simpan", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameProjectTarget = null }) {
-                    Text("Batal", color = Color.LightGray)
-                }
-            }
-        )
-    }
-
     if (showLayerSettingsPopupForId != null) {
         AlertDialog(
             onDismissRequest = { showLayerSettingsPopupForId = null },
@@ -4339,6 +4341,29 @@ fun MainLayout(viewModel: VectorViewModel) {
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Akselerasi Tracing", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                                Text("Menggunakan resolusi rendering ringan dan mematikan anti-alias untuk tracing bebas lag.", color = Color.LightGray, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Switch(
+                                checked = tempLayerOptimizeTracingInput,
+                                onCheckedChange = { tempLayerOptimizeTracingInput = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color(0xFFFF6D00),
+                                    checkedTrackColor = Color(0xFFFF6D00).copy(alpha = 0.5f),
+                                    uncheckedThumbColor = Color.Gray,
+                                    uncheckedTrackColor = Color.DarkGray
+                                )
+                            )
+                        }
                     }
                 }
             },
@@ -4350,7 +4375,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         if (targetId != null) {
                             viewModel.layers = viewModel.layers.map {
                                 if (it.id == targetId) {
-                                    it.copy(name = tempLayerNameInput, opacity = tempLayerOpacityInput)
+                                    it.copy(name = tempLayerNameInput, opacity = tempLayerOpacityInput, optimizeTracing = tempLayerOptimizeTracingInput)
                                 } else {
                                     it
                                 }

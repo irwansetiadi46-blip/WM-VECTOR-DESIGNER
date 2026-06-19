@@ -1370,22 +1370,19 @@ fun VectorCanvas(
                     val shapesInLayer = viewModel.shapes.filter { it.layerId == layer.id }
                     if (shapesInLayer.isEmpty()) continue
 
-                    // Menerapkan efek opacity layer
-                    if (layer.opacity < 1f) {
-                        val layerPaint = Paint().apply { alpha = (layer.opacity * 255).toInt() }
-                        canvas.nativeCanvas.saveLayer(0f, 0f, canvasWidthVal, canvasHeightVal, layerPaint)
-                    }
+                    val layerOpacity = layer.opacity
+                    val isOptimizeTracing = layer.optimizeTracing
 
                     for (shape in shapesInLayer) {
                         if (!shape.isVisible) continue
 
-                        val strokeColor = shape.getStrokeColor().copy(alpha = shape.strokeAlpha)
-                        val fillColor = shape.getFillColor().copy(alpha = shape.fillAlpha)
+                        val strokeColor = shape.getStrokeColor().copy(alpha = shape.strokeAlpha * layerOpacity)
+                        val fillColor = shape.getFillColor().copy(alpha = shape.fillAlpha * layerOpacity)
 
                         if (shape.type == ShapeType.IMAGE) {
                             val base64 = shape.textContent
                             if (base64.isNotEmpty()) {
-                                val imageBitmap = viewModel.getCachedImageBitmap(shape.id, base64)
+                                val imageBitmap = viewModel.getCachedImageBitmap(shape.id, base64, lowRes = isOptimizeTracing)
                                 if (imageBitmap != null) {
                                     val rect = shape.getBoundingBox()
                                     val cx = (rect.left + rect.right) / 2f
@@ -1394,19 +1391,25 @@ fun VectorCanvas(
                                     val drawWidth = rect.width.toInt().coerceAtLeast(1)
                                     val drawHeight = rect.height.toInt().coerceAtLeast(1)
                                     
+                                    val filterQuality = if (isOptimizeTracing) androidx.compose.ui.graphics.FilterQuality.None else androidx.compose.ui.graphics.FilterQuality.Low
+
                                     if (shape.rotationAngle != 0f) {
                                         drawContext.transform.rotate(shape.rotationAngle, Offset(cx, cy))
                                         drawImage(
                                             image = imageBitmap,
                                             dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
-                                            dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight)
+                                            dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight),
+                                            alpha = layerOpacity,
+                                            filterQuality = filterQuality
                                         )
                                         drawContext.transform.rotate(-shape.rotationAngle, Offset(cx, cy))
                                     } else {
                                         drawImage(
                                             image = imageBitmap,
                                             dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
-                                            dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight)
+                                            dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight),
+                                            alpha = layerOpacity,
+                                            filterQuality = filterQuality
                                         )
                                     }
                                 }
@@ -1416,7 +1419,7 @@ fun VectorCanvas(
                                 color = strokeColor.toArgb()
                                 textSize = shape.fontSize
                                 typeface = viewModel.importedTypeface ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                                isAntiAlias = true
+                                isAntiAlias = !isOptimizeTracing
                             }
                             canvas.nativeCanvas.drawText(
                                 shape.textContent,
@@ -1446,10 +1449,6 @@ fun VectorCanvas(
                                 )
                             }
                         }
-                    }
-
-                    if (layer.opacity < 1f) {
-                        canvas.nativeCanvas.restore()
                     }
                 }
 
