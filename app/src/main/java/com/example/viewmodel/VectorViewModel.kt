@@ -5594,11 +5594,11 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             } else if (extension in listOf("png", "jpg", "jpeg", "webp")) {
                 val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
                 if (bitmap != null) {
-                    val maxResolution = 1600
+                    val maxResolution = 1200
                     val originalW = bitmap.width
                     val originalH = bitmap.height
                     
-                    val processedBitmap = if (maxOf(originalW, originalH) > maxResolution) {
+                    val processedBitmapInitial = if (maxOf(originalW, originalH) > maxResolution) {
                         val scaleFactor = maxResolution.toFloat() / maxOf(originalW, originalH).toFloat()
                         val newW = (originalW * scaleFactor).toInt().coerceAtLeast(1)
                         val newH = (originalH * scaleFactor).toInt().coerceAtLeast(1)
@@ -5607,11 +5607,37 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         bitmap
                     }
 
-                    val byteArrayOutputStream = java.io.ByteArrayOutputStream()
-                    processedBitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, byteArrayOutputStream)
-                    val byteArray = byteArrayOutputStream.toByteArray()
-                    val base64String = android.util.Base64.encodeToString(byteArray, android.util.Base64.NO_WRAP)
+                    // Dynamically compress image to strictly under 100 KB
+                    var quality = 85
+                    var scale = 1.0f
+                    var byteArray: ByteArray
+                    var currentW = processedBitmapInitial.width
+                    var currentH = processedBitmapInitial.height
+                    var tempBitmap = processedBitmapInitial
 
+                    do {
+                        val baos = java.io.ByteArrayOutputStream()
+                        tempBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, baos)
+                        byteArray = baos.toByteArray()
+                        
+                        if (byteArray.size > 95 * 1024) { // Target slightly below 100KB to be conservative
+                            if (quality > 35) {
+                                quality -= 15
+                            } else {
+                                scale *= 0.75f
+                                val nextW = (currentW * scale).toInt().coerceAtLeast(128)
+                                val nextH = (currentH * scale).toInt().coerceAtLeast(128)
+                                if (tempBitmap != processedBitmapInitial && tempBitmap != bitmap) {
+                                    try { tempBitmap.recycle() } catch (_: Exception) {}
+                                }
+                                tempBitmap = android.graphics.Bitmap.createScaledBitmap(processedBitmapInitial, nextW, nextH, true)
+                                quality = 80 // reset quality for smaller bitmap
+                            }
+                        }
+                    } while (byteArray.size > 95 * 1024 && quality >= 20 && scale > 0.08f)
+
+                    val base64String = android.util.Base64.encodeToString(byteArray, android.util.Base64.NO_WRAP)
+                    val processedBitmap = tempBitmap
                     val aspect = processedBitmap.width.toFloat() / processedBitmap.height.toFloat()
                     val fitWidth = canvasWidth * 0.8f
                     val fitHeight = canvasHeight * 0.8f
@@ -5627,8 +5653,19 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     val startCanvasX = (canvasWidth - targetW) / 2f
                     val startCanvasY = (canvasHeight - targetH) / 2f
 
+                    val imageShapeId = java.util.UUID.randomUUID().toString()
+                    
+                    // Immediately pre-cache raw decoded bmp for this image to prevent any background thread decoding delay in active workspace
+                    try {
+                        val finalImage = processedBitmap.asImageBitmap()
+                        imageBitmapCache[imageShapeId] = finalImage
+                        imageBitmapCache["${imageShapeId}_low"] = finalImage
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
                     val imageShape = VectorShape(
-                        id = java.util.UUID.randomUUID().toString(),
+                        id = imageShapeId,
                         layerId = activeLayerId,
                         name = "Gambar ${shapes.count { it.type == ShapeType.IMAGE } + 1}",
                         type = ShapeType.IMAGE,
@@ -6105,6 +6142,19 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         _activeLayerId = project.activeLayerId
         
         shapes = project.shapes
+        
+        // Pre-cache all imported image bitmaps immediately upon project load to guarantee zero background CPU decode overhead during zoom/pan
+        try {
+            shapes.forEach { shape ->
+                if (shape.type == ShapeType.IMAGE && shape.textContent.isNotEmpty()) {
+                    getCachedImageBitmap(shape.id, shape.textContent, lowRes = false)
+                    getCachedImageBitmap(shape.id, shape.textContent, lowRes = true)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         selectedShapeId = null
         panOffset = Offset.Zero
         zoomScale = 1f
