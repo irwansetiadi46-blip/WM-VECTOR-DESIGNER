@@ -2333,7 +2333,6 @@ private fun StaticShapesCanvas(
     Canvas(
         modifier = Modifier
             .fillMaxSize()
-            .graphicsLayer() // Enabled hardware-accelerated layer caching
     ) {
         drawIntoCanvas { canvas ->
             canvas.save()
@@ -2419,11 +2418,11 @@ private fun StaticShapesCanvas(
                                 }
 
                                 val srcRect = android.graphics.Rect(0, 0, androidBitmap.width, androidBitmap.height)
-                                val dstRect = android.graphics.Rect(
-                                    rect.left.toInt(),
-                                    rect.top.toInt(),
-                                    rect.right.toInt(),
-                                    rect.bottom.toInt()
+                                val dstRect = android.graphics.RectF(
+                                    rect.left,
+                                    rect.top,
+                                    rect.right,
+                                    rect.bottom
                                 )
 
                                 if (shape.rotationAngle != 0f) {
