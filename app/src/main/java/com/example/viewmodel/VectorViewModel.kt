@@ -2132,7 +2132,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             control2Y = snap.y
         )
         // If they click on the very first point and there are elements, close the path!
-        if (activeBezierNodes.isNotEmpty() &&
+        if (false && activeBezierNodes.isNotEmpty() &&
             hypot(snap.x - activeBezierNodes.first().anchorX, snap.y - activeBezierNodes.first().anchorY) < 16f
         ) {
             finalizeBezierPath(isClosed = true)

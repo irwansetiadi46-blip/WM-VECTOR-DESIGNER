@@ -276,7 +276,7 @@ fun VectorCanvas(
                                         
                                         // 1. TOOL SPECIFIC DOWN LOGIC
                                         if (viewModel.currentTool == VectorTool.PEN) {
-                                            val lastNodeVal = viewModel.activeBezierNodes.lastOrNull()
+                                            val lastNodeVal: com.example.model.BezierNode? = null
                                             var hitFloater = false
                                             if (lastNodeVal != null) {
                                                 val lastNodeScreenX = lastNodeVal.anchorX * viewModel.zoomScale + viewModel.panOffset.x
@@ -362,7 +362,7 @@ fun VectorCanvas(
                                                         // C. Jika area kosong, bersiap BIKIN NODE BARU pada pointerup
                                                         // C. Jika area kosong, langsung bikin node baru di touch down agar bisa ditarik/drag handlesnya
                                                          val snapRaw = viewModel.snapOffset(rawCanvasPos)
-                                                         val isCloseToStart = viewModel.activeBezierNodes.isNotEmpty() &&
+                                                         val isCloseToStart = false && viewModel.activeBezierNodes.isNotEmpty() &&
                                                                  hypot(snapRaw.x - viewModel.activeBezierNodes.first().anchorX, snapRaw.y - viewModel.activeBezierNodes.first().anchorY) < 20f / viewModel.zoomScale
                                                          
                                                          if (isCloseToStart) {
@@ -1513,7 +1513,7 @@ fun VectorCanvas(
                                 val isSelectedNode = idx == viewModel.activeEditNodeIndex
                                 val handleColor = Color(0xFFEF4444)
                                 val lineStrokeWidth = 2f / viewModel.zoomScale
-                                val circleRadius = 10f / viewModel.zoomScale
+                                val circleRadius = 6f / viewModel.zoomScale
                                 
                                 if (isSelectedNode) {
                                     if (c1Pt != anchorPt) {
@@ -1528,7 +1528,7 @@ fun VectorCanvas(
                                             topLeft = Offset(c1Pt.x - circleRadius, c1Pt.y - circleRadius),
                                             size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
                                         )
-                                        val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                        val innerR = (circleRadius - 1.5f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
                                         drawRect(
                                             color = Color.White,
                                             topLeft = Offset(c1Pt.x - innerR, c1Pt.y - innerR),
@@ -1547,7 +1547,7 @@ fun VectorCanvas(
                                             topLeft = Offset(c2Pt.x - circleRadius, c2Pt.y - circleRadius),
                                             size = androidx.compose.ui.geometry.Size(circleRadius * 2f, circleRadius * 2f)
                                         )
-                                        val innerR = (circleRadius - 2f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
+                                        val innerR = (circleRadius - 1.5f / viewModel.zoomScale).coerceAtLeast(1f / viewModel.zoomScale)
                                         drawRect(
                                             color = Color.White,
                                             topLeft = Offset(c2Pt.x - innerR, c2Pt.y - innerR),
@@ -1558,8 +1558,8 @@ fun VectorCanvas(
                             }
                         }
 
-                        val nodeRadius = 12f / viewModel.zoomScale
-                        val innerRadius = 8f / viewModel.zoomScale
+                        val nodeRadius = 6f / viewModel.zoomScale
+                        val innerRadius = 4f / viewModel.zoomScale
 
                         for (i in 0 until viewModel.activeBezierNodes.size) {
                             val node = viewModel.activeBezierNodes[i]

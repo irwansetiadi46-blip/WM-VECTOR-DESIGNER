@@ -168,6 +168,9 @@ fun MainLayout(viewModel: VectorViewModel) {
     // Dialog & overlay toggles
     var showMenuSheet by remember { mutableStateOf(false) }
     var showLayersPanel by remember { mutableStateOf(false) }
+    var showLayerSettingsPopupForId by remember { mutableStateOf<String?>(null) }
+    var tempLayerNameInput by remember { mutableStateOf("") }
+    var tempLayerOpacityInput by remember { mutableFloatStateOf(1f) }
     var expandedLayers by remember { mutableStateOf(setOf<String>()) }
     var expandedGroups by remember { mutableStateOf(setOf<String>()) }
     var showColorPickerFill by remember { mutableStateOf(false) }
@@ -3026,6 +3029,18 @@ fun MainLayout(viewModel: VectorViewModel) {
                             fontWeight = FontWeight.Bold
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { viewModel.deleteLayer(viewModel.activeLayerId) },
+                                enabled = viewModel.layers.size > 1,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    "Delete Current Layer",
+                                    tint = if (viewModel.layers.size > 1) Color(0xFFEF4444) else Color.Gray,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                             IconButton(onClick = { viewModel.addNewLayer() }, modifier = Modifier.size(32.dp)) {
                                 Icon(Icons.Default.Add, "Add Layer", tint = Color(0xFFFF6D00))
                             }
@@ -3167,10 +3182,14 @@ fun MainLayout(viewModel: VectorViewModel) {
                                             }
                                             
                                             IconButton(
-                                                onClick = { viewModel.deleteLayer(layer.id) },
+                                                onClick = { 
+                                                    showLayerSettingsPopupForId = layer.id
+                                                    tempLayerNameInput = layer.name
+                                                    tempLayerOpacityInput = layer.opacity
+                                                },
                                                 modifier = Modifier.size(22.dp)
                                             ) {
-                                                Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(12.dp))
+                                                Icon(Icons.Default.Settings, "Layer Settings", tint = Color.LightGray, modifier = Modifier.size(12.dp))
                                             }
                                         }
                                     }
@@ -4260,6 +4279,92 @@ fun MainLayout(viewModel: VectorViewModel) {
             },
             dismissButton = {
                 TextButton(onClick = { renameProjectTarget = null }) {
+                    Text("Batal", color = Color.LightGray)
+                }
+            }
+        )
+    }
+
+    if (showLayerSettingsPopupForId != null) {
+        AlertDialog(
+            onDismissRequest = { showLayerSettingsPopupForId = null },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Gear Settings",
+                        tint = Color(0xFFFF6D00)
+                    )
+                    Text("Pengaturan Layer", color = Color.White)
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = tempLayerNameInput,
+                        onValueChange = { tempLayerNameInput = it },
+                        label = { Text("Nama Layer", color = Color.LightGray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFFF6D00),
+                            unfocusedBorderColor = Color.Gray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Layer Opacity", color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
+                            Text("${(tempLayerOpacityInput * 100).toInt()}%", color = Color(0xFFFF6D00), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = tempLayerOpacityInput,
+                            onValueChange = { tempLayerOpacityInput = it },
+                            valueRange = 0f..1f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFFFF6D00),
+                                activeTrackColor = Color(0xFFFF6D00),
+                                inactiveTrackColor = Color.Gray
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            containerColor = Color(0xFF1E293B),
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targetId = showLayerSettingsPopupForId
+                        if (targetId != null) {
+                            viewModel.layers = viewModel.layers.map {
+                                if (it.id == targetId) {
+                                    it.copy(name = tempLayerNameInput, opacity = tempLayerOpacityInput)
+                                } else {
+                                    it
+                                }
+                            }
+                        }
+                        showLayerSettingsPopupForId = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00))
+                ) {
+                    Text("Simpan", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLayerSettingsPopupForId = null }) {
                     Text("Batal", color = Color.LightGray)
                 }
             }
