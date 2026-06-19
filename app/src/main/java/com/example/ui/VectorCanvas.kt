@@ -2406,35 +2406,33 @@ private fun StaticShapesCanvas(
                     if (shape.type == com.example.model.ShapeType.IMAGE) {
                         val base64 = shape.textContent
                         if (base64.isNotEmpty()) {
-                            val imageBitmap = viewModel.getCachedImageBitmap(shape.id, base64, lowRes = isOptimizeTracing)
-                            if (imageBitmap != null) {
+                            val androidBitmap = viewModel.getCachedAndroidBitmap(shape.id, base64)
+                            if (androidBitmap != null) {
                                 val rect = shape.getBoundingBox()
                                 val cx = (rect.left + rect.right) / 2f
                                 val cy = (rect.top + rect.bottom) / 2f
-                                
-                                val drawWidth = rect.width.toInt().coerceAtLeast(1)
-                                val drawHeight = rect.height.toInt().coerceAtLeast(1)
-                                
-                                val filterQuality = if (isOptimizeTracing) androidx.compose.ui.graphics.FilterQuality.None else androidx.compose.ui.graphics.FilterQuality.Low
+
+                                val paint = android.graphics.Paint().apply {
+                                    isAntiAlias = !isOptimizeTracing
+                                    alpha = (layerOpacity * 255f).toInt().coerceIn(0, 255)
+                                    isFilterBitmap = !isOptimizeTracing
+                                }
+
+                                val srcRect = android.graphics.Rect(0, 0, androidBitmap.width, androidBitmap.height)
+                                val dstRect = android.graphics.Rect(
+                                    rect.left.toInt(),
+                                    rect.top.toInt(),
+                                    rect.right.toInt(),
+                                    rect.bottom.toInt()
+                                )
 
                                 if (shape.rotationAngle != 0f) {
-                                    drawContext.transform.rotate(shape.rotationAngle, Offset(cx, cy))
-                                    drawImage(
-                                        image = imageBitmap,
-                                        dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
-                                        dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight),
-                                        alpha = layerOpacity,
-                                        filterQuality = filterQuality
-                                    )
-                                    drawContext.transform.rotate(-shape.rotationAngle, Offset(cx, cy))
+                                    canvas.nativeCanvas.save()
+                                    canvas.nativeCanvas.rotate(shape.rotationAngle, cx, cy)
+                                    canvas.nativeCanvas.drawBitmap(androidBitmap, srcRect, dstRect, paint)
+                                    canvas.nativeCanvas.restore()
                                 } else {
-                                    drawImage(
-                                        image = imageBitmap,
-                                        dstOffset = IntOffset(rect.left.toInt(), rect.top.toInt()),
-                                        dstSize = androidx.compose.ui.unit.IntSize(drawWidth, drawHeight),
-                                        alpha = layerOpacity,
-                                        filterQuality = filterQuality
-                                    )
+                                    canvas.nativeCanvas.drawBitmap(androidBitmap, srcRect, dstRect, paint)
                                 }
                             }
                         }
