@@ -1204,19 +1204,31 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     // Alignment target criteria
     var alignBasisIsCanvas by mutableStateOf(true)
 
-    // Image/Bitmap caches to avoid base64 decoding on every render
-    private val imageBitmapCache = mutableMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()
-    private val androidBitmapCache = mutableMapOf<String, android.graphics.Bitmap>()
+    // Image/Bitmap caches to avoid base64 decoding on every render (using persistent Compose state maps)
+    val imageBitmapCache = androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()
+    val androidBitmapCache = androidx.compose.runtime.mutableStateMapOf<String, android.graphics.Bitmap>()
+
+    // Safe, independent temporary bitmap cache for active path / artboard background rendering (cleanable without affecting reference images)
+    var cachedArtboardBitmap by mutableStateOf<android.graphics.Bitmap?>(null)
 
     fun getCachedImageBitmap(shapeId: String, base64Str: String, lowRes: Boolean = false): androidx.compose.ui.graphics.ImageBitmap? {
         val cacheKey = if (lowRes) "${shapeId}_low" else shapeId
         val cached = imageBitmapCache[cacheKey]
         if (cached != null) return cached
         return try {
-            val decodedBytes = android.util.Base64.decode(base64Str, android.util.Base64.DEFAULT)
-            var bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
-            if (bitmap != null) {
-                if (lowRes) {
+            if (!lowRes) {
+                val androidBmp = getCachedAndroidBitmap(shapeId, base64Str)
+                if (androidBmp != null) {
+                    val imageBitmap = androidBmp.asImageBitmap()
+                    imageBitmapCache[cacheKey] = imageBitmap
+                    imageBitmap
+                } else {
+                    null
+                }
+            } else {
+                val decodedBytes = android.util.Base64.decode(base64Str, android.util.Base64.DEFAULT)
+                var bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                if (bitmap != null) {
                     val maxLowRes = 512
                     if (maxOf(bitmap.width, bitmap.height) > maxLowRes) {
                         val factor = maxLowRes.toFloat() / maxOf(bitmap.width, bitmap.height).toFloat()
@@ -1230,12 +1242,12 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             bitmap = scaled
                         }
                     }
+                    val imageBitmap = bitmap.asImageBitmap()
+                    imageBitmapCache[cacheKey] = imageBitmap
+                    imageBitmap
+                } else {
+                    null
                 }
-                val imageBitmap = bitmap.asImageBitmap()
-                imageBitmapCache[cacheKey] = imageBitmap
-                imageBitmap
-            } else {
-                null
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -2531,12 +2543,36 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         activeBezierNodes = emptyList()
         activeEditNodeIndex = null
         selectedShapeId = id
+
+        // Explicitly recycle and clear the temporary Pen Tool artboard bitmap cache only, preservation of imageBitmapCache/androidBitmapCache guaranteed
+        try {
+            cachedArtboardBitmap?.let { bmp ->
+                if (!bmp.isRecycled) {
+                    bmp.recycle()
+                }
+            }
+            cachedArtboardBitmap = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     // Clear active pen path creation
     fun clearDraftPath() {
         activeBezierNodes = emptyList()
         activeEditNodeIndex = null
+
+        // Explicitly recycle and clear the temporary Pen Tool artboard bitmap cache only, preservation of imageBitmapCache/androidBitmapCache guaranteed
+        try {
+            cachedArtboardBitmap?.let { bmp ->
+                if (!bmp.isRecycled) {
+                    bmp.recycle()
+                }
+            }
+            cachedArtboardBitmap = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     // Delete currently selected node from path/shape
@@ -5660,6 +5696,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         val finalImage = processedBitmap.asImageBitmap()
                         imageBitmapCache[imageShapeId] = finalImage
                         imageBitmapCache["${imageShapeId}_low"] = finalImage
+                        androidBitmapCache[imageShapeId] = processedBitmap
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
