@@ -1492,15 +1492,42 @@ fun VectorCanvas(
                                 nextNode.anchorX, nextNode.anchorY
                             )
                         }
-                        drawPath(
-                            path = penCurvePath,
-                            color = Color(android.graphics.Color.parseColor(viewModel.currentStrokeColorHex)).copy(alpha = viewModel.currentStrokeAlpha),
-                            style = Stroke(
-                                width = viewModel.currentStrokeWidth,
-                                join = mapStrokeJoin(viewModel.currentStrokeJoin),
-                                cap = mapStrokeCap(viewModel.currentStrokeCap)
+                        
+                        // Real-time fill preview
+                        if (viewModel.hasFillEnabled) {
+                            try {
+                                drawPath(
+                                    path = penCurvePath,
+                                    color = Color(android.graphics.Color.parseColor(viewModel.currentFillColorHex)).copy(alpha = viewModel.currentFillAlpha)
+                                )
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+
+                        // Real-time stroke preview
+                        if (viewModel.hasStrokeEnabled) {
+                            drawPath(
+                                path = penCurvePath,
+                                color = Color(android.graphics.Color.parseColor(viewModel.currentStrokeColorHex)).copy(alpha = viewModel.currentStrokeAlpha),
+                                style = Stroke(
+                                    width = viewModel.currentStrokeWidth,
+                                    join = mapStrokeJoin(viewModel.currentStrokeJoin),
+                                    cap = mapStrokeCap(viewModel.currentStrokeCap)
+                                )
                             )
-                        )
+                        } else {
+                            // If stroke is disabled, draw a thin outline so the user can see the shape boundaries clearly
+                            drawPath(
+                                path = penCurvePath,
+                                color = Color(0xFF6366F1).copy(alpha = 0.5f),
+                                style = Stroke(
+                                    width = 1.5f / viewModel.zoomScale,
+                                    join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
+                            )
+                        }
 
                         // Draw control handle lines and circles for draft path first
                         viewModel.activeBezierNodes.forEachIndexed { idx, node ->
