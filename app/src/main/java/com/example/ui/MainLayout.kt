@@ -167,6 +167,7 @@ fun MainLayout(viewModel: VectorViewModel) {
 
     // Dialog & overlay toggles
     var showMenuSheet by remember { mutableStateOf(false) }
+    var showLeftToolbar by remember { mutableStateOf(false) }
     var showLayersPanel by remember { mutableStateOf(false) }
     var showLayerSettingsPopupForId by remember { mutableStateOf<String?>(null) }
     var tempLayerNameInput by remember { mutableStateOf("") }
@@ -470,17 +471,29 @@ fun MainLayout(viewModel: VectorViewModel) {
                 .fillMaxWidth()
         ) {
             // --- LEFT SIDEBAR TOOLBAR ---
-            Column(
-                modifier = Modifier
-                    .width(62.dp)
-                    .fillMaxHeight()
-                    .background(Color(0xFF1E293B))
-                    .border(width = 1.dp, color = Color(0xFF334155))
-                    .padding(vertical = 12.dp, horizontal = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // 1. Pointer (Selection) Tool
+            if (showLeftToolbar) {
+                Column(
+                    modifier = Modifier
+                        .width(48.dp)
+                        .fillMaxHeight()
+                        .background(Color(0xFF1E293B).copy(alpha = 0.5f))
+                        .border(width = 1.dp, color = Color(0xFF334155).copy(alpha = 0.5f))
+                        .padding(vertical = 12.dp, horizontal = 0.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    IconButton(
+                        onClick = { showLeftToolbar = false },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Hide Tools",
+                            tint = Color.White
+                        )
+                    }
+                    
+                    // 1. Pointer (Selection) Tool
                 SidebarToolButton(
                     icon = Icons.Default.NearMe,
                     label = "Select",
@@ -582,6 +595,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     }
                 )
             }
+            }
 
             // --- RIGHT SIDE: MAIN CANVAS AND VIEWPORT ARENA ---
             Box(
@@ -595,6 +609,19 @@ fun MainLayout(viewModel: VectorViewModel) {
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize().clipToBounds()
                 )
+
+                if (!showLeftToolbar) {
+                    Button(
+                        onClick = { showLeftToolbar = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(bottomEnd = 8.dp),
+                        modifier = Modifier.align(Alignment.TopStart)
+                    ) {
+                        Icon(imageVector = Icons.Default.Construction, contentDescription = "Tools", tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Tools", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
 
                 if (viewModel.currentTool == VectorTool.DIRECT_SELECTION) {
                     var expandedEditMode by remember { mutableStateOf(false) }

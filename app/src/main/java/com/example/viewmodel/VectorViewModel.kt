@@ -2111,6 +2111,16 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     fun canUndo(): Boolean = undoStack.isNotEmpty()
     fun canRedo(): Boolean = redoStack.isNotEmpty()
 
+    fun getGroupedShapeIds(shapeId: String): Set<String> {
+        val shape = shapes.find { it.id == shapeId }
+        val gid = shape?.groupId
+        return if (gid != null) {
+            shapes.filter { it.groupId == gid }.map { it.id }.toSet()
+        } else {
+            setOf(shapeId)
+        }
+    }
+
     // Shape selection logic
     fun selectShapeAt(pos: Offset, toggle: Boolean = false) {
         val lockedLayerIds = layers.filter { it.isLocked }.map { it.id }.toSet()

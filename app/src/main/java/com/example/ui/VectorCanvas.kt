@@ -258,7 +258,7 @@ fun VectorCanvas(
                                 if (prevDist > 0f) {
                                     val scale = currDist / prevDist
                                     val prevScale = viewModel.zoomScale
-                                    val newScale = (prevScale * scale).coerceIn(0.15f, 6.0f)
+                                    val newScale = (prevScale * scale).coerceIn(0.01f, 100.0f)
                                     viewModel.zoomScale = newScale
 
                                     val canvasPivot = (prevCenter - viewModel.panOffset) / prevScale
@@ -729,7 +729,8 @@ fun VectorCanvas(
                                                     if (handle == "MOVE" && touchedUnselectedShapeOnDown != null) {
                                                         if (!viewModel.selectedShapeIds.contains(touchedUnselectedShapeOnDown)) {
                                                             val newSels = viewModel.selectedShapeIds.toMutableSet()
-                                                            newSels.add(touchedUnselectedShapeOnDown!!)
+                                                            val groupIds = viewModel.getGroupedShapeIds(touchedUnselectedShapeOnDown!!)
+                                                            newSels.addAll(groupIds)
                                                             viewModel.selectedShapeIds = newSels
                                                             viewModel.selectedShapeId = touchedUnselectedShapeOnDown
                                                         }
@@ -1036,10 +1037,11 @@ fun VectorCanvas(
                                                         if (hitShapeTap != null) {
                                                             // Toggle selection state
                                                             val currentSelected = viewModel.selectedShapeIds.toMutableSet()
+                                                            val groupIds = viewModel.getGroupedShapeIds(hitShapeTap.id)
                                                             if (currentSelected.contains(hitShapeTap.id)) {
-                                                                currentSelected.remove(hitShapeTap.id)
+                                                                currentSelected.removeAll(groupIds)
                                                             } else {
-                                                                currentSelected.add(hitShapeTap.id)
+                                                                currentSelected.addAll(groupIds)
                                                             }
                                                             viewModel.selectedShapeIds = currentSelected
                                                             if (currentSelected.isNotEmpty()) {
@@ -1061,11 +1063,13 @@ fun VectorCanvas(
                                                 val maxY = maxOf(s.y, e.y)
                                                 val selectBox = Rect(minX, minY, maxX, maxY)
                                                 val lockedLayerIds = viewModel.layers.filter { it.isLocked }.map { it.id }.toSet()
-                                                val matchingShapeIds = viewModel.shapes.filter { sShape ->
+                                                val fullyBoundedIds = viewModel.shapes.filter { sShape ->
                                                     if (sShape.isLocked || lockedLayerIds.contains(sShape.layerId)) return@filter false
                                                     val sb = sShape.getBoundingBox()
-                                                    sb.overlaps(selectBox) || selectBox.contains(Offset(sShape.x, sShape.y))
+                                                    selectBox.left <= sb.left && selectBox.top <= sb.top && selectBox.right >= sb.right && selectBox.bottom >= sb.bottom
                                                 }.map { it.id }.toSet()
+                                                
+                                                val matchingShapeIds = fullyBoundedIds.flatMap { id -> viewModel.getGroupedShapeIds(id) }.toSet()
                                                 viewModel.selectedShapeIds = matchingShapeIds
                                                 viewModel.selectedShapeId = matchingShapeIds.firstOrNull()
                                             } else {
@@ -1918,11 +1922,15 @@ fun VectorCanvas(
                         if (bAngle != 0f) {
                             drawContext.transform.rotate(bAngle, Offset(cX, cY))
                         }
+
+                        val hasGroupedObject = viewModel.selectedShapeIds.any { id -> viewModel.shapes.find { it.id == id }?.groupId != null }
+                        val highlightColor = if (hasGroupedObject) Color(0xFF7C4C90) else Color(0xFF00FF00)
                         
                         if (!isRotating && !isMoving) {
-                            // 1. Draw solid purple bounding box outline (slightly thicker for high definition)
+
+                            // 1. Draw solid bounding box outline (slightly thicker for high definition)
                             drawRect(
-                                color = Color(0xFF7C4C90),
+                                color = highlightColor,
                                 topLeft = Offset(bounds.left, bounds.top),
                                 size = Size(bounds.width, bounds.height),
                                 style = Stroke(
@@ -1930,7 +1938,7 @@ fun VectorCanvas(
                                 )
                             )
 
-                            // 2. Draw beautifully larger white-filled rounded corner handles with purple borders
+                            // 2. Draw beautifully larger white-filled rounded corner handles with borders
                             val hRad = 12f / viewModel.zoomScale
                             val cornerPoints = listOf(
                                 Offset(bounds.left, bounds.top),
@@ -1945,14 +1953,14 @@ fun VectorCanvas(
                                     center = pt
                                 )
                                 drawCircle(
-                                    color = Color(0xFF7C4C90),
+                                    color = highlightColor,
                                     radius = hRad,
                                     center = pt,
                                     style = Stroke(width = borderW)
                                 )
                             }
 
-                        // 3. Draw 4 larger elongated side pills (untuk mempermudah resize sisi) dengan fill putih & border ungu
+                        // 3. Draw 4 larger elongated side pills (untuk mempermudah resize sisi) dengan fill putih & border
                         val pillW = 28f / viewModel.zoomScale
                         val pillH = 12f / viewModel.zoomScale
                         val centerXLocal = (bounds.left + bounds.right) / 2f
@@ -1966,7 +1974,7 @@ fun VectorCanvas(
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
                         )
                         drawRoundRect(
-                            color = Color(0xFF7C4C90),
+                            color = highlightColor,
                             topLeft = Offset(centerXLocal - pillW / 2f, bounds.top - pillH / 2f),
                             size = Size(pillW, pillH),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
@@ -1980,7 +1988,7 @@ fun VectorCanvas(
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
                         )
                         drawRoundRect(
-                            color = Color(0xFF7C4C90),
+                            color = highlightColor,
                             topLeft = Offset(centerXLocal - pillW / 2f, bounds.bottom - pillH / 2f),
                             size = Size(pillW, pillH),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
@@ -1994,7 +2002,7 @@ fun VectorCanvas(
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
                         )
                         drawRoundRect(
-                            color = Color(0xFF7C4C90),
+                            color = highlightColor,
                             topLeft = Offset(bounds.left - pillH / 2f, centerYLocal - pillW / 2f),
                             size = Size(pillH, pillW),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
@@ -2008,7 +2016,7 @@ fun VectorCanvas(
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
                         )
                         drawRoundRect(
-                            color = Color(0xFF7C4C90),
+                            color = highlightColor,
                             topLeft = Offset(bounds.right - pillH / 2f, centerYLocal - pillW / 2f),
                             size = Size(pillH, pillW),
                             cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
@@ -2037,7 +2045,7 @@ fun VectorCanvas(
                             val isMoveActive = iconType == "MOVE" && isMoving
                             val isActionActive = isRotateActive || isMoveActive
                             val currentCircleRadius = if (isActionActive) bRadius * 1.35f else bRadius
-                            val currentCircleColor = if (isActionActive) Color(0xFF22C55E) else Color(0xFF7C4C90)
+                            val currentCircleColor = if (isActionActive) Color(0xFF22C55E) else highlightColor
 
                             drawCircle(
                                 color = currentCircleColor,

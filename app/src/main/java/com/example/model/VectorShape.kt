@@ -456,65 +456,83 @@ data class VectorShape(
     // Easy collision test: check if a point (mouse/finger touch) strikes the shape
     fun isPointInside(ptX: Float, ptY: Float): Boolean {
         if (!isVisible) return false
-        val bounds = getBoundingBox()
-        val cx = (bounds.left + bounds.right) / 2f
-        val cy = (bounds.top + bounds.bottom) / 2f
         
-        var testX = ptX
-        var testY = ptY
-        if (rotationAngle != 0f) {
-            val rad = Math.toRadians(-rotationAngle.toDouble())
-            val cos = kotlin.math.cos(rad).toFloat()
-            val sin = kotlin.math.sin(rad).toFloat()
-            val dx = ptX - cx
-            val dy = ptY - cy
-            testX = cx + (dx * cos - dy * sin)
-            testY = cy + (dx * sin + dy * cos)
+        val tolerance = max(20f, strokeWidth + 10f)
+
+        if (type == ShapeType.TEXT) {
+            val bounds = getBoundingBox()
+            val cx = (bounds.left + bounds.right) / 2f
+            val cy = (bounds.top + bounds.bottom) / 2f
+            
+            var testX = ptX
+            var testY = ptY
+            if (rotationAngle != 0f) {
+                val rad = Math.toRadians(-rotationAngle.toDouble())
+                val cos = kotlin.math.cos(rad).toFloat()
+                val sin = kotlin.math.sin(rad).toFloat()
+                val dx = ptX - cx
+                val dy = ptY - cy
+                testX = cx + (dx * cos - dy * sin)
+                testY = cy + (dx * sin + dy * cos)
+            }
+            return testX in (bounds.left - tolerance)..(bounds.right + tolerance) &&
+                   testY in (bounds.top - tolerance)..(bounds.bottom + tolerance)
+        } else if (type == ShapeType.LINE) {
+            val bounds = getBoundingBox()
+            val cx = (bounds.left + bounds.right) / 2f
+            val cy = (bounds.top + bounds.bottom) / 2f
+            var testX = ptX
+            var testY = ptY
+            if (rotationAngle != 0f) {
+                val rad = Math.toRadians(-rotationAngle.toDouble())
+                val cos = kotlin.math.cos(rad).toFloat()
+                val sin = kotlin.math.sin(rad).toFloat()
+                val dx = ptX - cx
+                val dy = ptY - cy
+                testX = cx + (dx * cos - dy * sin)
+                testY = cy + (dx * sin + dy * cos)
+            }
+            val l2 = dist2(startX, startY, endX, endY)
+            if (l2 == 0f) return hypot(testX - startX, testY - startY) < tolerance
+            var t = ((testX - startX) * (endX - startX) + (testY - startY) * (endY - startY)) / l2
+            t = max(0f, min(1f, t))
+            val projX = startX + t * (endX - startX)
+            val projY = startY + t * (endY - startY)
+            return hypot(testX - projX, testY - projY) < tolerance
+        }
+
+        val androidPath = asComposePath().asAndroidPath()
+        val testPath = android.graphics.Path()
+
+        if (hasStroke) {
+            val paint = android.graphics.Paint().apply {
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = this@VectorShape.strokeWidth + 20f
+            }
+            paint.getFillPath(androidPath, testPath)
         }
         
-        val tolerance = max(15f, strokeWidth + 10f)
-        
-        when (type) {
-            ShapeType.RECTANGLE, ShapeType.IMAGE -> {
-                return testX in (bounds.left - tolerance)..(bounds.right + tolerance) &&
-                       testY in (bounds.top - tolerance)..(bounds.bottom + tolerance)
-            }
-            ShapeType.ELLIPSE, ShapeType.POLYGON, ShapeType.STAR -> {
-                // Check bounds with some breathing room
-                return testX in (bounds.left - tolerance)..(bounds.right + tolerance) &&
-                       testY in (bounds.top - tolerance)..(bounds.bottom + tolerance)
-            }
-            ShapeType.LINE -> {
-                // Distance from point to line segment
-                val l2 = dist2(startX, startY, endX, endY)
-                if (l2 == 0f) return hypot(testX - startX, testY - startY) < tolerance
-                var t = ((testX - startX) * (endX - startX) + (testY - startY) * (endY - startY)) / l2
-                t = max(0f, min(1f, t))
-                val projX = startX + t * (endX - startX)
-                val projY = startY + t * (endY - startY)
-                return hypot(testX - projX, testY - projY) < tolerance
-            }
-            ShapeType.FREEHAND -> {
-                if (freehandPoints.isEmpty()) return false
-                // Check if touch is near any point in the path
-                for (p in freehandPoints) {
-                    if (hypot(testX - p.x, testY - p.y) < tolerance) return true
-                }
-                return false
-            }
-            ShapeType.BEZIER_PATH -> {
-                if (bezierNodes.isEmpty()) return false
-                for (node in bezierNodes) {
-                    if (hypot(testX - node.anchorX, testY - node.anchorY) < tolerance + 15f) return true
-                }
-                // Check boundary outline box as fallback
-                return testX in bounds.left..bounds.right && testY in bounds.top..bounds.bottom
-            }
-            ShapeType.TEXT -> {
-                return testX in (bounds.left - tolerance)..(bounds.right + tolerance) &&
-                       testY in (bounds.top - tolerance)..(bounds.bottom + tolerance)
-            }
+        if (hasFill || type == ShapeType.IMAGE) {
+            testPath.addPath(androidPath)
         }
+
+        val pathBounds = android.graphics.RectF()
+        testPath.computeBounds(pathBounds, true)
+        
+        // Quick bounds check first
+        if (ptX < pathBounds.left - 5f || ptX > pathBounds.right + 5f || ptY < pathBounds.top - 5f || ptY > pathBounds.bottom + 5f) {
+            return false
+        }
+
+        val region = android.graphics.Region()
+        val clip = android.graphics.Region(
+            (pathBounds.left - 10f).toInt(),
+            (pathBounds.top - 10f).toInt(),
+            (pathBounds.right + 10f).toInt(),
+            (pathBounds.bottom + 10f).toInt()
+        )
+        region.setPath(testPath, clip)
+        return region.contains(ptX.toInt(), ptY.toInt())
     }
 
     private fun dist2(x1: Float, y1: Float, x2: Float, y2: Float): Float {
