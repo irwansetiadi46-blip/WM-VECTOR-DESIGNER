@@ -1310,7 +1310,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         val tolerance = 15f // Snapping distance threshold in pixels
         val canvasTolerance = tolerance / zoomScale
 
-        if (!isSnapToObjectEnabled && !isSmartGuideEnabled) {
+        if (!isSnapToObjectEnabled && !isSmartGuideEnabled && !isSnapToPathEnabled) {
             return Offset(totalDX, totalDY)
         }
 
@@ -1553,6 +1553,48 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
+        if (isSnapToPathEnabled) {
+            val candidates = listOf(
+                Offset(originalCombinedBounds.left, originalCombinedBounds.top),
+                Offset(originalCombinedBounds.right, originalCombinedBounds.top),
+                Offset(originalCombinedBounds.left, originalCombinedBounds.bottom),
+                Offset(originalCombinedBounds.right, originalCombinedBounds.bottom),
+                Offset(originalCombinedBounds.left + originalCombinedBounds.width / 2f, originalCombinedBounds.top + originalCombinedBounds.height / 2f)
+            )
+            
+            var bestDist = tolerance
+            var bestCorrection: Offset? = null
+            var bestPathPt: Offset? = null
+            var bestCandPt: Offset? = null
+            
+            for (pt in candidates) {
+                val displacedPt = Offset(pt.x + finalDX, pt.y + finalDY)
+                val pathPt = findClosestPointOnAnyPath(displacedPt, ignoredIds = ignoredIds, tolerance = tolerance)
+                if (pathPt != null) {
+                    val dist = hypot(displacedPt.x - pathPt.x, displacedPt.y - pathPt.y)
+                    if (dist < bestDist) {
+                        bestDist = dist
+                        bestCorrection = pathPt - displacedPt
+                        bestPathPt = pathPt
+                        bestCandPt = displacedPt
+                    }
+                }
+            }
+            
+            if (bestCorrection != null && bestPathPt != null && bestCandPt != null) {
+                finalDX += bestCorrection.x
+                finalDY += bestCorrection.y
+                if (isSmartGuideEnabled) {
+                    activeSmartGuideVertical = bestPathPt.x
+                    activeSmartGuideHorizontal = bestPathPt.y
+                    val currentGuides = guides.toMutableList()
+                    currentGuides.add(SmartGuideInfo(bestCandPt.x, bestCandPt.y, bestPathPt.x, bestPathPt.y, "ALIGN_LINE"))
+                    guides.clear()
+                    guides.addAll(currentGuides)
+                }
+            }
+        }
+
         activeSmartGuidesList = guides
         return Offset(finalDX, finalDY)
     }
@@ -1577,12 +1619,20 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    fun findClosestPointOnAnyPath(pos: Offset, ignoreId: String?, tolerance: Float = 25f): Offset? {
+    fun findClosestPointOnAnyPath(
+        pos: Offset,
+        ignoreId: String? = null,
+        ignoredIds: Set<String>? = null,
+        tolerance: Float = 25f
+    ): Offset? {
         var closestPt: Offset? = null
         var minDistance = tolerance
         
         for (shape in shapes) {
-            if (!shape.isVisible || shape.id == ignoreId) continue
+            if (!shape.isVisible) continue
+            if (ignoreId != null && shape.id == ignoreId) continue
+            if (ignoredIds != null && ignoredIds.contains(shape.id)) continue
+            if (shape.isLocked) continue
             // Evaluate based on ShapeType
             when (shape.type) {
                 ShapeType.LINE -> {
@@ -2772,7 +2822,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             strokeJoin = currentStrokeJoin,
             strokeCap = currentStrokeCap,
             hasStroke = hasStrokeEnabled,
-            hasFill = hasFillEnabled && isClosed,
+            hasFill = hasFillEnabled,
             fillColorHex = currentFillColorHex,
             fillAlpha = currentFillAlpha,
             layerOrder = shapes.size
@@ -3173,6 +3223,21 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     fun rotateSelectedShapesAbsolute(startShapes: List<VectorShape>, angleOffset: Float) {
         if (selectedShapeIds.isEmpty()) return
 
+        var actualAngleOffset = angleOffset
+        if (isSnapToAngleEnabled) {
+            val firstId = selectedShapeIds.first()
+            val firstStartShape = startShapes.find { it.id == firstId }
+            if (firstStartShape != null) {
+                val targetAngleUnsnapped = (firstStartShape.rotationAngle + angleOffset) % 360f
+                val targetAnglePos = if (targetAngleUnsnapped < 0f) targetAngleUnsnapped + 360f else targetAngleUnsnapped
+                val snappedTarget = (kotlin.math.round(targetAnglePos / 45.0) * 45.0).toFloat() % 360f
+                var diff = snappedTarget - firstStartShape.rotationAngle
+                while (diff < -180f) diff += 360f
+                while (diff > 180f) diff -= 360f
+                actualAngleOffset = diff
+            }
+        }
+
         val activeStartShapes = startShapes.filter { selectedShapeIds.contains(it.id) }
         val minX = activeStartShapes.minOfOrNull { it.getBoundingBox().left } ?: 0f
         val maxX = activeStartShapes.maxOfOrNull { it.getBoundingBox().right } ?: 0f
@@ -3188,11 +3253,11 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val scy = (sBounds.top + sBounds.bottom) / 2f
                 val sCenter = Offset(scx, scy)
                 
-                val sCenterRotated = rotatePoint(sCenter, combinedCenter, angleOffset)
+                val sCenterRotated = rotatePoint(sCenter, combinedCenter, actualAngleOffset)
                 val dx = sCenterRotated.x - sCenter.x
                 val dy = sCenterRotated.y - sCenter.y
                 
-                var targetAngle = (startVal.rotationAngle + angleOffset) % 360f
+                var targetAngle = (startVal.rotationAngle + actualAngleOffset) % 360f
                 if (targetAngle < 0f) targetAngle += 360f
                 
                 startVal.copyWithTransform(dx, dy).copy(rotationAngle = targetAngle)

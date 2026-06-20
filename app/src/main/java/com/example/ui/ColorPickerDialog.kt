@@ -55,8 +55,22 @@ fun ColorPickerDialog(
     var palettesState by remember {
         mutableStateOf(
             listOf(
-                "#000000", "#FFFFFF", "#EF4444", "#F97316", "#F59E0B", "#10B981",
-                "#06B6D4", "#3B82F6", "#6366F1", "#8B5CF6", "#EC4899", "#6B7280"
+                // Grayscale / Basics
+                "#000000", "#1A1A1A", "#333333", "#4D4D4D", "#666666", "#808080", "#999999", "#B3B3B3", "#CCCCCC", "#E6E6E6", "#F5F5F5", "#FFFFFF",
+                // Reds / Pinks
+                "#FFEBEE", "#FFCDD2", "#EF9A9A", "#E57373", "#EF5350", "#F44336", "#E53935", "#D32F2F", "#C62828", "#B71C1C", "#FF4081", "#F50057",
+                // Oranges / Browns
+                "#FFF3E0", "#FFE0B2", "#FFCC80", "#FFB74D", "#FFA726", "#FF9800", "#FB8C00", "#F57C00", "#EF6C00", "#E65100", "#8D6E63", "#5D4037",
+                // Yellows / Amber
+                "#FFFDE7", "#FFF9C4", "#FFF59D", "#FFF176", "#FFEE58", "#FFEB3B", "#FDD835", "#FBC02D", "#F9A825", "#F57F17", "#FFE125", "#FFD54F",
+                // Greens
+                "#E8F5E9", "#C8E6C9", "#A5D6A7", "#81C784", "#66BB6A", "#4CAF50", "#43A047", "#388E3C", "#2E7D32", "#1B5E20", "#76FF03", "#00E676",
+                // Teals / Cyans
+                "#E0F2F1", "#B2DFDB", "#80CBC4", "#4DB6AC", "#26A69A", "#009688", "#00897B", "#00796B", "#00695C", "#004D40", "#1DE9B6", "#00E5FF",
+                // Blues / Indigo
+                "#E3F2FD", "#BBDEFB", "#90CAF9", "#64B5F6", "#42A5F5", "#2196F3", "#1E88E5", "#1976D2", "#1565C0", "#0D47A1", "#2979FF", "#3D5AFE",
+                // Purples / Violets
+                "#F3E5F5", "#E1BEE7", "#CE93D8", "#BA68C8", "#AB47BC", "#9C27B0", "#8E24AA", "#7B1FA2", "#6A1B9A", "#4A148C", "#D500F9", "#AA00FF"
             )
         )
     }
@@ -391,11 +405,11 @@ fun ColorPickerDialog(
                                 }
                             }
 
-                            Box(modifier = Modifier.height(130.dp)) {
+                            Box(modifier = Modifier.height(200.dp)) {
                                 LazyVerticalGrid(
-                                    columns = GridCells.Fixed(5),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    columns = GridCells.Fixed(8),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     items(palettesState) { colorHex ->
                                         val colorValue = try {
@@ -407,14 +421,14 @@ fun ColorPickerDialog(
 
                                         Box(
                                             modifier = Modifier
-                                                .size(40.dp)
+                                                .size(24.dp)
                                                 .aspectRatio(1f)
-                                                .clip(RoundedCornerShape(8.dp))
+                                                .clip(RoundedCornerShape(4.dp))
                                                 .background(colorValue)
                                                 .border(
-                                                    width = if (isSel) 3.dp else 1.dp,
-                                                    color = if (isSel) Color(0xFFFF6D00) else Color(0x33FFFFFF),
-                                                    shape = RoundedCornerShape(8.dp)
+                                                    width = if (isSel) 2.5f.dp else 1.dp,
+                                                     color = if (isSel) Color(0xFFFF6D00) else Color(0x33FFFFFF),
+                                                    shape = RoundedCornerShape(4.dp)
                                                 )
                                                 .clickable {
                                                     hexInput = colorHex

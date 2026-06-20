@@ -285,6 +285,7 @@ fun VectorCanvas(
                                         initialTouchCanvasPos = rawCanvasPos
                                         viewModel.isAutosaveSuspended = true
                                         touchedUnselectedShapeOnDown = null
+                                        val lockedLayerIds = viewModel.layers.filter { it.isLocked }.map { it.id }.toSet()
                                         
                                         // 1. TOOL SPECIFIC DOWN LOGIC
                                         if (viewModel.currentTool == VectorTool.PEN) {
@@ -395,7 +396,7 @@ fun VectorCanvas(
                                             }
                                         } else if (viewModel.currentTool == VectorTool.POINTER) {
                                             if (viewModel.isCloneModeActive) {
-                                                val hitShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
+                                                val hitShape = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
                                                 if (hitShape != null) {
                                                     cloneSourceShape = hitShape
                                                     cloneTouchStart = rawCanvasPos
@@ -472,12 +473,12 @@ fun VectorCanvas(
                                                     hypot(localPos.x - b.left, localPos.y - ((b.top + b.bottom)/2f)) < hSize * 2 -> activeDragHandle = "L"
                                                     hypot(localPos.x - b.right, localPos.y - ((b.top + b.bottom)/2f)) < hSize * 2 -> activeDragHandle = "R"
 
-                                                    viewModel.shapes.any { s -> viewModel.selectedShapeIds.contains(s.id) && s.isPointInside(rawCanvasPos.x, rawCanvasPos.y) } -> {
+                                                    viewModel.shapes.any { s -> !s.isLocked && !lockedLayerIds.contains(s.layerId) && viewModel.selectedShapeIds.contains(s.id) && s.isPointInside(rawCanvasPos.x, rawCanvasPos.y) } -> {
                                                         activeDragHandle = "MOVE"
-                                                        touchedUnselectedShapeOnDown = viewModel.selectedShapeIds.firstOrNull { id -> viewModel.shapes.find { it.id == id }?.isPointInside(rawCanvasPos.x, rawCanvasPos.y) == true }
+                                                        touchedUnselectedShapeOnDown = viewModel.selectedShapeIds.firstOrNull { id -> viewModel.shapes.find { it.id == id }?.let { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) } == true }
                                                     }
                                                     else -> {
-                                                        val hitShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
+                                                        val hitShape = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
                                                         if (hitShape != null) {
                                                             activeDragHandle = "MOVE"
                                                             touchedUnselectedShapeOnDown = hitShape.id
@@ -491,7 +492,7 @@ fun VectorCanvas(
                                                     }
                                                 }
                                             } else {
-                                                val hitShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
+                                                val hitShape = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
                                                 if (hitShape != null) {
                                                     activeDragHandle = "MOVE"
                                                     touchedUnselectedShapeOnDown = hitShape.id
@@ -583,7 +584,7 @@ fun VectorCanvas(
                                                                 activeDragHandle = "DIRECT_DRAG_ANYWHERE"
                                                                 viewModel.pushToUndoStack()
                                                             } else {
-                                                                val clickedShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
+                                                                val clickedShape = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
                                                                 if (clickedShape != null) {
                                                                     viewModel.selectedShapeId = clickedShape.id
                                                                     viewModel.clearDirectSelection()
@@ -596,7 +597,7 @@ fun VectorCanvas(
                                                             }
                                                         }
                                                     } else {
-                                                        val clickedShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
+                                                        val clickedShape = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
                                                         if (clickedShape != null) {
                                                             viewModel.selectedShapeId = clickedShape.id
                                                             viewModel.clearDirectSelection()
@@ -609,7 +610,7 @@ fun VectorCanvas(
                                                     }
                                                 }
                                             } else {
-                                                val clickedShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
+                                                val clickedShape = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
                                                 if (clickedShape != null) {
                                                     viewModel.selectedShapeId = clickedShape.id
                                                 }
@@ -635,7 +636,7 @@ fun VectorCanvas(
                                                     }
                                                 }
                                             } else {
-                                                val clickedShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
+                                                val clickedShape = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
                                                 if (clickedShape != null) {
                                                     viewModel.selectedShapeId = clickedShape.id
                                                     startCornerRadius = clickedShape.getCornerRadius(0)
@@ -1924,7 +1925,7 @@ fun VectorCanvas(
                         }
 
                         val hasGroupedObject = viewModel.selectedShapeIds.any { id -> viewModel.shapes.find { it.id == id }?.groupId != null }
-                        val highlightColor = if (hasGroupedObject) Color(0xFF7C4C90) else Color(0xFF2E7D32)
+                        val highlightColor = if (hasGroupedObject) Color(0xFF7C4C90) else Color(0xFFFF6D00)
                         
                         if (!isRotating && !isMoving) {
 
