@@ -275,347 +275,13 @@ fun MainLayout(viewModel: VectorViewModel) {
     }
 
     if (!viewModel.isSetupCompleted) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF0F172A))
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp)
-                .safeDrawingPadding(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Category,
-                    contentDescription = "Logo",
-                    tint = Color(0xFFFF6D00),
-                    modifier = Modifier.size(54.dp)
-                )
-                Column {
-                    Text(
-                        text = "WAR MACHINE",
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "VECTOR DESIGN STUDIO",
-                        color = Color(0xFFFF6D00),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 3.sp
-                    )
-                }
-            }
-
-            Text(
-                text = "Studio vektor profesional dengan layout presisi, layer canggih, & " +
-                     "sketsa dinamis.",
-                color = Color.Gray,
-                fontSize = 11.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-
-            // SECTION 1: CREATE NEW PROJECT
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        "BUAT PROYEK BARU",
-                        color = Color(0xFFFF6D00),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-
-                    var newProjectName by remember { mutableStateOf("") }
-                    var selectedWidth by remember { mutableStateOf("2000") }
-                    var selectedHeight by remember { mutableStateOf("2000") }
-
-                    OutlinedTextField(
-                        value = newProjectName,
-                        onValueChange = { newProjectName = it },
-                        label = { Text("Nama Proyek", color = Color.Gray) },
-                        placeholder = { Text("Tulis nama proyek anda...", color = Color.DarkGray) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
-                            unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
-                        ),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text(
-                        text = "PILIH UKURAN ARTBOARD",
-                        color = Color.LightGray,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf(
-                            "Square" to (2000 to 2000),
-                            "Full HD" to (1920 to 1080),
-                            "Vertical" to (1080 to 1920),
-                            "Icon" to (512 to 512)
-                        ).forEach { (label, dims) ->
-                            val isSel = selectedWidth == dims.first.toString() && selectedHeight == dims.second.toString()
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
-                                    .border(1.dp, if (isSel) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        selectedWidth = dims.first.toString()
-                                        selectedHeight = dims.second.toString()
-                                    }
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(label, color = if (isSel) Color.Black else Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                    Text("${dims.first}px", color = if (isSel) Color.Black else Color.Gray, fontSize = 8.sp)
-                                }
-                            }
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = selectedWidth,
-                            onValueChange = { selectedWidth = it },
-                            label = { Text("Lebar (px)", color = Color.Gray) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
-                                unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
-                            ),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = selectedHeight,
-                            onValueChange = { selectedHeight = it },
-                            label = { Text("Tinggi (px)", color = Color.Gray) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
-                                unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
-                            ),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            val w = selectedWidth.toFloatOrNull() ?: 2000f
-                            val h = selectedHeight.toFloatOrNull() ?: 2000f
-                            val name = if (newProjectName.isBlank()) "Proyek Vektor Saya" else newProjectName
-                            viewModel.createNewProject(name, w, h)
-                            Toast.makeText(context, "Proyek Baru Dibuat!", Toast.LENGTH_SHORT).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("BUAT PROYEK & KANVAS", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-                }
-            }
-
-            // SECTION 2: MY PROJECTS FOLDER / PREVIOUS PROJECTS LIST
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "📂 FOLDER MY PROJECTS",
-                            color = Color(0xFFFF6D00),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF0F172A))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "${viewModel.savedProjectsList.size} Proyek",
-                                color = Color.Green,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    if (viewModel.savedProjectsList.isEmpty()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF0F172A), RoundedCornerShape(12.dp))
-                                .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
-                                .padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FolderOpen,
-                                contentDescription = "Folder Kosong",
-                                tint = Color.Gray,
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Text(
-                                "Belum Ada Proyek",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                "Semua proyek anda akan disimpan otomatis di folder ini secara realtime saat mengedit.",
-                                color = Color.Gray,
-                                fontSize = 10.sp,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 12.dp)
-                            )
-                        }
-                    } else {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            viewModel.savedProjectsList.forEach { project ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF0F172A))
-                                        .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
-                                        .clickable {
-                                            viewModel.loadProject(project)
-                                            Toast.makeText(context, "Proyek \"${project.name}\" Berhasil Dimuat!", Toast.LENGTH_SHORT).show()
-                                        }
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArtTrack,
-                                            contentDescription = "Vector Art Icon",
-                                            tint = Color(0xFFFF6D00),
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                        Column {
-                                            Text(
-                                                text = project.name,
-                                                color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                            )
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Text(
-                                                    text = "${project.canvasWidth.toInt()}x${project.canvasHeight.toInt()} px",
-                                                    color = Color.LightGray,
-                                                    fontSize = 9.sp
-                                                )
-                                                Text(
-                                                    text = "(${project.shapes.size} shapes)",
-                                                    color = Color.Gray,
-                                                    fontSize = 9.sp
-                                                )
-                                            }
-                                        }
-                                    }
-                                    
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        IconButton(
-                                            onClick = {
-                                                renameProjectTarget = project
-                                                newProjectNameInput = project.name
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Edit,
-                                                contentDescription = "Rename Project",
-                                                tint = Color(0xFF60A5FA),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                        
-                                        IconButton(
-                                            onClick = {
-                                                viewModel.deleteProject(project.id)
-                                                Toast.makeText(context, "Proyek dihapus!", Toast.LENGTH_SHORT).show()
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = "Delete Project",
-                                                tint = Color(0xFFEF4444),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                    
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            Text(
-                text = "Designed by Irwan Setiadi • War Machine Vector Studio v02.5",
-                color = Color(0xFF64748B),
-                fontSize = 8.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-        }
+        HomeScreenContent(
+            viewModel = viewModel,
+            renameProjectTarget = renameProjectTarget,
+            onRenameProjectTargetChange = { renameProjectTarget = it },
+            newProjectNameInput = newProjectNameInput,
+            onNewProjectNameInputChange = { newProjectNameInput = it }
+        )
         return
     }
 
@@ -1841,633 +1507,26 @@ fun MainLayout(viewModel: VectorViewModel) {
                         }
                     }
                 } else if (showGridPanel) {
-                    // --- GRID CONFIGURATION PANEL ---
-                    androidx.compose.foundation.layout.Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Title bar with Sub Tabs
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.GridOn,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFF6D00),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "GRID OPTIONS:",
-                                    color = Color(0xFFFF6D00),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Spacer(modifier = Modifier.width(4.dp))
-
-                                // Sub Tabs: GRID, UKURAN, WARNA
-                                listOf("GRID", "UKURAN", "WARNA").forEach { tab ->
-                                    val isSelected = activeGridSubTab == tab
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) Color(0xFF334155) else Color.Transparent)
-                                            .border(1.dp, if (isSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
-                                            .clickable { activeGridSubTab = tab }
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                                    ) {
-                                        Text(
-                                            text = tab,
-                                            color = if (isSelected) Color(0xFFFF6D00) else Color.LightGray,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-
-                            Text(
-                                text = "Tutup [X]",
-                                color = Color.LightGray,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable { showGridPanel = false }
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-
-                        // Tab content switch
-                        when (activeGridSubTab) {
-                            "GRID" -> {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // 1. Grid toggle
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0x0AFFFFFF))
-                                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                                    ) {
-                                        Text(
-                                            text = "Aktifkan Grid",
-                                            color = Color.White,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Switch(
-                                            checked = viewModel.isGridEnabled,
-                                            onCheckedChange = { viewModel.isGridEnabled = it },
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color(0xFFFF6D00),
-                                                checkedTrackColor = Color(0x66FF6D00)
-                                            )
-                                        )
-                                    }
-
-                                    // 2. Snap to grid toggle for extra power
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0x0AFFFFFF))
-                                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                                    ) {
-                                        Text(
-                                            text = "Snap ke Grid",
-                                            color = Color.White,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Switch(
-                                            checked = viewModel.isSnapToGrid,
-                                            onCheckedChange = { viewModel.isSnapToGrid = it },
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color(0xFFFF6D00),
-                                                checkedTrackColor = Color(0x66FF6D00)
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                            "UKURAN" -> {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Ukuran Grid:",
-                                        color = Color.LightGray,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.width(80.dp)
-                                    )
-
-                                    Slider(
-                                        value = viewModel.gridSize,
-                                        onValueChange = { 
-                                            viewModel.gridSize = it.coerceIn(5f, 200f)
-                                        },
-                                        valueRange = 5f..200f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color(0xFFFF6D00),
-                                            activeTrackColor = Color(0xFFFF6D00),
-                                            inactiveTrackColor = Color(0xFF475569)
-                                        ),
-                                        modifier = Modifier.weight(1f).height(24.dp)
-                                    )
-
-                                    // Numeric input
-                                    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-                                    var sizeText by remember(viewModel.gridSize) { mutableStateOf(viewModel.gridSize.toInt().toString()) }
-                                    androidx.compose.foundation.text.BasicTextField(
-                                        value = sizeText,
-                                        onValueChange = { input ->
-                                            val cleanInput = input.filter { it.isDigit() }
-                                            sizeText = cleanInput
-                                            val parsed = cleanInput.toFloatOrNull()
-                                            if (parsed != null) {
-                                                viewModel.gridSize = parsed.coerceIn(5f, 200f)
-                                            }
-                                        },
-                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                                        ),
-                                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = {
-                                            focusManager.clearFocus()
-                                        }),
-                                        textStyle = androidx.compose.ui.text.TextStyle(
-                                            color = Color(0xFFFF6D00),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace,
-                                            textAlign = TextAlign.Center
-                                        ),
-                                        modifier = Modifier
-                                            .width(55.dp)
-                                            .height(26.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFF0F172A))
-                                            .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
-                                            .padding(top = 4.dp),
-                                        singleLine = true
-                                    )
-                                    Text("px", color = Color.Gray, fontSize = 11.sp)
-                                }
-                            }
-                            "WARNA" -> {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Warna Grid:",
-                                        color = Color.LightGray,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.width(80.dp)
-                                    )
-
-                                    // Circular template color pickers
-                                    val templateColors = listOf(
-                                        "#CCCCCC", // Light gray
-                                        "#888888", // Gray
-                                        "#333333", // Dark gray
-                                        "#FF5722", // Orange
-                                        "#E53935", // Red
-                                        "#4CAF50", // Green
-                                        "#2196F3", // Blue
-                                        "#FFEB3B"  // Yellow
-                                    )
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        templateColors.forEach { colorString ->
-                                            val isSelected = viewModel.gridColorHex.equals(colorString, ignoreCase = true)
-                                            val colorVal = try {
-                                                Color(android.graphics.Color.parseColor(colorString))
-                                            } catch(e: Exception) {
-                                                Color.Gray
-                                            }
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(22.dp)
-                                                    .clip(CircleShape)
-                                                    .background(colorVal)
-                                                    .border(
-                                                        2.dp,
-                                                        if (isSelected) Color(0xFFFF6D00) else Color.Transparent,
-                                                        CircleShape
-                                                    )
-                                                    .clickable {
-                                                        viewModel.gridColorHex = colorString
-                                                    }
-                                            )
-                                        }
-                                    }
-
-                                    // Button custom color grid
-                                    IconButton(
-                                        onClick = { showGridColorPicker = true },
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .background(Color(0xFF334155), RoundedCornerShape(4.dp))
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Palette,
-                                            contentDescription = "Custom Grid Color",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    GridPanelContent(
+                        viewModel = viewModel,
+                        activeGridSubTab = activeGridSubTab,
+                        onActiveGridSubTabChange = { activeGridSubTab = it },
+                        onShowGridColorPicker = { showGridColorPicker = true },
+                        onClose = { showGridPanel = false }
+                    )
                 } else if (showTransformPanel) {
-                    // --- TRANSFORM PANELS SLIDER SWITCH ---
-                    androidx.compose.foundation.layout.Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Title bar with Sub Tabs
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFF6D00),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "TRANSFORM:",
-                                    color = Color(0xFFFF6D00),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Spacer(modifier = Modifier.width(4.dp))
-
-                                // Sub Tabs: Size, Rotate, Flip, Order
-                                listOf("SIZE", "ROTATE", "FLIP", "ORDER").forEach { tab ->
-                                    val isSelected = activeTransformSubTab == tab
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) Color(0xFF334155) else Color.Transparent)
-                                            .border(1.dp, if (isSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
-                                            .clickable { activeTransformSubTab = tab }
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                                    ) {
-                                        Text(
-                                            text = tab,
-                                            color = if (isSelected) Color(0xFFFF6D00) else Color.LightGray,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Close [X] button
-                            Text(
-                                text = "Tutup [X]",
-                                color = Color.LightGray,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable { showTransformPanel = false }
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-
-                        // Content based on sub-tab
-                        when (activeTransformSubTab) {
-                            "SIZE" -> {
-                                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
-                                if (!isShapeSelected) {
-                                    Text(
-                                        text = "Pilih objek terlebih dahulu untuk mengubah ukuran",
-                                        color = Color.LightGray,
-                                        fontSize = 11.sp,
-                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                        modifier = Modifier.padding(vertical = 4.dp)
-                                    )
-                                } else {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Text("W:", color = Color.White, fontSize = 11.sp)
-                                        androidx.compose.foundation.text.BasicTextField(
-                                            value = transformWidthInput,
-                                            onValueChange = { transformWidthInput = it },
-                                            textStyle = androidx.compose.ui.text.TextStyle(
-                                                color = Color(0xFFFF6D00),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                fontFamily = FontFamily.Monospace,
-                                                textAlign = TextAlign.Center
-                                            ),
-                                            modifier = Modifier
-                                                .width(60.dp)
-                                                .height(24.dp)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(Color(0xFF0F172A))
-                                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
-                                                .padding(top = 4.dp),
-                                            singleLine = true
-                                        )
-
-                                        Text("H:", color = Color.White, fontSize = 11.sp)
-                                        androidx.compose.foundation.text.BasicTextField(
-                                            value = transformHeightInput,
-                                            onValueChange = { transformHeightInput = it },
-                                            textStyle = androidx.compose.ui.text.TextStyle(
-                                                color = Color(0xFFFF6D00),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                fontFamily = FontFamily.Monospace,
-                                                textAlign = TextAlign.Center
-                                            ),
-                                            modifier = Modifier
-                                                .width(60.dp)
-                                                .height(24.dp)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(Color(0xFF0F172A))
-                                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
-                                                .padding(top = 4.dp),
-                                            singleLine = true
-                                        )
-
-                                        Button(
-                                            onClick = {
-                                                val wVal = transformWidthInput.toFloatOrNull() ?: 0f
-                                                val hVal = transformHeightInput.toFloatOrNull() ?: 0f
-                                                if (wVal > 0f && hVal > 0f) {
-                                                    viewModel.setSelectedShapesSize(wVal, hVal)
-                                                    Toast.makeText(context, "Sizing: ${wVal}x${hVal}px", Toast.LENGTH_SHORT).show()
-                                                } else {
-                                                    Toast.makeText(context, "Input tidak valid!", Toast.LENGTH_SHORT).show()
-                                                }
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(28.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("Apply", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-                            "ROTATE" -> {
-                                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
-                                if (!isShapeSelected) {
-                                    Text(
-                                        text = "Pilih objek terlebih dahulu untuk memutar",
-                                        color = Color.LightGray,
-                                        fontSize = 11.sp,
-                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                        modifier = Modifier.padding(vertical = 4.dp)
-                                    )
-                                } else {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text("Sudut (°):", color = Color.White, fontSize = 11.sp)
-                                        androidx.compose.foundation.text.BasicTextField(
-                                            value = transformRotateInput,
-                                            onValueChange = { transformRotateInput = it },
-                                            textStyle = androidx.compose.ui.text.TextStyle(
-                                                color = Color(0xFFFF6D00),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                fontFamily = FontFamily.Monospace,
-                                                textAlign = TextAlign.Center
-                                            ),
-                                            modifier = Modifier
-                                                .width(54.dp)
-                                                .height(24.dp)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(Color(0xFF0F172A))
-                                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
-                                                .padding(top = 4.dp),
-                                            singleLine = true
-                                        )
-
-                                        Button(
-                                            onClick = {
-                                                val degVal = transformRotateInput.toFloatOrNull() ?: 0f
-                                                viewModel.rotateSelectedShapesToAngle(degVal)
-                                                Toast.makeText(context, "Rotasi diatur ke ${degVal}°", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(28.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("Set", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        }
-
-                                        // Presets
-                                        Button(
-                                            onClick = {
-                                                viewModel.rotateSelectedShapes(-90f)
-                                                Toast.makeText(context, "Putar -90°", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(28.dp),
-                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("-90°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                viewModel.rotateSelectedShapes(90f)
-                                                Toast.makeText(context, "Putar +90°", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(28.dp),
-                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("+90°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                        
-                                        Button(
-                                            onClick = {
-                                                viewModel.rotateSelectedShapes(180f)
-                                                Toast.makeText(context, "Putar 180°", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(28.dp),
-                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("180°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-                            "FLIP" -> {
-                                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
-                                if (!isShapeSelected) {
-                                    Text(
-                                        text = "Pilih objek terlebih dahulu untuk dicerminkan",
-                                        color = Color.LightGray,
-                                        fontSize = 11.sp,
-                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                        modifier = Modifier.padding(vertical = 4.dp)
-                                    )
-                                } else {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Button(
-                                            onClick = {
-                                                viewModel.flipSelectedShape(horizontal = true, vertical = false)
-                                                Toast.makeText(context, "Mirror Horizontal", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(30.dp).weight(1f),
-                                            contentPadding = PaddingValues(horizontal = 8.dp)
-                                        ) {
-                                            Icon(Icons.Default.Flip, null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Horizontal", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                viewModel.flipSelectedShape(horizontal = false, vertical = true)
-                                                Toast.makeText(context, "Mirror Vertikal", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(30.dp).weight(1f),
-                                            contentPadding = PaddingValues(horizontal = 8.dp)
-                                        ) {
-                                            Icon(Icons.Default.SwapVert, null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Vertikal", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-                            "ORDER" -> {
-                                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
-                                if (!isShapeSelected) {
-                                    Text(
-                                        text = "Pilih objek terlebih dahulu untuk mengatur susunan (Order)",
-                                        color = Color.LightGray,
-                                        fontSize = 11.sp,
-                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                        modifier = Modifier.padding(vertical = 4.dp)
-                                    )
-                                } else {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Button(
-                                            onClick = {
-                                                viewModel.bringSelectedToFront()
-                                                Toast.makeText(context, "Bring to Front", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(32.dp).weight(1f),
-                                            contentPadding = PaddingValues(horizontal = 4.dp)
-                                        ) {
-                                            Icon(Icons.Default.VerticalAlignTop, null, tint = Color.Black, modifier = Modifier.size(12.dp))
-                                            Spacer(modifier = Modifier.width(2.dp))
-                                            Text("Front", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                viewModel.bringSelectedForward()
-                                                Toast.makeText(context, "Bring Forward", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(32.dp).weight(1f),
-                                            contentPadding = PaddingValues(horizontal = 4.dp)
-                                        ) {
-                                            Icon(Icons.Default.ArrowUpward, null, tint = Color.Black, modifier = Modifier.size(12.dp))
-                                            Spacer(modifier = Modifier.width(2.dp))
-                                            Text("Forward", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                viewModel.sendSelectedBackward()
-                                                Toast.makeText(context, "Send Backward", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(32.dp).weight(1f),
-                                            contentPadding = PaddingValues(horizontal = 4.dp)
-                                        ) {
-                                            Icon(Icons.Default.ArrowDownward, null, tint = Color.Black, modifier = Modifier.size(12.dp))
-                                            Spacer(modifier = Modifier.width(2.dp))
-                                            Text("Backward", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                viewModel.sendSelectedToBack()
-                                                Toast.makeText(context, "Send to Back", Toast.LENGTH_SHORT).show()
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(32.dp).weight(1f),
-                                            contentPadding = PaddingValues(horizontal = 4.dp)
-                                        ) {
-                                            Icon(Icons.Default.VerticalAlignBottom, null, tint = Color.Black, modifier = Modifier.size(12.dp))
-                                            Spacer(modifier = Modifier.width(2.dp))
-                                            Text("Back", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    TransformPanelContent(
+                        viewModel = viewModel,
+                        activeTransformSubTab = activeTransformSubTab,
+                        onActiveTransformSubTabChange = { activeTransformSubTab = it },
+                        transformWidthInput = transformWidthInput,
+                        onTransformWidthChange = { transformWidthInput = it },
+                        transformHeightInput = transformHeightInput,
+                        onTransformHeightChange = { transformHeightInput = it },
+                        transformRotateInput = transformRotateInput,
+                        onTransformRotateChange = { transformRotateInput = it },
+                        onClose = { showTransformPanel = false }
+                    )
                 } else {
                     // --- DYNAMIC/CONTEXTUAL SLIDERS SECTION ---
                     when (viewModel.currentTool) {
@@ -2747,40 +1806,10 @@ fun MainLayout(viewModel: VectorViewModel) {
                         }
 
                         VectorTool.PEN -> {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                StrokeWidthAndOpacitySlidersSection(viewModel)
-                                
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Gaya Garis:", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                    listOf("SOLID", "DASHED", "DOTTED").forEach { style ->
-                                        val isSel = viewModel.currentLineStyle == style
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(22.dp)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
-                                                .border(1.dp, if (isSel) Color(0xFFFF6D00) else Color(0xFF475569), RoundedCornerShape(4.dp))
-                                                .clickable {
-                                                    viewModel.currentLineStyle = style
-                                                    if (viewModel.selectedShapeId != null) {
-                                                        viewModel.updateSelectedShapeStyle()
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(style, color = if (isSel) Color.Black else Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
+                            PenToolPropertiesBlock(
+                                viewModel = viewModel,
+                                onShowColorPickerStroke = { showColorPickerStroke = true }
+                            )
                         }
 
                         else -> {
@@ -3795,6 +2824,40 @@ fun MainLayout(viewModel: VectorViewModel) {
                         )
                     }
 
+                    // 5. Snap to Angle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Snap to Angle", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Snaps coordinates to 15° increments", color = Color.Gray, fontSize = 10.sp)
+                        }
+                        Switch(
+                            checked = viewModel.isSnapToAngleEnabled,
+                            onCheckedChange = { viewModel.isSnapToAngleEnabled = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
+                        )
+                    }
+
+                    // 6. Snap to Path
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Snap to Path", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Snap nodes directly on shape outlines", color = Color.Gray, fontSize = 10.sp)
+                        }
+                        Switch(
+                            checked = viewModel.isSnapToPathEnabled,
+                            onCheckedChange = { viewModel.isSnapToPathEnabled = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
+                        )
+                    }
+
                     Button(
                         onClick = { showSnappingPopup = false },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
@@ -4627,6 +3690,1217 @@ fun SidebarToolButton(
             tint = if (isSelected) Color.Black else Color.White,
             modifier = Modifier.size(24.dp)
         )
+    }
+}
+
+@Composable
+fun HomeScreenContent(
+    viewModel: VectorViewModel,
+    renameProjectTarget: com.example.viewmodel.SavedProject?,
+    onRenameProjectTargetChange: (com.example.viewmodel.SavedProject?) -> Unit,
+    newProjectNameInput: String,
+    onNewProjectNameInputChange: (String) -> Unit
+) {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F172A))
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp)
+            .safeDrawingPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Category,
+                contentDescription = "Logo",
+                tint = Color(0xFFFF6D00),
+                modifier = Modifier.size(54.dp)
+            )
+            Column {
+                Text(
+                    text = "WAR MACHINE",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = "VECTOR DESIGN STUDIO",
+                    color = Color(0xFFFF6D00),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 3.sp
+                )
+            }
+        }
+
+        Text(
+            text = "Studio vektor profesional dengan layout presisi, layer canggih, & " +
+                    "sketsa dinamis.",
+            color = Color.Gray,
+            fontSize = 11.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+
+        // SECTION 1: CREATE NEW PROJECT
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "BUAT PROYEK BARU",
+                    color = Color(0xFFFF6D00),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+
+                var newProjectName by remember { mutableStateOf("") }
+                var selectedWidth by remember { mutableStateOf("2000") }
+                var selectedHeight by remember { mutableStateOf("2000") }
+
+                OutlinedTextField(
+                    value = newProjectName,
+                    onValueChange = { newProjectName = it },
+                    label = { Text("Nama Proyek", color = Color.Gray) },
+                    placeholder = { Text("Tulis nama proyek anda...", color = Color.DarkGray) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
+                        unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = "PILIH UKURAN ARTBOARD",
+                    color = Color.LightGray,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        "Square" to (2000 to 2000),
+                        "Full HD" to (1920 to 1080),
+                        "Vertical" to (1080 to 1920),
+                        "Icon" to (512 to 512)
+                    ).forEach { (label, dims) ->
+                        val isSel = selectedWidth == dims.first.toString() && selectedHeight == dims.second.toString()
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                .border(1.dp, if (isSel) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    selectedWidth = dims.first.toString()
+                                    selectedHeight = dims.second.toString()
+                                }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(label, color = if (isSel) Color.Black else Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text("${dims.first}px", color = if (isSel) Color.Black else Color.Gray, fontSize = 8.sp)
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = selectedWidth,
+                        onValueChange = { selectedWidth = it },
+                        label = { Text("Lebar (px)", color = Color.Gray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
+                            unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = selectedHeight,
+                        onValueChange = { selectedHeight = it },
+                        label = { Text("Tinggi (px)", color = Color.Gray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, focusedBorderColor = Color(0xFFFF6D00),
+                            unfocusedTextColor = Color.White, unfocusedBorderColor = Color(0xFF475569)
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        val w = selectedWidth.toFloatOrNull() ?: 2000f
+                        val h = selectedHeight.toFloatOrNull() ?: 2000f
+                        val name = if (newProjectName.isBlank()) "Proyek Vektor Saya" else newProjectName
+                        viewModel.createNewProject(name, w, h)
+                        Toast.makeText(context, "Proyek Baru Dibuat!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("BUAT PROYEK & KANVAS", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
+        // SECTION 2: MY PROJECTS FOLDER / PREVIOUS PROJECTS LIST
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "📂 FOLDER MY PROJECTS",
+                        color = Color(0xFFFF6D00),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF0F172A))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "${viewModel.savedProjectsList.size} Proyek",
+                            color = Color.Green,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                if (viewModel.savedProjectsList.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF0F172A), RoundedCornerShape(12.dp))
+                            .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = "Folder Kosong",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(44.dp)
+                        )
+                        Text(
+                            "Belum Ada Proyek",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Semua proyek anda akan disimpan otomatis di folder ini secara realtime saat mengedit.",
+                            color = Color.Gray,
+                            fontSize = 10.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                    }
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        viewModel.savedProjectsList.forEach { project ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF0F172A))
+                                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        viewModel.loadProject(project)
+                                        Toast.makeText(context, "Proyek \"${project.name}\" Berhasil Dimuat!", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArtTrack,
+                                        contentDescription = "Vector Art Icon",
+                                        tint = Color(0xFFFF6D00),
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = project.name,
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(
+                                                text = "${project.canvasWidth.toInt()}x${project.canvasHeight.toInt()} px",
+                                                color = Color.LightGray,
+                                                fontSize = 9.sp
+                                            )
+                                            Text(
+                                                text = "(${project.shapes.size} shapes)",
+                                                color = Color.Gray,
+                                                fontSize = 9.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    IconButton(
+                                        onClick = {
+                                            onRenameProjectTargetChange(project)
+                                            onNewProjectNameInputChange(project.name)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Rename Project",
+                                            tint = Color(0xFF60A5FA),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            viewModel.deleteProject(project.id)
+                                            Toast.makeText(context, "Proyek dihapus!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Project",
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Text(
+            text = "Designed by Irwan Setiadi • War Machine Vector Studio v02.5",
+            color = Color(0xFF64748B),
+            fontSize = 8.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+fun GridPanelContent(
+    viewModel: VectorViewModel,
+    activeGridSubTab: String,
+    onActiveGridSubTabChange: (String) -> Unit,
+    onShowGridColorPicker: () -> Unit,
+    onClose: () -> Unit
+) {
+    androidx.compose.foundation.layout.Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Title bar with Sub Tabs
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.GridOn,
+                    contentDescription = null,
+                    tint = Color(0xFFFF6D00),
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "GRID OPTIONS:",
+                    color = Color(0xFFFF6D00),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // Sub Tabs: GRID, UKURAN, WARNA
+                listOf("GRID", "UKURAN", "WARNA").forEach { tab ->
+                    val isSelected = activeGridSubTab == tab
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isSelected) Color(0xFF334155) else Color.Transparent)
+                            .border(1.dp, if (isSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
+                            .clickable { onActiveGridSubTabChange(tab) }
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = tab,
+                            color = if (isSelected) Color(0xFFFF6D00) else Color.LightGray,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = "Tutup [X]",
+                color = Color.LightGray,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clickable { onClose() }
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
+
+        // Tab content switch
+        when (activeGridSubTab) {
+            "GRID" -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 1. Grid toggle
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0x0AFFFFFF))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Aktifkan Grid",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = viewModel.isGridEnabled,
+                            onCheckedChange = { viewModel.isGridEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFFFF6D00),
+                                checkedTrackColor = Color(0x66FF6D00)
+                            )
+                        )
+                    }
+
+                    // 2. Snap to grid toggle for extra power
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0x0AFFFFFF))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Snap ke Grid",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = viewModel.isSnapToGrid,
+                            onCheckedChange = { viewModel.isSnapToGrid = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFFFF6D00),
+                                checkedTrackColor = Color(0x66FF6D00)
+                            )
+                        )
+                    }
+                }
+            }
+            "UKURAN" -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Ukuran Grid:",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(80.dp)
+                    )
+
+                    Slider(
+                        value = viewModel.gridSize,
+                        onValueChange = { 
+                            viewModel.gridSize = it.coerceIn(5f, 200f)
+                        },
+                        valueRange = 5f..200f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFFFF6D00),
+                            activeTrackColor = Color(0xFFFF6D00),
+                            inactiveTrackColor = Color(0xFF475569)
+                        ),
+                        modifier = Modifier.weight(1f).height(24.dp)
+                    )
+
+                    // Numeric input
+                    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+                    var sizeText by remember(viewModel.gridSize) { mutableStateOf(viewModel.gridSize.toInt().toString()) }
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = sizeText,
+                        onValueChange = { input ->
+                            val cleanInput = input.filter { it.isDigit() }
+                            sizeText = cleanInput
+                            val parsed = cleanInput.toFloatOrNull()
+                            if (parsed != null) {
+                                viewModel.gridSize = parsed.coerceIn(5f, 200f)
+                            }
+                        },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = {
+                            focusManager.clearFocus()
+                        }),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = Color(0xFFFF6D00),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            textAlign = TextAlign.Center
+                        ),
+                        modifier = Modifier
+                            .width(55.dp)
+                            .height(26.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF0F172A))
+                            .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                            .padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    Text("px", color = Color.Gray, fontSize = 11.sp)
+                }
+            }
+            "WARNA" -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Warna Grid:",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(80.dp)
+                    )
+
+                    // Circular template color pickers
+                    val templateColors = listOf(
+                        "#CCCCCC", // Light gray
+                        "#888888", // Gray
+                        "#333333", // Dark gray
+                        "#FF5722", // Orange
+                        "#E53935", // Red
+                        "#4CAF50", // Green
+                        "#2196F3", // Blue
+                        "#FFEB3B"  // Yellow
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        templateColors.forEach { colorString ->
+                            val isSelected = viewModel.gridColorHex.equals(colorString, ignoreCase = true)
+                            val colorVal = try {
+                                Color(android.graphics.Color.parseColor(colorString))
+                            } catch(e: Exception) {
+                                Color.Gray
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(colorVal)
+                                    .border(
+                                        2.dp,
+                                        if (isSelected) Color(0xFFFF6D00) else Color.Transparent,
+                                        CircleShape
+                                    )
+                                    .clickable {
+                                        viewModel.gridColorHex = colorString
+                                    }
+                            )
+                        }
+                    }
+
+                    // Button custom color grid
+                    IconButton(
+                        onClick = onShowGridColorPicker,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(Color(0xFF334155), RoundedCornerShape(4.dp))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = "Custom Grid Color",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TransformPanelContent(
+    viewModel: VectorViewModel,
+    activeTransformSubTab: String,
+    onActiveTransformSubTabChange: (String) -> Unit,
+    transformWidthInput: String,
+    onTransformWidthChange: (String) -> Unit,
+    transformHeightInput: String,
+    onTransformHeightChange: (String) -> Unit,
+    transformRotateInput: String,
+    onTransformRotateChange: (String) -> Unit,
+    onClose: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.foundation.layout.Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Title bar with Sub Tabs
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
+                    tint = Color(0xFFFF6D00),
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "TRANSFORM:",
+                    color = Color(0xFFFF6D00),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // Sub Tabs: Size, Rotate, Flip, Order
+                listOf("SIZE", "ROTATE", "FLIP", "ORDER").forEach { tab ->
+                    val isSelected = activeTransformSubTab == tab
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isSelected) Color(0xFF334155) else Color.Transparent)
+                            .border(1.dp, if (isSelected) Color(0xFFFF6D00) else Color.Transparent, RoundedCornerShape(4.dp))
+                            .clickable { onActiveTransformSubTabChange(tab) }
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = tab,
+                            color = if (isSelected) Color(0xFFFF6D00) else Color.LightGray,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            // Close [X] button
+            Text(
+                text = "Tutup [X]",
+                color = Color.LightGray,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clickable { onClose() }
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
+
+        // Content based on sub-tab
+        when (activeTransformSubTab) {
+            "SIZE" -> {
+                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
+                if (!isShapeSelected) {
+                    Text(
+                        text = "Pilih objek terlebih dahulu untuk mengubah ukuran",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("W:", color = Color.White, fontSize = 11.sp)
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = transformWidthInput,
+                            onValueChange = onTransformWidthChange,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                color = Color(0xFFFF6D00),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center
+                            ),
+                            modifier = Modifier
+                                .width(60.dp)
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF0F172A))
+                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                                .padding(top = 4.dp),
+                            singleLine = true
+                        )
+
+                        Text("H:", color = Color.White, fontSize = 11.sp)
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = transformHeightInput,
+                            onValueChange = onTransformHeightChange,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                color = Color(0xFFFF6D00),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center
+                            ),
+                            modifier = Modifier
+                                .width(60.dp)
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF0F172A))
+                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                                .padding(top = 4.dp),
+                            singleLine = true
+                        )
+
+                        Button(
+                            onClick = {
+                                val wVal = transformWidthInput.toFloatOrNull() ?: 0f
+                                val hVal = transformHeightInput.toFloatOrNull() ?: 0f
+                                if (wVal > 0f && hVal > 0f) {
+                                    viewModel.setSelectedShapesSize(wVal, hVal)
+                                    Toast.makeText(context, "Sizing: ${wVal}x${hVal}px", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Input tidak valid!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("Apply", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            "ROTATE" -> {
+                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
+                if (!isShapeSelected) {
+                    Text(
+                        text = "Pilih objek terlebih dahulu untuk memutar",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Sudut (°):", color = Color.White, fontSize = 11.sp)
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = transformRotateInput,
+                            onValueChange = onTransformRotateChange,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                color = Color(0xFFFF6D00),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center
+                            ),
+                            modifier = Modifier
+                                .width(54.dp)
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF0F172A))
+                                .border(1.dp, Color(0xFF475569), RoundedCornerShape(4.dp))
+                                .padding(top = 4.dp),
+                            singleLine = true
+                        )
+
+                        Button(
+                            onClick = {
+                                val degVal = transformRotateInput.toFloatOrNull() ?: 0f
+                                viewModel.rotateSelectedShapesToAngle(degVal)
+                                Toast.makeText(context, "Rotasi diatur ke ${degVal}°", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("Set", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Presets
+                        Button(
+                            onClick = {
+                                viewModel.rotateSelectedShapes(-90f)
+                                Toast.makeText(context, "Putar -90°", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("-90°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.rotateSelectedShapes(90f)
+                                Toast.makeText(context, "Putar +90°", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("+90°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Button(
+                            onClick = {
+                                viewModel.rotateSelectedShapes(180f)
+                                Toast.makeText(context, "Putar 180°", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("180°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            "FLIP" -> {
+                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
+                if (!isShapeSelected) {
+                    Text(
+                        text = "Pilih objek terlebih dahulu untuk dicerminkan",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.flipSelectedShape(horizontal = true, vertical = false)
+                                Toast.makeText(context, "Mirror Horizontal", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(30.dp).weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            Icon(Icons.Default.Flip, null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Horizontal", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.flipSelectedShape(horizontal = false, vertical = true)
+                                Toast.makeText(context, "Mirror Vertikal", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(30.dp).weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            Icon(Icons.Default.SwapVert, null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Vertikal", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            "ORDER" -> {
+                val isShapeSelected = viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()
+                if (!isShapeSelected) {
+                    Text(
+                        text = "Pilih objek terlebih dahulu untuk mengatur susunan (Order)",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.bringSelectedToFront()
+                                Toast.makeText(context, "Bring to Front", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(32.dp).weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            Icon(Icons.Default.VerticalAlignTop, null, tint = Color.Black, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("Front", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.bringSelectedForward()
+                                Toast.makeText(context, "Bring Forward", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(32.dp).weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowUpward, null, tint = Color.Black, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("Forward", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.sendSelectedBackward()
+                                Toast.makeText(context, "Send Backward", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(32.dp).weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowDownward, null, tint = Color.Black, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("Backward", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.sendSelectedToBack()
+                                Toast.makeText(context, "Send to Back", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(32.dp).weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            Icon(Icons.Default.VerticalAlignBottom, null, tint = Color.Black, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("Back", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PenToolPropertiesBlock(viewModel: VectorViewModel, onShowColorPickerStroke: () -> Unit) {
+    val activeNodeIndex = viewModel.activeEditNodeIndex
+    val isActiveNodeCurve = if (activeNodeIndex != null && activeNodeIndex in viewModel.activeBezierNodes.indices) {
+        viewModel.activeBezierNodes[activeNodeIndex].isCurve
+    } else false
+
+    var lineStyleExpanded by remember { mutableStateOf(false) }
+    var joinExpanded by remember { mutableStateOf(false) }
+    var capExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // 1. Stroke Width, Opacity sliders
+        StrokeWidthAndOpacitySlidersSection(viewModel)
+
+        // 2. Stroke Color picker + Toggles Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val strokeC = try {
+                Color(android.graphics.Color.parseColor(viewModel.currentStrokeColorHex))
+            } catch (_: Exception) {
+                Color.White
+            }
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF0F172A))
+                    .clickable { onShowColorPickerStroke() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(if (viewModel.hasStrokeEnabled) strokeC else Color.Transparent)
+                        .border(2.dp, Color.White, CircleShape)
+                )
+                Text("Warna Stroke", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Checkbox(
+                        checked = viewModel.hasStrokeEnabled,
+                        onCheckedChange = { viewModel.hasStrokeEnabled = it },
+                        colors = CheckboxDefaults.colors(checkedColor = Color(0xFFFF6D00)),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text("Stroke", color = Color.White, fontSize = 9.sp)
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Checkbox(
+                        checked = viewModel.hasFillEnabled,
+                        onCheckedChange = { viewModel.hasFillEnabled = it },
+                        colors = CheckboxDefaults.colors(checkedColor = Color(0xFFFF6D00)),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text("Fill", color = Color.White, fontSize = 9.sp)
+                }
+            }
+        }
+
+        // Dropdown Panel for Stroke Options
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Style Dropdown
+            Box(modifier = Modifier.weight(1f)) {
+                Button(
+                    onClick = { lineStyleExpanded = true },
+                    modifier = Modifier.fillMaxWidth().height(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                    shape = RoundedCornerShape(4.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text("Gaya: ${viewModel.currentLineStyle}", color = Color.White, fontSize = 8.sp, maxLines = 1)
+                }
+                DropdownMenu(expanded = lineStyleExpanded, onDismissRequest = { lineStyleExpanded = false }) {
+                    listOf("SOLID", "DASHED", "DOTTED").forEach { style ->
+                        DropdownMenuItem(
+                            text = { Text(style, fontSize = 10.sp) },
+                            onClick = {
+                                viewModel.currentLineStyle = style
+                                if (viewModel.selectedShapeId != null) viewModel.updateSelectedShapeStyle()
+                                lineStyleExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            
+            // Join Dropdown
+            Box(modifier = Modifier.weight(1f)) {
+                Button(
+                    onClick = { joinExpanded = true },
+                    modifier = Modifier.fillMaxWidth().height(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                    shape = RoundedCornerShape(4.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text("Join: ${viewModel.currentStrokeJoin}", color = Color.White, fontSize = 8.sp, maxLines = 1)
+                }
+                DropdownMenu(expanded = joinExpanded, onDismissRequest = { joinExpanded = false }) {
+                    listOf("ROUND", "MITER", "BEVEL").forEach { join ->
+                        DropdownMenuItem(
+                            text = { Text(join, fontSize = 10.sp) },
+                            onClick = {
+                                viewModel.currentStrokeJoin = join
+                                if (viewModel.selectedShapeId != null) viewModel.updateSelectedShapeStyle()
+                                joinExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Cap Dropdown
+            Box(modifier = Modifier.weight(1f)) {
+                Button(
+                    onClick = { capExpanded = true },
+                    modifier = Modifier.fillMaxWidth().height(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                    shape = RoundedCornerShape(4.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text("Cap: ${viewModel.currentStrokeCap}", color = Color.White, fontSize = 8.sp, maxLines = 1)
+                }
+                DropdownMenu(expanded = capExpanded, onDismissRequest = { capExpanded = false }) {
+                    listOf("ROUND", "BUTT", "SQUARE").forEach { cap ->
+                        DropdownMenuItem(
+                            text = { Text(cap, fontSize = 10.sp) },
+                            onClick = {
+                                viewModel.currentStrokeCap = cap
+                                if (viewModel.selectedShapeId != null) viewModel.updateSelectedShapeStyle()
+                                capExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // 6. Real-time Node attributes (Corner / Curve toggling & Delete)
+        if (activeNodeIndex != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF334155))
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("Node #${activeNodeIndex + 1}:", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isActiveNodeCurve) Color(0xFFFF6D00) else Color.Gray)
+                            .clickable { viewModel.toggleNodeCurve(activeNodeIndex) }
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isActiveNodeCurve) "Lengkung (Curve)" else "Lurus (Corner)",
+                            color = Color.Black,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFFEF4444))
+                        .clickable { viewModel.deleteSelectedNode() }
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text("Hapus Node", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 

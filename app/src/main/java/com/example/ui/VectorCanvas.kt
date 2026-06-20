@@ -60,6 +60,15 @@ private fun mapStrokeCap(capStr: String): StrokeCap {
     }
 }
 
+private fun mapLineStyle(styleStr: String, strokeWidth: Float): PathEffect? {
+    val sw = maxOf(strokeWidth, 1f)
+    return when (styleStr.uppercase()) {
+        "DASHED" -> PathEffect.dashPathEffect(floatArrayOf(sw * 4f, sw * 4f), 0f)
+        "DOTTED" -> PathEffect.dashPathEffect(floatArrayOf(sw, sw * 2f), 0f)
+        else -> null
+    }
+}
+
 private fun rotatePoint(p: Offset, c: Offset, angleDegrees: Float): Offset {
     val rad = Math.toRadians(angleDegrees.toDouble())
     val cos = kotlin.math.cos(rad).toFloat()
@@ -223,6 +232,7 @@ fun VectorCanvas(
                     var directSelectionSegmentStartControl1Y = 0f
                     var directSelectionActiveHandleNodeIndex = -1
                     var directSelectionActiveHandleType = ""
+                    var touchedUnselectedShapeOnDown: String? = null
 
                     while (true) {
                         val event = awaitPointerEvent()
@@ -274,6 +284,7 @@ fun VectorCanvas(
                                         dragStartShapes = viewModel.shapes
                                         initialTouchCanvasPos = rawCanvasPos
                                         viewModel.isAutosaveSuspended = true
+                                        touchedUnselectedShapeOnDown = null
                                         
                                         // 1. TOOL SPECIFIC DOWN LOGIC
                                         if (viewModel.currentTool == VectorTool.PEN) {
@@ -461,12 +472,16 @@ fun VectorCanvas(
                                                     hypot(localPos.x - b.left, localPos.y - ((b.top + b.bottom)/2f)) < hSize * 2 -> activeDragHandle = "L"
                                                     hypot(localPos.x - b.right, localPos.y - ((b.top + b.bottom)/2f)) < hSize * 2 -> activeDragHandle = "R"
 
-                                                    viewModel.shapes.any { s -> viewModel.selectedShapeIds.contains(s.id) && s.isPointInside(rawCanvasPos.x, rawCanvasPos.y) } -> activeDragHandle = "MOVE"
+                                                    viewModel.shapes.any { s -> viewModel.selectedShapeIds.contains(s.id) && s.isPointInside(rawCanvasPos.x, rawCanvasPos.y) } -> {
+                                                        activeDragHandle = "MOVE"
+                                                        touchedUnselectedShapeOnDown = viewModel.selectedShapeIds.firstOrNull { id -> viewModel.shapes.find { it.id == id }?.isPointInside(rawCanvasPos.x, rawCanvasPos.y) == true }
+                                                    }
                                                     else -> {
                                                         val hitShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
                                                         if (hitShape != null) {
-                                                            viewModel.selectShapeAt(rawCanvasPos)
                                                             activeDragHandle = "MOVE"
+                                                            touchedUnselectedShapeOnDown = hitShape.id
+                                                            // We do NOT modify selection here. We will check it during drag or tap.
                                                         } else if (viewModel.selectedShapeIds.isNotEmpty()) {
                                                             activeDragHandle = "MOVE"
                                                             viewModel.pushToUndoStack()
@@ -478,8 +493,8 @@ fun VectorCanvas(
                                             } else {
                                                 val hitShape = viewModel.shapes.findLast { it.isPointInside(rawCanvasPos.x, rawCanvasPos.y) }
                                                 if (hitShape != null) {
-                                                    viewModel.selectShapeAt(rawCanvasPos)
                                                     activeDragHandle = "MOVE"
+                                                    touchedUnselectedShapeOnDown = hitShape.id
                                                 } else {
                                                     activeDragHandle = "MARQUEE_SELECT"
                                                 }
@@ -705,10 +720,20 @@ fun VectorCanvas(
                                                         }
                                                     }
                                                     
-                                                    val id = viewModel.selectedShapeId
+                                                    val id = touchedUnselectedShapeOnDown ?: viewModel.selectedShapeId
                                                     val handle = activeDragHandle
                                                     val startShapes = dragStartShapes
                                                     val touchStart = initialTouchCanvasPos
+                                                    
+                                                    // If we are moving and touched an unselected shape, add it to selection NOW
+                                                    if (handle == "MOVE" && touchedUnselectedShapeOnDown != null) {
+                                                        if (!viewModel.selectedShapeIds.contains(touchedUnselectedShapeOnDown)) {
+                                                            val newSels = viewModel.selectedShapeIds.toMutableSet()
+                                                            newSels.add(touchedUnselectedShapeOnDown!!)
+                                                            viewModel.selectedShapeIds = newSels
+                                                            viewModel.selectedShapeId = touchedUnselectedShapeOnDown
+                                                        }
+                                                    }
                                                     
                                                     if (id != null && handle != null && startShapes != null && touchStart != null) {
                                                         val totalDX = rawCanvasPos.x - touchStart.x
@@ -716,7 +741,7 @@ fun VectorCanvas(
                                                         
                                                         if (handle == "MOVE") {
                                                             // Absolute move snapping logic
-                                                            val primaryId = viewModel.selectedShapeId ?: viewModel.selectedShapeIds.firstOrNull()
+                                                            val primaryId = id ?: viewModel.selectedShapeIds.firstOrNull()
                                                             val primaryShape = startShapes.find { it.id == primaryId }
                                                             if (primaryShape != null) {
                                                                 val activeIds = viewModel.selectedShapeIds.ifEmpty { setOfNotNull(primaryId) }
@@ -1003,7 +1028,31 @@ fun VectorCanvas(
                                                 }
                                                 
                                                 if (!triggeredTab) {
-                                                    viewModel.selectShapeAt(screenToCanvas(changes[0].position))
+                                                    if (!isMultiTouch) {
+                                                        val tapPos = screenToCanvas(changes[0].position)
+                                                        val lockedLayerIds = viewModel.layers.filter { it.isLocked }.map { it.id }.toSet()
+                                                        val hitShapeTap = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(tapPos.x, tapPos.y) }
+                                                        
+                                                        if (hitShapeTap != null) {
+                                                            // Toggle selection state
+                                                            val currentSelected = viewModel.selectedShapeIds.toMutableSet()
+                                                            if (currentSelected.contains(hitShapeTap.id)) {
+                                                                currentSelected.remove(hitShapeTap.id)
+                                                            } else {
+                                                                currentSelected.add(hitShapeTap.id)
+                                                            }
+                                                            viewModel.selectedShapeIds = currentSelected
+                                                            if (currentSelected.isNotEmpty()) {
+                                                                viewModel.selectedShapeId = hitShapeTap.id
+                                                            } else {
+                                                                viewModel.selectedShapeId = null
+                                                            }
+                                                        } else {
+                                                            // Tapped empty area, unselect all
+                                                            viewModel.selectedShapeIds = emptySet()
+                                                            viewModel.selectedShapeId = null
+                                                        }
+                                                    }
                                                 }
                                             } else if (activeDragHandle == "MARQUEE_SELECT") {
                                                 val minX = minOf(s.x, e.x)
@@ -1359,7 +1408,8 @@ fun VectorCanvas(
                         style = Stroke(
                             width = viewModel.currentStrokeWidth,
                             join = mapStrokeJoin(viewModel.currentStrokeJoin),
-                            cap = mapStrokeCap(viewModel.currentStrokeCap)
+                            cap = mapStrokeCap(viewModel.currentStrokeCap),
+                            pathEffect = mapLineStyle(viewModel.currentLineStyle, viewModel.currentStrokeWidth)
                         )
                     )
                 }
@@ -1405,7 +1455,8 @@ fun VectorCanvas(
                                 style = Stroke(
                                     width = viewModel.currentStrokeWidth,
                                     join = mapStrokeJoin(viewModel.currentStrokeJoin),
-                                    cap = mapStrokeCap(viewModel.currentStrokeCap)
+                                    cap = mapStrokeCap(viewModel.currentStrokeCap),
+                                    pathEffect = mapLineStyle(viewModel.currentLineStyle, viewModel.currentStrokeWidth)
                                 )
                             )
                         } else {
@@ -2333,6 +2384,7 @@ private fun StaticShapesCanvas(
     Canvas(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer() // Enabled hardware-accelerated layer caching
     ) {
         drawIntoCanvas { canvas ->
             canvas.save()
@@ -2465,7 +2517,8 @@ private fun StaticShapesCanvas(
                                 style = Stroke(
                                     width = shape.strokeWidth,
                                     join = mapStrokeJoin(shape.strokeJoin),
-                                    cap = mapStrokeCap(shape.strokeCap)
+                                    cap = mapStrokeCap(shape.strokeCap),
+                                    pathEffect = mapLineStyle(shape.lineStyle, shape.strokeWidth)
                                 )
                             )
                         }

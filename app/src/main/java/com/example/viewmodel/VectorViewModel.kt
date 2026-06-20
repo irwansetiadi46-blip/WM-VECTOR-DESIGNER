@@ -1188,6 +1188,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var isSmartGuideEnabled by mutableStateOf(false)
     var isSnapToObjectEnabled by mutableStateOf(false)
     var isSnapToPointEnabled by mutableStateOf(false)
+    var isSnapToAngleEnabled by mutableStateOf(false)
+    var isSnapToPathEnabled by mutableStateOf(false)
     var activeSmartGuideHorizontal by mutableStateOf<Float?>(null)
     var activeSmartGuideVertical by mutableStateOf<Float?>(null)
     var activeSmartGuidesList by mutableStateOf<List<SmartGuideInfo>>(emptyList())
@@ -1555,6 +1557,130 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return Offset(finalDX, finalDY)
     }
 
+    fun getClosestPointOnSegment(p: Offset, a: Offset, b: Offset): Offset {
+        val ab = b - a
+        val ap = p - a
+        val abLenSq = ab.x * ab.x + ab.y * ab.y
+        if (abLenSq < 1e-6f) return a
+        val t = ((ap.x * ab.x + ap.y * ab.y) / abLenSq).coerceIn(0f, 1f)
+        return a + ab * t
+    }
+
+    private fun getCubicBezierPoint(p0: Offset, p1: Offset, p2: Offset, p3: Offset, t: Float): Offset {
+        val coeff0 = (1f - t) * (1f - t) * (1f - t)
+        val coeff1 = 3f * (1f - t) * (1f - t) * t
+        val coeff2 = 3f * (1f - t) * t * t
+        val coeff3 = t * t * t
+        return Offset(
+            p0.x * coeff0 + p1.x * coeff1 + p2.x * coeff2 + p3.x * coeff3,
+            p0.y * coeff0 + p1.y * coeff1 + p2.y * coeff2 + p3.y * coeff3
+        )
+    }
+
+    fun findClosestPointOnAnyPath(pos: Offset, ignoreId: String?, tolerance: Float = 25f): Offset? {
+        var closestPt: Offset? = null
+        var minDistance = tolerance
+        
+        for (shape in shapes) {
+            if (!shape.isVisible || shape.id == ignoreId) continue
+            // Evaluate based on ShapeType
+            when (shape.type) {
+                ShapeType.LINE -> {
+                    val a = Offset(shape.startX, shape.startY)
+                    val b = Offset(shape.endX, shape.endY)
+                    val pt = getClosestPointOnSegment(pos, a, b)
+                    val dist = hypot(pos.x - pt.x, pos.y - pt.y)
+                    if (dist < minDistance) {
+                        minDistance = dist
+                        closestPt = pt
+                    }
+                }
+                ShapeType.RECTANGLE, ShapeType.POLYGON, ShapeType.STAR -> {
+                    val rect = shape.getBoundingBox()
+                    if (rect.width > 0 && rect.height > 0) {
+                        val tl = Offset(rect.left, rect.top)
+                        val tr = Offset(rect.right, rect.top)
+                        val br = Offset(rect.right, rect.bottom)
+                        val bl = Offset(rect.left, rect.bottom)
+                        val segments = listOf(
+                            Pair(tl, tr),
+                            Pair(tr, br),
+                            Pair(br, bl),
+                            Pair(bl, tl)
+                        )
+                        for (seg in segments) {
+                            val pt = getClosestPointOnSegment(pos, seg.first, seg.second)
+                            val dist = hypot(pos.x - pt.x, pos.y - pt.y)
+                            if (dist < minDistance) {
+                                minDistance = dist
+                                closestPt = pt
+                            }
+                        }
+                    }
+                }
+                ShapeType.ELLIPSE -> {
+                    val rect = shape.getBoundingBox()
+                    val cx = rect.left + rect.width / 2f
+                    val cy = rect.top + rect.height / 2f
+                    val rx = rect.width / 2f
+                    val ry = rect.height / 2f
+                    if (rx > 0f && ry > 0f) {
+                        val angle = kotlin.math.atan2(pos.y - cy, pos.x - cx)
+                        val pt = Offset(cx + rx * kotlin.math.cos(angle).toFloat(), cy + ry * kotlin.math.sin(angle).toFloat())
+                        val dist = hypot(pos.x - pt.x, pos.y - pt.y)
+                        if (dist < minDistance) {
+                            minDistance = dist
+                            closestPt = pt
+                        }
+                    }
+                }
+                else -> {
+                    // Try evaluating bezierNodes if present
+                    val nodes = shape.bezierNodes
+                    if (nodes.isNotEmpty()) {
+                        for (i in 1 until nodes.size) {
+                            val prev = nodes[i - 1]
+                            val curr = nodes[i]
+                            val p0 = Offset(prev.anchorX, prev.anchorY)
+                            val p3 = Offset(curr.anchorX, curr.anchorY)
+                            val p1 = if (prev.isCurve) Offset(prev.control2X, prev.control2Y) else p0 + (p3 - p0) / 3f
+                            val p2 = if (curr.isCurve) Offset(curr.control1X, curr.control1Y) else p0 + (p3 - p0) * 2f / 3f
+                            
+                            for (step in 0..15) {
+                                val t = step / 15f
+                                val pt = getCubicBezierPoint(p0, p1, p2, p3, t)
+                                val dist = hypot(pos.x - pt.x, pos.y - pt.y)
+                                if (dist < minDistance) {
+                                    minDistance = dist
+                                    closestPt = pt
+                                }
+                            }
+                        }
+                        if (shape.isPathClosed && nodes.size >= 2) {
+                            val prev = nodes.last()
+                            val curr = nodes.first()
+                            val p0 = Offset(prev.anchorX, prev.anchorY)
+                            val p3 = Offset(curr.anchorX, curr.anchorY)
+                            val p1 = if (prev.isCurve) Offset(prev.control2X, prev.control2Y) else p0 + (p3 - p0) / 3f
+                            val p2 = if (curr.isCurve) Offset(curr.control1X, curr.control1Y) else p1
+                            
+                            for (step in 0..15) {
+                                val t = step / 15f
+                                val pt = getCubicBezierPoint(p0, p1, p2, p3, t)
+                                val dist = hypot(pos.x - pt.x, pos.y - pt.y)
+                                if (dist < minDistance) {
+                                    minDistance = dist
+                                    closestPt = pt
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return closestPt
+    }
+
     fun snapOffsetComprehensive(pos: Offset, ignoreId: String? = null): Offset {
         var snappedX = pos.x
         var snappedY = pos.y
@@ -1562,6 +1688,47 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         activeSmartGuideVertical = null
 
         val tolerance = 15f // Snapping distance threshold in pixels
+
+        // Angle Snapping
+        if (isSnapToAngleEnabled) {
+            val pivot: Offset? = if (currentTool == VectorTool.PEN && activeBezierNodes.isNotEmpty()) {
+                Offset(activeBezierNodes.last().anchorX, activeBezierNodes.last().anchorY)
+            } else null
+            
+            if (pivot != null) {
+                val dx = pos.x - pivot.x
+                val dy = pos.y - pivot.y
+                val dist = hypot(dx, dy)
+                if (dist > 1e-3f) {
+                    val angleRad = kotlin.math.atan2(dy, dx)
+                    val angleDeg = Math.toDegrees(angleRad.toDouble())
+                    val snappedAngleDeg = kotlin.math.round(angleDeg / 15.0) * 15.0
+                    val snappedAngleRad = Math.toRadians(snappedAngleDeg)
+                    val sx = pivot.x + dist * kotlin.math.cos(snappedAngleRad).toFloat()
+                    val sy = pivot.y + dist * kotlin.math.sin(snappedAngleRad).toFloat()
+                    
+                    if (isSmartGuideEnabled) {
+                        activeSmartGuideVertical = sx
+                        activeSmartGuideHorizontal = sy
+                        activeSmartGuidesList = listOf(SmartGuideInfo(pivot.x, pivot.y, sx, sy, "ALIGN_LINE"))
+                    }
+                    return Offset(sx, sy)
+                }
+            }
+        }
+
+        // Path Snapping
+        if (isSnapToPathEnabled) {
+            val pathPt = findClosestPointOnAnyPath(pos, ignoreId, tolerance = tolerance)
+            if (pathPt != null) {
+                if (isSmartGuideEnabled) {
+                    activeSmartGuideVertical = pathPt.x
+                    activeSmartGuideHorizontal = pathPt.y
+                    activeSmartGuidesList = listOf(SmartGuideInfo(pos.x, pos.y, pathPt.x, pathPt.y, "ALIGN_LINE"))
+                }
+                return pathPt
+            }
+        }
 
         // 1. Snap to Point (nodes of other shapes)
         if (isSnapToPointEnabled) {
@@ -1665,6 +1832,69 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         activeSmartGuideVertical = null
         activeSmartGuidesList = emptyList()
 
+        val tolerance = 15f
+
+        // Angle Snapping
+        if (isSnapToAngleEnabled) {
+            val pivot: Offset? = when {
+                currentTool == VectorTool.PEN && activeBezierNodes.isNotEmpty() && nodeIndex != null -> {
+                    if (nodeIndex > 0 && nodeIndex < activeBezierNodes.size) {
+                        Offset(activeBezierNodes[nodeIndex - 1].anchorX, activeBezierNodes[nodeIndex - 1].anchorY)
+                    } else if (nodeIndex == 0 && activeBezierNodes.size > 1) {
+                        Offset(activeBezierNodes[1].anchorX, activeBezierNodes[1].anchorY)
+                    } else {
+                        null
+                    }
+                }
+                shapeId != null && nodeIndex != null -> {
+                    val shape = shapes.find { it.id == shapeId }
+                    if (shape != null && shape.bezierNodes.size > 1) {
+                        if (nodeIndex > 0 && nodeIndex < shape.bezierNodes.size) {
+                            Offset(shape.bezierNodes[nodeIndex - 1].anchorX, shape.bezierNodes[nodeIndex - 1].anchorY)
+                        } else if (nodeIndex == 0 && shape.bezierNodes.size > 1) {
+                            Offset(shape.bezierNodes[1].anchorX, shape.bezierNodes[1].anchorY)
+                        } else {
+                            null
+                        }
+                    } else null
+                }
+                else -> null
+            }
+            if (pivot != null) {
+                val dx = pos.x - pivot.x
+                val dy = pos.y - pivot.y
+                val dist = hypot(dx, dy)
+                if (dist > 1e-3f) {
+                    val angleRad = kotlin.math.atan2(dy, dx)
+                    val angleDeg = Math.toDegrees(angleRad.toDouble())
+                    val snappedAngleDeg = kotlin.math.round(angleDeg / 15.0) * 15.0
+                    val snappedAngleRad = Math.toRadians(snappedAngleDeg)
+                    val sx = pivot.x + dist * kotlin.math.cos(snappedAngleRad).toFloat()
+                    val sy = pivot.y + dist * kotlin.math.sin(snappedAngleRad).toFloat()
+                    
+                    if (isSmartGuideEnabled) {
+                        activeSmartGuideVertical = sx
+                        activeSmartGuideHorizontal = sy
+                        activeSmartGuidesList = listOf(SmartGuideInfo(pivot.x, pivot.y, sx, sy, "ALIGN_LINE"))
+                    }
+                    return Offset(sx, sy)
+                }
+            }
+        }
+
+        // Path Snapping
+        if (isSnapToPathEnabled) {
+            val pathPt = findClosestPointOnAnyPath(pos, shapeId, tolerance = tolerance)
+            if (pathPt != null) {
+                if (isSmartGuideEnabled) {
+                    activeSmartGuideVertical = pathPt.x
+                    activeSmartGuideHorizontal = pathPt.y
+                    activeSmartGuidesList = listOf(SmartGuideInfo(pos.x, pos.y, pathPt.x, pathPt.y, "ALIGN_LINE"))
+                }
+                return pathPt
+            }
+        }
+
         val refPoints = mutableListOf<Offset>()
         for (s in shapes) {
             if (!s.isVisible) continue
@@ -1694,7 +1924,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
-        val tolerance = 15f
         var snappedX = pos.x
         var snappedY = pos.y
         var pointSnapped = false
@@ -4667,7 +4896,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     fillColorHex = targetStyleShape.fillColorHex,
                     fillAlpha = targetStyleShape.fillAlpha,
                     layerOrder = targetStyleShape.layerOrder,
-                    rotationAngle = 0f
+                    rotationAngle = 0f,
+                    layerId = targetStyleShape.layerId
                 ))
             }
         }
@@ -4706,7 +4936,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         fillColorHex = targetStyleShape.fillColorHex,
                         fillAlpha = targetStyleShape.fillAlpha,
                         layerOrder = targetStyleShape.layerOrder,
-                        rotationAngle = 0f
+                        rotationAngle = 0f,
+                        layerId = targetStyleShape.layerId
                     ))
                 }
             }
@@ -4876,7 +5107,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             fillColorHex = targetStyleShape.fillColorHex,
             fillAlpha = targetStyleShape.fillAlpha,
             layerOrder = targetStyleShape.layerOrder,
-            rotationAngle = 0f // reset rotation matrix since all coordinates are baked to world coordinates
+            rotationAngle = 0f, // reset rotation matrix since all coordinates are baked to world coordinates
+            layerId = targetStyleShape.layerId
         )
 
         shapes = shapes.map { s ->
