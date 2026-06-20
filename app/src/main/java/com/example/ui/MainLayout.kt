@@ -465,34 +465,48 @@ fun MainLayout(viewModel: VectorViewModel) {
         }
 
         // MAIN CANVAS AND VIEWPORT ARENA
-        Row(
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            // --- LEFT SIDEBAR TOOLBAR ---
-            if (showLeftToolbar) {
-                Column(
-                    modifier = Modifier
-                        .width(48.dp)
-                        .fillMaxHeight()
-                        .background(Color(0xFF1E293B).copy(alpha = 0.5f))
-                        .border(width = 1.dp, color = Color(0xFF334155).copy(alpha = 0.5f))
-                        .padding(vertical = 12.dp, horizontal = 0.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+            // Workspace canvas drawn first (so it stays in background)
+            VectorCanvas(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize().clipToBounds()
+            )
+
+            // --- LEFT SIDEBAR TOOLBAR AND TOGGLE ---
+            Column(
+                modifier = Modifier.align(Alignment.TopStart)
+            ) {
+                // Dropdown Toggle Button
+                Button(
+                    onClick = { showLeftToolbar = !showLeftToolbar },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.6f)),
+                    shape = androidx.compose.ui.graphics.RectangleShape,
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    IconButton(
-                        onClick = { showLeftToolbar = false },
-                        modifier = Modifier.size(36.dp)
+                    Icon(
+                        imageVector = if (showLeftToolbar) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                        contentDescription = "Tools",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                if (showLeftToolbar) {
+                    Column(
+                        modifier = Modifier
+                            .width(48.dp)
+                            .fillMaxHeight()
+                            .background(Color(0xFF1E293B).copy(alpha = 0.6f))
+                            .border(width = 1.dp, color = Color(0xFF334155).copy(alpha = 0.6f))
+                            .padding(vertical = 12.dp, horizontal = 0.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Hide Tools",
-                            tint = Color.White
-                        )
-                    }
-                    
                     // 1. Pointer (Selection) Tool
                 SidebarToolButton(
                     icon = Icons.Default.NearMe,
@@ -593,35 +607,10 @@ fun MainLayout(viewModel: VectorViewModel) {
                             showGridPanel = false
                         }
                     }
-                )
-            }
-            }
-
-            // --- RIGHT SIDE: MAIN CANVAS AND VIEWPORT ARENA ---
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-                contentAlignment = Alignment.Center
-            ) {
-                // Workspace canvas
-                VectorCanvas(
-                    viewModel = viewModel,
-                    modifier = Modifier.fillMaxSize().clipToBounds()
-                )
-
-                if (!showLeftToolbar) {
-                    Button(
-                        onClick = { showLeftToolbar = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.6f)),
-                        shape = RoundedCornerShape(bottomEnd = 8.dp),
-                        modifier = Modifier.align(Alignment.TopStart)
-                    ) {
-                        Icon(imageVector = Icons.Default.Construction, contentDescription = "Tools", tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Tools", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
+                ) // close SidebarToolButton
+                } // close inner Column
+            } // close if (showLeftToolbar)
+            } // close outer Column
 
                 if (viewModel.currentTool == VectorTool.DIRECT_SELECTION) {
                     var expandedEditMode by remember { mutableStateOf(false) }
@@ -1152,7 +1141,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                 }
             }
         }
-    }
 
         // HORIZONTAL SLIDERS SECTION (Stroke size and transparent alpha connected directly to selected shapes)
         if (bottomBarExpandedLevel >= 2) {
@@ -3706,7 +3694,7 @@ fun SidebarToolButton(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) Color(0xFFFF6D00) else Color.Transparent)
+            .background(if (isSelected) Color(0xFFFF6D00) else Color(0x80334155)) // Background is 50% transparent when unselected
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 2.dp),
         verticalArrangement = Arrangement.Center
@@ -3714,7 +3702,7 @@ fun SidebarToolButton(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = if (isSelected) Color.Black else Color.White,
+            tint = if (isSelected) Color.Black else Color.White, // Icon remains 100% opacity
             modifier = Modifier.size(24.dp)
         )
     }

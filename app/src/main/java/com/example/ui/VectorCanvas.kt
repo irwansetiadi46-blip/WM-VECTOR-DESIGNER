@@ -1924,7 +1924,7 @@ fun VectorCanvas(
                         }
 
                         val hasGroupedObject = viewModel.selectedShapeIds.any { id -> viewModel.shapes.find { it.id == id }?.groupId != null }
-                        val highlightColor = if (hasGroupedObject) Color(0xFF7C4C90) else Color(0xFF00FF00)
+                        val highlightColor = if (hasGroupedObject) Color(0xFF7C4C90) else Color(0xFF2E7D32)
                         
                         if (!isRotating && !isMoving) {
 
@@ -2132,25 +2132,34 @@ fun VectorCanvas(
                                     val rCorner = 1.8f / viewModel.zoomScale
                                     val shift = 3.5f / viewModel.zoomScale
                                     
-                                    // Back document
-                                    drawRoundRect(
+                                    // Front document (fully drawn stroke)
+                                    val frontRect = androidx.compose.ui.geometry.Rect(
+                                        offset = Offset(centerPt.x - w/2f + shift/2f, centerPt.y - h/2f + shift/2f),
+                                        size = Size(w, h)
+                                    )
+                                    
+                                    // Let's just draw an L-shape for the back document to avoid overlapping the front document
+                                    val backPath = androidx.compose.ui.graphics.Path().apply {
+                                        val leftX = centerPt.x - w/2f - shift/2f
+                                        val topY = centerPt.y - h/2f - shift/2f
+                                        val botY = topY + h - rCorner
+                                        val rightX = leftX + w - rCorner
+                                        
+                                        moveTo(leftX, botY - shift) // bottom-left before intersection
+                                        lineTo(leftX, topY + rCorner) // up
+                                        quadraticBezierTo(leftX, topY, leftX + rCorner, topY) // corner
+                                        lineTo(rightX - shift, topY) // right before intersection
+                                    }
+                                    drawPath(
+                                        path = backPath,
                                         color = Color.White,
-                                        topLeft = Offset(centerPt.x - w/2f - shift/2f, centerPt.y - h/2f - shift/2f),
-                                        size = Size(w, h),
-                                        cornerRadius = CornerRadius(rCorner, rCorner),
-                                        style = Stroke(width = strokeW)
+                                        style = Stroke(width = strokeW, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                                     )
-                                    // Front document fill (obscuring underlying lines)
-                                    drawRoundRect(
-                                        color = Color(0xFF7C4C90),
-                                        topLeft = Offset(centerPt.x - w/2f + shift/2f, centerPt.y - h/2f + shift/2f),
-                                        size = Size(w, h),
-                                        cornerRadius = CornerRadius(rCorner, rCorner)
-                                    )
+                                    
                                     // Front document stroke
                                     drawRoundRect(
                                         color = Color.White,
-                                        topLeft = Offset(centerPt.x - w/2f + shift/2f, centerPt.y - h/2f + shift/2f),
+                                        topLeft = frontRect.topLeft,
                                         size = Size(w, h),
                                         cornerRadius = CornerRadius(rCorner, rCorner),
                                         style = Stroke(width = strokeW)
