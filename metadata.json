@@ -1,6 +1,6 @@
 {
-  "name": "WAR MACHINE VECTOR EDITOR",
-  "description": "Professional vector drawing and design application with path editing, shapes, layers, bezier curves, and custom styling tools.",
+  "name": "VECTOR STUDIO",
+  "description": "Professional vector design editor with path editing, shapes, layers, and high-performance export features.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

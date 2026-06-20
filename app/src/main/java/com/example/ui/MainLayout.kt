@@ -10,7 +10,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +51,8 @@ import com.example.viewmodel.PrimitiveType
 import com.example.viewmodel.VectorTool
 import com.example.viewmodel.VectorViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
@@ -590,24 +595,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     }
                 )
 
-                // 8. Expand Stroke Tool
-                SidebarToolButton(
-                    icon = ExpandStrokeIcon,
-                    label = "Expand",
-                    isSelected = showExpandOptionsPanel,
-                    onClick = {
-                        val selectedCount = viewModel.selectedShapeIds.size
-                        if (selectedCount == 0) {
-                            Toast.makeText(context, "Pilih objek terlebih dahulu menggunakan selection tool.", Toast.LENGTH_SHORT).show()
-                        } else {
-                            showExpandOptionsPanel = !showExpandOptionsPanel
-                            showBooleanInBottomScope = false
-                            showTransformPanel = false
-                            showAlignmentSelector = false
-                            showGridPanel = false
-                        }
-                    }
-                ) // close SidebarToolButton
+
                 } // close inner Column
             } // close if (showLeftToolbar)
             } // close outer Column
@@ -1326,115 +1314,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                             }
                         }
                     }
-                } else if (showExpandOptionsPanel) {
-                    // --- EXPAND OPTIONS PANEL ---
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = ExpandStrokeIcon,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFF6D00),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "EXPAND OBJECT OPTIONS",
-                                    color = Color(0xFFFF6D00),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Text(
-                                text = "Tutup [X]",
-                                color = Color.LightGray,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable { showExpandOptionsPanel = false }
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-
-                        // Checkboxes Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(20.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Checkbox Fill
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable { expandFillChecked = !expandFillChecked }
-                                    .padding(vertical = 2.dp, horizontal = 4.dp)
-                            ) {
-                                Checkbox(
-                                    checked = expandFillChecked,
-                                    onCheckedChange = { expandFillChecked = it },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFFFF6D00),
-                                        checkmarkColor = Color.Black
-                                    )
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Fill", color = Color.White, fontSize = 12.sp)
-                            }
-
-                            // Checkbox Stroke
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable { expandStrokeChecked = !expandStrokeChecked }
-                                    .padding(vertical = 2.dp, horizontal = 4.dp)
-                            ) {
-                                Checkbox(
-                                    checked = expandStrokeChecked,
-                                    onCheckedChange = { expandStrokeChecked = it },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFFFF6D00),
-                                        checkmarkColor = Color.Black
-                                    )
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Stroke", color = Color.White, fontSize = 12.sp)
-                            }
-                        }
-
-                        // Submit Expand Button
-                        Button(
-                            onClick = {
-                                if (!expandFillChecked && !expandStrokeChecked) {
-                                    Toast.makeText(context, "Pilih setidaknya salah satu (Fill atau Stroke)!", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    viewModel.expandSelectedShapes(expandFill = expandFillChecked, expandStroke = expandStrokeChecked)
-                                    Toast.makeText(context, "Objek berhasil diperluas.", Toast.LENGTH_SHORT).show()
-                                    showExpandOptionsPanel = false
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth().height(36.dp)
-                        ) {
-                            Text(
-                                "EXPAND",
-                                color = Color.Black,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
                 } else if (showAlignmentSelector) {
                     // --- ALIGNMENT OPTIONS PANEL ---
                     androidx.compose.foundation.layout.Column(
@@ -1834,12 +1713,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text(
-                                        text = "Ubah Style Objek Terpilih:",
-                                        color = Color(0xFFFF6D00),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+
                                     StrokeWidthAndOpacitySlidersSection(viewModel)
                                 }
                             }
@@ -2897,16 +2771,48 @@ fun MainLayout(viewModel: VectorViewModel) {
             viewModel.shapes
         }
 
-        val exportCode = remember(shapesToExport, chosenFormat) {
-            if (chosenFormat == "SVG") {
-                generateSVGCode(shapesToExport, viewModel.canvasWidth, viewModel.canvasHeight)
-            } else if (chosenFormat == "EPS") {
-                generateEPSCode(shapesToExport, viewModel.canvasWidth, viewModel.canvasHeight)
+        val minX = remember(shapesToExport, exportSelectionOnly) {
+            if (exportSelectionOnly && shapesToExport.isNotEmpty()) {
+                shapesToExport.minOfOrNull { it.getBoundingBox().left } ?: 0f
             } else {
-                val svgStr = generateSVGCode(shapesToExport, viewModel.canvasWidth, viewModel.canvasHeight)
+                0f
+            }
+        }
+        val maxX = remember(shapesToExport, exportSelectionOnly) {
+            if (exportSelectionOnly && shapesToExport.isNotEmpty()) {
+                shapesToExport.maxOfOrNull { it.getBoundingBox().right } ?: viewModel.canvasWidth
+            } else {
+                viewModel.canvasWidth
+            }
+        }
+        val minY = remember(shapesToExport, exportSelectionOnly) {
+            if (exportSelectionOnly && shapesToExport.isNotEmpty()) {
+                shapesToExport.minOfOrNull { it.getBoundingBox().top } ?: 0f
+            } else {
+                0f
+            }
+        }
+        val maxY = remember(shapesToExport, exportSelectionOnly) {
+            if (exportSelectionOnly && shapesToExport.isNotEmpty()) {
+                shapesToExport.maxOfOrNull { it.getBoundingBox().bottom } ?: viewModel.canvasHeight
+            } else {
+                viewModel.canvasHeight
+            }
+        }
+
+        val exportWidth = remember(minX, maxX) { (maxX - minX).coerceAtLeast(1f) }
+        val exportHeight = remember(minY, maxY) { (maxY - minY).coerceAtLeast(1f) }
+
+        val exportCode = remember(shapesToExport, chosenFormat, exportSelectionOnly, minX, minY, exportWidth, exportHeight) {
+            if (chosenFormat == "SVG") {
+                generateSVGCode(shapesToExport, exportWidth, exportHeight, minX, minY)
+            } else if (chosenFormat == "EPS") {
+                generateEPSCode(shapesToExport, exportWidth, exportHeight, minX, minY)
+            } else {
+                val svgStr = generateSVGCode(shapesToExport, exportWidth, exportHeight, minX, minY)
                 "/* Scalable Vector Binary Header representing $chosenFormat format output */\n" +
                 "formatVersion: 1.0\n" +
-                "targetCanvasSize: ${viewModel.canvasWidth.toInt()}x${viewModel.canvasHeight.toInt()}\n" +
+                "targetCanvasSize: ${exportWidth.toInt()}x${exportHeight.toInt()}\n" +
                 "elementsCount: ${shapesToExport.size}\n" +
                 "checksum: ${shapesToExport.hashCode()}\n" +
                 "svgSourceDataBlock: \n" + svgStr
@@ -3012,13 +2918,16 @@ fun MainLayout(viewModel: VectorViewModel) {
                     ) {
                         Canvas(modifier = Modifier.fillMaxSize().padding(10.dp)) {
                             // Find bounds to center selection or full artboard
-                            val scaleX = size.width / viewModel.canvasWidth
-                            val scaleY = size.height / viewModel.canvasHeight
+                            val scaleX = size.width / exportWidth
+                            val scaleY = size.height / exportHeight
                             val scale = scaleX.coerceAtMost(scaleY)
 
                             drawIntoCanvas { canvas ->
                                 canvas.save()
                                 canvas.scale(scale, scale)
+                                if (exportSelectionOnly) {
+                                    canvas.translate(-minX, -minY)
+                                }
 
                                 shapesToExport.forEach { shape ->
                                     if (shape.isVisible) {
@@ -3071,10 +2980,12 @@ fun MainLayout(viewModel: VectorViewModel) {
                                         val isTransparent = currentFormat == "PNG transparent"
                                         val bitmap = renderShapesToBitmap(
                                             shapes = shapesToExport,
-                                            width = viewModel.canvasWidth,
-                                            height = viewModel.canvasHeight,
+                                            width = exportWidth,
+                                            height = exportHeight,
                                             transparent = isTransparent,
-                                            importedTypeface = viewModel.importedTypeface
+                                            importedTypeface = viewModel.importedTypeface,
+                                            minX = minX,
+                                            minY = minY
                                         )
                                         val stream = java.io.ByteArrayOutputStream()
                                         val compressFormat = if (currentFormat == "JPG") {
@@ -3730,26 +3641,29 @@ fun HomeScreenContent(
         Spacer(modifier = Modifier.height(12.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Category,
-                contentDescription = "Logo",
-                tint = Color(0xFFFF6D00),
-                modifier = Modifier.size(54.dp)
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.img_app_logo_1781960102719),
+                contentDescription = "Vector Studio Logo",
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .border(2.dp, Color(0xFFFF6D00), RoundedCornerShape(14.dp)),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop
             )
             Column {
                 Text(
-                    text = "WAR MACHINE",
+                    text = "VECTOR STUDIO",
                     color = Color.White,
-                    fontSize = 24.sp,
+                    fontSize = 26.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.sp
                 )
                 Text(
-                    text = "VECTOR DESIGN STUDIO",
+                    text = "WAR MACHINE EDITION",
                     color = Color(0xFFFF6D00),
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 3.sp
                 )
@@ -3757,7 +3671,7 @@ fun HomeScreenContent(
         }
 
         Text(
-            text = "Studio vektor profesional dengan layout presisi, layer canggih, & " +
+            text = "Vector Studio v3.0 • Studio vektor profesional dengan layout presisi, layer canggih, & " +
                     "sketsa dinamis.",
             color = Color.Gray,
             fontSize = 11.sp,
@@ -4921,40 +4835,217 @@ fun PenToolPropertiesBlock(viewModel: VectorViewModel, onShowColorPickerStroke: 
 
 @Composable
 fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    if (!viewModel.hasStrokeEnabled) return
+
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+
+    // Generate values from 0.0 to 100.0 with 0.5 steps
+    val strokeWidthValues = remember {
+        val list = mutableListOf<Float>()
+        var current = 0.0f
+        while (current <= 100.0f) {
+            list.add(current)
+            current += 0.5f
+        }
+        list
+    }
+
+    // Two-way sync state for TextField
+    var localTextState by remember { mutableStateOf("") }
+    LaunchedEffect(viewModel.currentStrokeWidth) {
+        val currentStr = if (viewModel.currentStrokeWidth % 1f == 0f) {
+            viewModel.currentStrokeWidth.toInt().toString()
+        } else {
+            viewModel.currentStrokeWidth.toString()
+        }
+        val parsedVal = localTextState.toFloatOrNull() ?: -1f
+        if (parsedVal != viewModel.currentStrokeWidth) {
+            localTextState = currentStr
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Stroke width slider
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // Scrollable slide ruler container
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f)
+                .height(60.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF0F172A))
+                .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
         ) {
-            Text(
-                text = "${viewModel.currentStrokeWidth.toInt()}px",
-                color = Color.White,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier.width(36.dp)
-            )
-            Slider(
-                value = viewModel.currentStrokeWidth,
-                onValueChange = { width ->
-                    viewModel.currentStrokeWidth = width
-                    if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                        viewModel.updateSelectedShapeStyle()
+            val listState = rememberLazyListState()
+            val itemWidth = 44.dp
+            val halfWidth = maxWidth / 2
+            val contentPaddingX = halfWidth - (itemWidth / 2)
+
+            val currentW = viewModel.currentStrokeWidth
+            val closestIndex = remember(currentW) {
+                // Find nearest index mapping to the currentW (step 0.5, so index = round(currentW * 2))
+                val idx = ((currentW * 2f) + 0.5f).toInt().coerceIn(0, 200)
+                idx
+            }
+
+            // 1. Programmatic scroll when value changes externally
+            LaunchedEffect(closestIndex) {
+                if (!listState.isScrollInProgress) {
+                    listState.scrollToItem(closestIndex)
+                }
+            }
+
+            // 2. Snap to center alignment on scroll end
+            LaunchedEffect(listState.isScrollInProgress) {
+                if (!listState.isScrollInProgress) {
+                    val layoutInfo = listState.layoutInfo
+                    val centerOffset = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                    val closestItem = layoutInfo.visibleItemsInfo.minByOrNull {
+                        kotlin.math.abs((it.offset + it.size / 2) - centerOffset)
                     }
-                },
-                valueRange = 0f..100f,
-                colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFFFF6D00),
-                    activeTrackColor = Color(0xFFFF6D00),
-                    inactiveTrackColor = Color(0xFF475569)
-                ),
-                modifier = Modifier.weight(1f).height(24.dp)
+                    if (closestItem != null) {
+                        val expectedOffset = with(density) { (contentPaddingX.toPx() + 0.5f).toInt() }
+                        // Snapping with a threshold of 2 pixels
+                        if (kotlin.math.abs(closestItem.offset - expectedOffset) > 2) {
+                            listState.animateScrollToItem(closestItem.index)
+                        }
+                    }
+                }
+            }
+
+            // 3. Collect scroll updates and update model state
+            LaunchedEffect(listState) {
+                snapshotFlow {
+                    val layoutInfo = listState.layoutInfo
+                    if (layoutInfo.visibleItemsInfo.isEmpty()) null
+                    else {
+                        val centerOffset = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                        layoutInfo.visibleItemsInfo.minByOrNull {
+                            kotlin.math.abs((it.offset + it.size / 2) - centerOffset)
+                        }?.index
+                    }
+                }.collect { closestIdx ->
+                    if (closestIdx != null && listState.isScrollInProgress) {
+                        val strokeVal = closestIdx / 2f
+                        if (viewModel.currentStrokeWidth != strokeVal) {
+                            viewModel.currentStrokeWidth = strokeVal
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
+                                viewModel.updateSelectedShapeStyle()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // LazyRow rendering ruler ticks and values
+            LazyRow(
+                state = listState,
+                contentPadding = PaddingValues(horizontal = contentPaddingX),
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                itemsIndexed(strokeWidthValues) { idx, valNum ->
+                    val isSelected = idx == closestIndex
+                    val isWhole = valNum % 1f == 0f
+                    val labelText = if (isWhole) valNum.toInt().toString() else valNum.toString()
+
+                    Column(
+                        modifier = Modifier
+                            .width(itemWidth)
+                            .fillMaxHeight()
+                            .clickable {
+                                viewModel.currentStrokeWidth = valNum
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
+                                    viewModel.updateSelectedShapeStyle()
+                                }
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        // Tick stroke marks
+                        Box(
+                            modifier = Modifier
+                                .width(if (isSelected) 3.dp else if (isWhole) 1.5.dp else 1.dp)
+                                .height(if (isSelected) 18.dp else if (isWhole) 12.dp else 6.dp)
+                                .background(if (isSelected) Color(0xFF39FF14) else Color(0xFF475569))
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = labelText,
+                            color = if (isSelected) Color(0xFF39FF14) else Color.LightGray,
+                            fontSize = if (isSelected) 12.sp else if (isWhole) 10.sp else 8.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+
+            // Center vertical line overlay (Orange Indicator Line)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .width(2.dp)
+                    .fillMaxHeight()
+                    .background(Color(0xFFFF6D00))
             )
-            Text("Ukuran", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Large manual measurement input box
+        Box(
+            modifier = Modifier
+                .width(80.dp)
+                .height(60.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF0F172A))
+                .border(1.dp, Color(0xFFFF6D00), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = localTextState,
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() || it == '.' }
+                        localTextState = filtered
+                        val parsed = filtered.toFloatOrNull()
+                        if (parsed != null) {
+                            val coerced = parsed.coerceIn(0f, 100f)
+                            if (viewModel.currentStrokeWidth != coerced) {
+                                viewModel.currentStrokeWidth = coerced
+                                if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
+                                    viewModel.updateSelectedShapeStyle()
+                                }
+                            }
+                        }
+                    },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = Color(0xFF39FF14),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = TextAlign.Center
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                )
+                Text(
+                    text = "px",
+                    color = Color.Gray,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }
@@ -4977,10 +5068,10 @@ fun AlignButton(
 }
 
 // Dynamic real-time compliant SVG raw vector text content generator for the export modal
-fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float): String {
+fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX: Float = 0f, minY: Float = 0f): String {
     val sb = StringBuilder()
     sb.append("<!-- Generated by Vector Design Pro Android Compose -->\n")
-    sb.append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 $width $height\" width=\"${width}px\" height=\"${height}px\" style=\"background-color: #ffffff;\">\n")
+    sb.append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"$minX $minY $width $height\" width=\"${width}px\" height=\"${height}px\" style=\"background-color: #ffffff;\">\n")
     
     for (shape in shapes) {
         if (!shape.isVisible) continue
@@ -5081,7 +5172,7 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float): Str
     return sb.toString()
 }
 
-fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): String {
+fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX: Float = 0f, minY: Float = 0f): String {
     val sb = java.lang.StringBuilder()
     val roundedW = kotlin.math.ceil(width).toInt()
     val roundedH = kotlin.math.ceil(height).toInt()
@@ -5186,8 +5277,8 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): Str
         val pSb = java.lang.StringBuilder()
         when (shape.type) {
             ShapeType.RECTANGLE, ShapeType.IMAGE -> {
-                val rx = shape.x
-                val ry = height - shape.y // top of rectangle flipped
+                val rx = shape.x - minX
+                val ry = height - (shape.y - minY) // top of rectangle flipped
                 val rw = shape.width
                 val rh = shape.height
                 pSb.append("  $rx $ry moveto\n")
@@ -5197,8 +5288,8 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): Str
                 applyPathColoring(pSb, true)
             }
             ShapeType.ELLIPSE -> {
-                val cx = shape.x
-                val cy = height - shape.y
+                val cx = shape.x - minX
+                val cy = height - (shape.y - minY)
                 val rx = shape.width
                 val ry = shape.height
                 val kx = rx * 0.55228475f
@@ -5212,10 +5303,10 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): Str
                 applyPathColoring(pSb, true)
             }
             ShapeType.LINE -> {
-                val sx = shape.startX
-                val sy = height - shape.startY
-                val ex = shape.endX
-                val ey = height - shape.endY
+                val sx = shape.startX - minX
+                val sy = height - (shape.startY - minY)
+                val ex = shape.endX - minX
+                val ey = height - (shape.endY - minY)
                 pSb.append("  $sx $sy moveto\n")
                 pSb.append("  $ex $ey lineto\n")
                 applyPathColoring(pSb, false)
@@ -5223,10 +5314,10 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): Str
             ShapeType.FREEHAND -> {
                 if (shape.freehandPoints.isNotEmpty()) {
                     val fpt0 = shape.freehandPoints.first()
-                    pSb.append("  ${fpt0.x} ${height - fpt0.y} moveto\n")
+                    pSb.append("  ${fpt0.x - minX} ${height - (fpt0.y - minY)} moveto\n")
                     for (i in 1 until shape.freehandPoints.size) {
                         val pt = shape.freehandPoints[i]
-                        pSb.append("  ${pt.x} ${height - pt.y} lineto\n")
+                        pSb.append("  ${pt.x - minX} ${height - (pt.y - minY)} lineto\n")
                     }
                     applyPathColoring(pSb, false)
                 }
@@ -5234,31 +5325,31 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): Str
             ShapeType.BEZIER_PATH -> {
                 if (shape.bezierNodes.isNotEmpty()) {
                     val firstNode = shape.bezierNodes.first()
-                    pSb.append("  ${firstNode.anchorX} ${height - firstNode.anchorY} moveto\n")
+                    pSb.append("  ${firstNode.anchorX - minX} ${height - (firstNode.anchorY - minY)} moveto\n")
                     for (i in 1 until shape.bezierNodes.size) {
                         val node = shape.bezierNodes[i]
                         val prev = shape.bezierNodes[i - 1]
                         if (node.isCurve) {
-                            pSb.append("  ${prev.control2X} ${height - prev.control2Y} ${node.control1X} ${height - node.control1Y} ${node.anchorX} ${height - node.anchorY} curveto\n")
+                            pSb.append("  ${prev.control2X - minX} ${height - (prev.control2Y - minY)} ${node.control1X - minX} ${height - (node.control1Y - minY)} ${node.anchorX - minX} ${height - (node.anchorY - minY)} curveto\n")
                         } else {
-                            pSb.append("  ${node.anchorX} ${height - node.anchorY} lineto\n")
+                            pSb.append("  ${node.anchorX - minX} ${height - (node.anchorY - minY)} lineto\n")
                         }
                     }
                     if (shape.isPathClosed) {
                         val first = shape.bezierNodes.first()
                         val last = shape.bezierNodes.last()
                         if (first.isCurve) {
-                            pSb.append("  ${last.control2X} ${height - last.control2Y} ${first.control1X} ${height - first.control1Y} ${first.anchorX} ${height - first.anchorY} curveto\n")
+                            pSb.append("  ${last.control2X - minX} ${height - (last.control2Y - minY)} ${first.control1X - minX} ${height - (first.control1Y - minY)} ${first.anchorX - minX} ${height - (first.anchorY - minY)} curveto\n")
                         } else {
-                            pSb.append("  ${first.anchorX} ${height - first.anchorY} lineto\n")
+                            pSb.append("  ${first.anchorX - minX} ${height - (first.anchorY - minY)} lineto\n")
                         }
                     }
                     applyPathColoring(pSb, shape.isPathClosed)
                 }
             }
             ShapeType.TEXT -> {
-                val tx = shape.x
-                val ty = height - shape.y
+                val tx = shape.x - minX
+                val ty = height - (shape.y - minY)
                 val (sr, sg, sbCol) = hexToRgb(shape.strokeColorHex)
                 
                 sb.append("gsave\n")
@@ -5273,8 +5364,8 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): Str
                 val sides = shape.polygonSides.coerceAtLeast(3)
                 for (i in 0 until sides) {
                     val angle = i * 2 * Math.PI / sides - Math.PI / 2
-                    val px = shape.x + shape.width * kotlin.math.cos(angle).toFloat()
-                    val py = height - (shape.y + shape.height * kotlin.math.sin(angle).toFloat())
+                    val px = (shape.x - minX) + shape.width * kotlin.math.cos(angle).toFloat()
+                    val py = height - ((shape.y - minY) + shape.height * kotlin.math.sin(angle).toFloat())
                     if (i == 0) {
                         pSb.append("  $px $py moveto\n")
                     } else {
@@ -5292,8 +5383,8 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float): Str
                     val angle = i * Math.PI / pts - Math.PI / 2
                     val rXFactor = if (i % 2 == 0) shape.width else innerRx
                     val rYFactor = if (i % 2 == 0) shape.height else innerRy
-                    val px = shape.x + rXFactor * kotlin.math.cos(angle).toFloat()
-                    val py = height - (shape.y + rYFactor * kotlin.math.sin(angle).toFloat())
+                    val px = (shape.x - minX) + rXFactor * kotlin.math.cos(angle).toFloat()
+                    val py = height - ((shape.y - minY) + rYFactor * kotlin.math.sin(angle).toFloat())
                     if (i == 0) {
                         pSb.append("  $px $py moveto\n")
                     } else {
@@ -5316,12 +5407,17 @@ fun renderShapesToBitmap(
     width: Float,
     height: Float,
     transparent: Boolean,
-    importedTypeface: android.graphics.Typeface?
+    importedTypeface: android.graphics.Typeface?,
+    minX: Float = 0f,
+    minY: Float = 0f
 ): android.graphics.Bitmap {
     val w = if (width > 1f) width.toInt() else 1000
     val h = if (height > 1f) height.toInt() else 1000
     val bitmap = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap)
+    if (minX != 0f || minY != 0f) {
+        canvas.translate(-minX, -minY)
+    }
     
     if (!transparent) {
         canvas.drawColor(android.graphics.Color.WHITE)

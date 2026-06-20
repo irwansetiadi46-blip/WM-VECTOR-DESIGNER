@@ -5486,7 +5486,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 type = ShapeType.TEXT,
                 x = 100f,
                 y = 440f,
-                textContent = "VECTOR CREATOR PRO",
+                textContent = "VECTOR STUDIO",
                 fontSize = 28f,
                 strokeColorHex = "#0f172a"
             )
