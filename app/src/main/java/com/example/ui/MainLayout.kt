@@ -2925,9 +2925,9 @@ fun MainLayout(viewModel: VectorViewModel) {
                             drawIntoCanvas { canvas ->
                                 canvas.save()
                                 canvas.scale(scale, scale)
-                                if (exportSelectionOnly) {
-                                    canvas.translate(-minX, -minY)
-                                }
+                                val offsetX = -minX + (size.width / scale - exportWidth) / 2f
+                                val offsetY = -minY + (size.height / scale - exportHeight) / 2f
+                                canvas.translate(offsetX, offsetY)
 
                                 shapesToExport.forEach { shape ->
                                     if (shape.isVisible) {
