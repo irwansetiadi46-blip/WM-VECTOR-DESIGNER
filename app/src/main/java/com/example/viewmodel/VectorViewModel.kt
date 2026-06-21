@@ -5670,6 +5670,9 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             sb.append("\"radiusTR\":${s.radiusTR},")
             sb.append("\"radiusBL\":${s.radiusBL},")
             sb.append("\"radiusBR\":${s.radiusBR},")
+            sb.append("\"cornerRadius\":${s.cornerRadius},")
+            sb.append("\"rotationAngle\":${s.rotationAngle},")
+            sb.append("\"layerOrder\":${s.layerOrder},")
             sb.append("\"customCornerRadii\":[${s.customCornerRadii.joinToString(",")}],")
             if (s.groupId != null) {
                 sb.append("\"groupId\":\"${s.groupId}\",")
@@ -5763,6 +5766,9 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 val radiusTR = extractJsonFloat(itemJson, "radiusTR") ?: 0f
                 val radiusBL = extractJsonFloat(itemJson, "radiusBL") ?: 0f
                 val radiusBR = extractJsonFloat(itemJson, "radiusBR") ?: 0f
+                val cornerRadius = extractJsonFloat(itemJson, "cornerRadius") ?: 0f
+                val rotationAngle = extractJsonFloat(itemJson, "rotationAngle") ?: 0f
+                val layerOrder = extractJsonFloat(itemJson, "layerOrder")?.toInt() ?: 0
                 
                 val cRadii = mutableListOf<Float>()
                 val radiiSub = extractJsonBlock(itemJson, "customCornerRadii")
@@ -5830,7 +5836,10 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         isPathClosed = isPathClosed, freehandPoints = pts, bezierNodes = bNodes,
                         polygonSides = polygonSides, starPoints = starPoints, lineStyle = lineStyle,
                         radiusTL = radiusTL, radiusTR = radiusTR, radiusBL = radiusBL, radiusBR = radiusBR,
+                        cornerRadius = cornerRadius,
                         customCornerRadii = cRadii,
+                        layerOrder = layerOrder,
+                        rotationAngle = rotationAngle,
                         groupId = groupId,
                         layerId = layerId
                     )
