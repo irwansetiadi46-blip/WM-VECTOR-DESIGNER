@@ -233,6 +233,9 @@ fun VectorCanvas(
                     var directSelectionActiveHandleNodeIndex = -1
                     var directSelectionActiveHandleType = ""
                     var touchedUnselectedShapeOnDown: String? = null
+                     var savedSelectedShapeIds = viewModel.selectedShapeIds
+                     var savedSelectedShapeId = viewModel.selectedShapeId
+                     var savedSelectedDirectSelectionNodes = viewModel.selectedDirectSelectionNodes
 
                     while (true) {
                         val event = awaitPointerEvent()
@@ -243,6 +246,12 @@ fun VectorCanvas(
                                 if (!isMultiTouch && viewModel.currentTool == VectorTool.PEN && penDragMode == "create") {
                                     viewModel.removeLastBezierNode()
                                     penDragMode = null
+                                }
+                                if (!isMultiTouch) {
+                                    viewModel.selectedShapeIds = savedSelectedShapeIds
+                                    viewModel.selectedShapeId = savedSelectedShapeId
+                                    viewModel.selectedDirectSelectionNodes = savedSelectedDirectSelectionNodes
+                                    activeDragHandle = null
                                 }
                                 isMultiTouch = true
                                 isDragging = false
@@ -277,6 +286,10 @@ fun VectorCanvas(
                                     val canvasPos = viewModel.snapOffsetComprehensive(rawCanvasPos, viewModel.selectedShapeId)
 
                                     if (!isDragging) {
+                                        savedSelectedShapeIds = viewModel.selectedShapeIds
+                                        savedSelectedShapeId = viewModel.selectedShapeId
+                                        savedSelectedDirectSelectionNodes = viewModel.selectedDirectSelectionNodes
+
                                         isDragging = true
                                         startOffset = canvasPos
                                         lastDragOffset = canvasPos
@@ -328,7 +341,7 @@ fun VectorCanvas(
                                                 rawCanvasPos.x,
                                                 rawCanvasPos.y,
                                                 viewModel.activeBezierNodes,
-                                                20f / viewModel.zoomScale
+                                                36f / viewModel.zoomScale
                                             )
                                             if (handleHit != null) {
                                                 penDragMode = "handle"
@@ -340,7 +353,7 @@ fun VectorCanvas(
                                                     rawCanvasPos.x,
                                                     rawCanvasPos.y,
                                                     viewModel.activeBezierNodes,
-                                                    20f / viewModel.zoomScale
+                                                    36f / viewModel.zoomScale
                                                 )
                                                 if (nodeHitIndex != -1) {
                                                     penDragMode = "node"
@@ -376,7 +389,7 @@ fun VectorCanvas(
                                                         // C. Jika area kosong, langsung bikin node baru di touch down agar bisa ditarik/drag handlesnya
                                                          val snapRaw = viewModel.snapOffset(rawCanvasPos)
                                                          val isCloseToStart = false && viewModel.activeBezierNodes.isNotEmpty() &&
-                                                                 hypot(snapRaw.x - viewModel.activeBezierNodes.first().anchorX, snapRaw.y - viewModel.activeBezierNodes.first().anchorY) < 20f / viewModel.zoomScale
+                                                                 hypot(snapRaw.x - viewModel.activeBezierNodes.first().anchorX, snapRaw.y - viewModel.activeBezierNodes.first().anchorY) < 36f / viewModel.zoomScale
                                                          
                                                          if (isCloseToStart) {
                                                              viewModel.finalizeBezierPath(isClosed = true)
@@ -527,7 +540,7 @@ fun VectorCanvas(
                                                     val targetTolerance = 20f / viewModel.zoomScale
                                                     var handleHitIdx = -1
                                                     var handleHitType = ""
-                                                    val hitTolerance = 24f / viewModel.zoomScale
+                                                    val hitTolerance = 36f / viewModel.zoomScale
                                                     if (shape.type == com.example.model.ShapeType.BEZIER_PATH) {
                                                         for (i in shape.bezierNodes.indices) {
                                                             val node = shape.bezierNodes[i]
@@ -545,14 +558,14 @@ fun VectorCanvas(
                                                             }
                                                         }
                                                     }
-                                                    val nodeIdx = nodes.indexOfFirst { hypot(localClickPos.x - it.x, localClickPos.y - it.y) < 24f / viewModel.zoomScale }
+                                                    val nodeIdx = nodes.indexOfFirst { hypot(localClickPos.x - it.x, localClickPos.y - it.y) < 36f / viewModel.zoomScale }
                                                     if (handleHitIdx != -1) {
                                                         activeDragHandle = "DIRECT_HANDLE"
                                                         directSelectionActiveHandleNodeIndex = handleHitIdx
                                                         directSelectionActiveHandleType = handleHitType
                                                         viewModel.pushToUndoStack()
                                                     } else if (nodeIdx != -1) {
-                                                        viewModel.selectedDirectSelectionNodes = viewModel.selectedDirectSelectionNodes + nodeIdx
+                                                        viewModel.selectedDirectSelectionNodes = setOf(nodeIdx)
                                                         directSelectionActiveHandleNodeIndex = nodeIdx
                                                         activeDragHandle = "DIRECT_NODE"
                                                     } else if (shape.type == com.example.model.ShapeType.BEZIER_PATH) {
@@ -560,7 +573,7 @@ fun VectorCanvas(
                                                             localClickPos,
                                                             shape.bezierNodes,
                                                             isClosed = shape.isPathClosed,
-                                                            tolerance = 24f / viewModel.zoomScale
+                                                            tolerance = 36f / viewModel.zoomScale
                                                         )
                                                         if (nearestSeg != null) {
                                                             activeDragHandle = "DIRECT_SEGMENT"
@@ -1105,7 +1118,7 @@ fun VectorCanvas(
 
                                                         if (shape.type == com.example.model.ShapeType.BEZIER_PATH) {
                                                             val nodes = shape.getNodePoints()
-                                                            val nodeIdx = nodes.indexOfFirst { hypot(localE.x - it.x, localE.y - it.y) < 24f / viewModel.zoomScale }
+                                                            val nodeIdx = nodes.indexOfFirst { hypot(localE.x - it.x, localE.y - it.y) < 36f / viewModel.zoomScale }
                                                         
                                                         when (viewModel.currentNodeEditMode) {
                                                             com.example.viewmodel.NodeEditMode.REMOVE -> {
@@ -1125,7 +1138,7 @@ fun VectorCanvas(
                                                                     localE,
                                                                     shape.bezierNodes,
                                                                     isClosed = shape.isPathClosed,
-                                                                    tolerance = 24f / viewModel.zoomScale
+                                                                    tolerance = 36f / viewModel.zoomScale
                                                                 )
                                                                 if (nearestSeg != null) {
                                                                     viewModel.addNodeOnStroke(sId, nearestSeg.segmentIndex, nearestSeg.t, nearestSeg.isClosedSegment)
@@ -1137,7 +1150,7 @@ fun VectorCanvas(
                                                                     localE,
                                                                     shape.bezierNodes,
                                                                     isClosed = shape.isPathClosed,
-                                                                    tolerance = 24f / viewModel.zoomScale
+                                                                    tolerance = 36f / viewModel.zoomScale
                                                                 )
                                                                 if (nearestSeg != null) {
                                                                     viewModel.cutStrokeAt(sId, nearestSeg.segmentIndex, nearestSeg.t, nearestSeg.isClosedSegment)
@@ -1164,7 +1177,7 @@ fun VectorCanvas(
                                                         }
                                                     } else if (shape != null) {
                                                         val nodes = shape.getNodePoints()
-                                                        val nodeIdx = nodes.indexOfFirst { hypot(localE.x - it.x, localE.y - it.y) < 24f / viewModel.zoomScale }
+                                                        val nodeIdx = nodes.indexOfFirst { hypot(localE.x - it.x, localE.y - it.y) < 36f / viewModel.zoomScale }
                                                         if (nodeIdx != -1) {
                                                             // Multi-select toggle if holding? We don't have shift key, let's just make it simple.
                                                             viewModel.selectedDirectSelectionNodes = setOf(nodeIdx)
@@ -1179,6 +1192,9 @@ fun VectorCanvas(
                                                     val shapeUnder = viewModel.shapes.findLast { !it.isLocked && !lockedLayerIds.contains(it.layerId) && it.isPointInside(e.x, e.y) }
                                                     if (shapeUnder != null) {
                                                         viewModel.selectShapeAt(e)
+                                                    } else {
+                                                        viewModel.selectedShapeIds = emptySet()
+                                                        viewModel.selectedShapeId = null
                                                     }
                                                     viewModel.clearDirectSelection()
                                                 }
@@ -1630,53 +1646,55 @@ fun VectorCanvas(
                             }
                         }
                         
-                        nodes.forEachIndexed { idx, pt ->
-                            val bounds = shape.getBoundingBox()
-                            val cx = (bounds.left + bounds.right) / 2f
-                            val cy = (bounds.top + bounds.bottom) / 2f
-                            val rotatedPt = if (shape.rotationAngle != 0f) rotatePoint(pt, Offset(cx, cy), shape.rotationAngle) else pt
-                            
-                            val isNodeSelected = isShapeSelected && viewModel.selectedDirectSelectionNodes.contains(idx)
-                            val handleRad = (if (isNodeSelected) 14f else 10f) / viewModel.zoomScale
-                            val outerRad = handleRad + (2f / viewModel.zoomScale)
-                            
-                            val bezierNode = if (shape.type == com.example.model.ShapeType.BEZIER_PATH) shape.bezierNodes.getOrNull(idx) else null
-                            val isSudut = bezierNode != null && bezierNode.nodeType == "HALUS" && !bezierNode.isCurve
-                            
-                            if (isSudut) {
-                                drawRect(
-                                    color = Color(0xFF0F172A),
-                                    topLeft = Offset(rotatedPt.x - outerRad, rotatedPt.y - outerRad),
-                                    size = androidx.compose.ui.geometry.Size(outerRad * 2f, outerRad * 2f)
-                                )
-                                drawRect(
-                                    color = if (isNodeSelected) Color(0xFFFF6D00) else Color(0xFF00B0FF),
-                                    topLeft = Offset(rotatedPt.x - handleRad, rotatedPt.y - handleRad),
-                                    size = androidx.compose.ui.geometry.Size(handleRad * 2f, handleRad * 2f)
-                                )
-                                val innerR = handleRad - (3f / viewModel.zoomScale)
-                                drawRect(
-                                    color = Color.White,
-                                    topLeft = Offset(rotatedPt.x - innerR, rotatedPt.y - innerR),
-                                    size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
-                                )
-                            } else {
-                                drawCircle(
-                                    color = Color(0xFF0F172A),
-                                    radius = outerRad,
-                                    center = rotatedPt
-                                )
-                                drawCircle(
-                                    color = if (isNodeSelected) Color(0xFFFF6D00) else Color(0xFF00B0FF),
-                                    radius = handleRad,
-                                    center = rotatedPt
-                                )
-                                val innerR = handleRad - (3f / viewModel.zoomScale)
-                                drawCircle(
-                                    color = Color.White,
-                                    radius = innerR,
-                                    center = rotatedPt
-                                )
+                        if (isShapeSelected) {
+                            nodes.forEachIndexed { idx, pt ->
+                                val bounds = shape.getBoundingBox()
+                                val cx = (bounds.left + bounds.right) / 2f
+                                val cy = (bounds.top + bounds.bottom) / 2f
+                                val rotatedPt = if (shape.rotationAngle != 0f) rotatePoint(pt, Offset(cx, cy), shape.rotationAngle) else pt
+                                
+                                val isNodeSelected = isShapeSelected && viewModel.selectedDirectSelectionNodes.contains(idx)
+                                val handleRad = (if (isNodeSelected) 14f else 10f) / viewModel.zoomScale
+                                val outerRad = handleRad + (2f / viewModel.zoomScale)
+                                
+                                val bezierNode = if (shape.type == com.example.model.ShapeType.BEZIER_PATH) shape.bezierNodes.getOrNull(idx) else null
+                                val isSudut = bezierNode != null && bezierNode.nodeType == "HALUS" && !bezierNode.isCurve
+                                
+                                if (isSudut) {
+                                    drawRect(
+                                        color = Color(0xFF0F172A),
+                                        topLeft = Offset(rotatedPt.x - outerRad, rotatedPt.y - outerRad),
+                                        size = androidx.compose.ui.geometry.Size(outerRad * 2f, outerRad * 2f)
+                                    )
+                                    drawRect(
+                                        color = if (isNodeSelected) Color(0xFFFF6D00) else Color(0xFF00B0FF),
+                                        topLeft = Offset(rotatedPt.x - handleRad, rotatedPt.y - handleRad),
+                                        size = androidx.compose.ui.geometry.Size(handleRad * 2f, handleRad * 2f)
+                                    )
+                                    val innerR = handleRad - (3f / viewModel.zoomScale)
+                                    drawRect(
+                                        color = Color.White,
+                                        topLeft = Offset(rotatedPt.x - innerR, rotatedPt.y - innerR),
+                                        size = androidx.compose.ui.geometry.Size(innerR * 2f, innerR * 2f)
+                                    )
+                                } else {
+                                    drawCircle(
+                                        color = Color(0xFF0F172A),
+                                        radius = outerRad,
+                                        center = rotatedPt
+                                    )
+                                    drawCircle(
+                                        color = if (isNodeSelected) Color(0xFFFF6D00) else Color(0xFF00B0FF),
+                                        radius = handleRad,
+                                        center = rotatedPt
+                                    )
+                                    val innerR = handleRad - (3f / viewModel.zoomScale)
+                                    drawCircle(
+                                        color = Color.White,
+                                        radius = innerR,
+                                        center = rotatedPt
+                                    )
+                                }
                             }
                         }
                     }

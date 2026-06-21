@@ -17,6 +17,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -146,7 +148,7 @@ fun ColorPickerDialog(
         )
     }
 
-    var selectedTab by remember { mutableStateOf("HSV") } // "HSV", "RGB", "PALETTE", "JOIN", "CAP"
+    var selectedTab by remember { mutableStateOf("PALETTE") } // "HSV", "RGB", "PALETTE", "JOIN", "CAP"
     var hexInput by remember { mutableStateOf(initialColorHex) }
     var alphaVal by remember { mutableStateOf(initialAlpha) }
     
@@ -542,20 +544,30 @@ fun ColorPickerDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Custom Swatches Palette", color = Color.White, fontSize = 12.sp)
+                                Text(
+                                    text = "Pick Color",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
                             }
 
-                            val numCols = 12
-                            val numRows = (palettesState.size + numCols - 1) / numCols
+                            val numRows = 4
+                            val numCols = (palettesState.size + numRows - 1) / numRows
 
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF0F172A))
+                                    .padding(8.dp)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 for (c in 0 until numCols) {
                                     Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
                                         for (r in 0 until numRows) {
                                             val index = c * numRows + r
@@ -570,14 +582,11 @@ fun ColorPickerDialog(
 
                                                 Box(
                                                     modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .aspectRatio(1f)
-                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .size(34.dp)
                                                         .background(colorValue)
                                                         .border(
                                                             width = if (isSel) 2.dp else 1.dp,
-                                                            color = if (isSel) Color(0xFFFF6D00) else Color(0x33FFFFFF),
-                                                            shape = RoundedCornerShape(4.dp)
+                                                            color = if (isSel) Color(0xFFFF6D00) else Color(0x33FFFFFF)
                                                         )
                                                         .clickable {
                                                             hexInput = colorHex
@@ -585,14 +594,42 @@ fun ColorPickerDialog(
                                                 )
                                             } else {
                                                 Spacer(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .aspectRatio(1f)
+                                                    modifier = Modifier.size(34.dp)
                                                 )
                                             }
                                         }
                                     }
                                 }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowLeft,
+                                    contentDescription = null,
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Scroll",
+                                    color = Color.Gray,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     }
@@ -878,10 +915,28 @@ fun ImportedPaletteContainer(
                 Button(
                     onClick = onUploadClick,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                    modifier = Modifier.height(24.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
                 ) {
-                    Text(text = "Import Palette", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.wrapContentSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add Colors",
+                            tint = Color.Black,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Colors",
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 // No need for onDeleteAllClick here anymore.
@@ -897,7 +952,7 @@ fun ImportedPaletteContainer(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Belum ada warna. Klik 'Import Palette' untuk mengimport gambar palette.",
+                    text = "Belum ada warna. Klik '+ Colors' untuk mengimport gambar palette.",
                     color = Color.Gray,
                     fontSize = 11.sp,
                     style = androidx.compose.ui.text.TextStyle(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
