@@ -872,24 +872,6 @@ fun ImportedPaletteContainer(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFF6D00))
-                )
-                Text(
-                    text = "Imported Image Palette",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            
-            Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -899,23 +881,10 @@ fun ImportedPaletteContainer(
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
                     modifier = Modifier.height(24.dp)
                 ) {
-                    Text(text = "Upload JPG", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Import Palette", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
 
-                if (importedPalettes.isNotEmpty()) {
-                    TextButton(
-                        onClick = onDeleteAllClick,
-                        contentPadding = PaddingValues(horizontal = 8.dp),
-                        modifier = Modifier.height(28.dp)
-                    ) {
-                        Text(
-                            text = "Hapus Semua",
-                            color = Color(0xFFEF4444),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                // No need for onDeleteAllClick here anymore.
             }
         }
 
@@ -928,7 +897,7 @@ fun ImportedPaletteContainer(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Belum ada warna. Klik 'Upload JPG' untuk mengimport gambar palette.",
+                    text = "Belum ada warna. Klik 'Import Palette' untuk mengimport gambar palette.",
                     color = Color.Gray,
                     fontSize = 11.sp,
                     style = androidx.compose.ui.text.TextStyle(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
