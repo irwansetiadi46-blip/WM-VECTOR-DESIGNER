@@ -3398,7 +3398,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                 viewModel.saveCurrentProject()
                 showArtboardColorPicker = false
             },
-            onDismissRequest = { showArtboardColorPicker = false }
+            onDismissRequest = { showArtboardColorPicker = false },
+            viewModel = viewModel
         )
     }
 
@@ -3412,7 +3413,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                 viewModel.gridColorHex = hex
                 showGridColorPicker = false
             },
-            onDismissRequest = { showGridColorPicker = false }
+            onDismissRequest = { showGridColorPicker = false },
+            viewModel = viewModel
         )
     }
 
@@ -3491,7 +3493,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                     viewModel.updateSelectedShapeProperties(hasFill = true, fillColorHex = hex, fillAlpha = alpha)
                 }
             },
-            onDismissRequest = { showColorPickerFill = false }
+            onDismissRequest = { showColorPickerFill = false },
+            viewModel = viewModel
         )
     }
 

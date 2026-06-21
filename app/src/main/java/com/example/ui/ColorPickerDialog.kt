@@ -392,8 +392,9 @@ fun ColorPickerDialog(
                         ) {
                             ImportedPaletteContainer(
                                 importedPalettes = currentImportedPalettes,
+                                selectedHex = hexInput,
                                 onColorClick = { hexInput = it },
-                                onImportClick = { imageLauncher.launch("image/*") },
+                                onUploadClick = { imageLauncher.launch("image/*") },
                                 onDeleteGroupClick = deleteImportedPaletteGroup,
                                 onDeleteAllClick = clearAllImportedPalettes
                             )
@@ -467,8 +468,9 @@ fun ColorPickerDialog(
                         ) {
                             ImportedPaletteContainer(
                                 importedPalettes = currentImportedPalettes,
+                                selectedHex = hexInput,
                                 onColorClick = { hexInput = it },
-                                onImportClick = { imageLauncher.launch("image/*") },
+                                onUploadClick = { imageLauncher.launch("image/*") },
                                 onDeleteGroupClick = deleteImportedPaletteGroup,
                                 onDeleteAllClick = clearAllImportedPalettes
                             )
@@ -541,19 +543,9 @@ fun ColorPickerDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text("Custom Swatches Palette", color = Color.White, fontSize = 12.sp)
-                                Button(
-                                    onClick = { showImportDialog = true },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                    modifier = Modifier.height(30.dp)
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = "Import", tint = Color.White, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Import", color = Color.White, fontSize = 10.sp)
-                                }
                             }
 
-                            val numCols = 8
+                            val numCols = 12
                             val numRows = (palettesState.size + numCols - 1) / numCols
 
                             Row(
@@ -679,28 +671,30 @@ fun ColorPickerDialog(
                 }
 
                 // Opacity Adjustment Slider inside Color Picker Popup Dialog
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                if (selectedTab != "PALETTE") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("Opacity (Transparency):", color = Color.White, fontSize = 12.sp)
-                        Text("${(alphaVal * 100).toInt()}%", color = Color(0xFFFF6D00), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                    Slider(
-                        value = alphaVal,
-                        onValueChange = { alphaVal = it },
-                        valueRange = 0f..1f,
-                        colors = SliderDefaults.colors(
-                            activeTrackColor = Color(0xFFFF6D00),
-                            thumbColor = Color(0xFFFF6D00)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Opacity (Transparency):", color = Color.White, fontSize = 12.sp)
+                            Text("${(alphaVal * 100).toInt()}%", color = Color(0xFFFF6D00), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                        Slider(
+                            value = alphaVal,
+                            onValueChange = { alphaVal = it },
+                            valueRange = 0f..1f,
+                            colors = SliderDefaults.colors(
+                                activeTrackColor = Color(0xFFFF6D00),
+                                thumbColor = Color(0xFFFF6D00)
+                            )
                         )
-                    )
-                } // End of Opacity Column
+                    } // End of Opacity Column
+                }
                 } // End of Color configuration block
 
                 // Confirm/Action Row buttons
@@ -858,8 +852,9 @@ private fun hsvToHex(h: Float, s: Float, v: Float): String {
 @Composable
 fun ImportedPaletteContainer(
     importedPalettes: List<List<String>>,
+    selectedHex: String,
     onColorClick: (String) -> Unit,
-    onImportClick: () -> Unit,
+    onUploadClick: () -> Unit,
     onDeleteGroupClick: (Int) -> Unit,
     onDeleteAllClick: () -> Unit
 ) {
@@ -898,6 +893,15 @@ fun ImportedPaletteContainer(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Button(
+                    onClick = onUploadClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.height(24.dp)
+                ) {
+                    Text(text = "Upload JPG", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+
                 if (importedPalettes.isNotEmpty()) {
                     TextButton(
                         onClick = onDeleteAllClick,
@@ -911,27 +915,6 @@ fun ImportedPaletteContainer(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                }
-
-                Button(
-                    onClick = onImportClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = "Upload JPG",
-                        tint = Color.Black,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Upload JPG",
-                        color = Color.Black,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
         }
