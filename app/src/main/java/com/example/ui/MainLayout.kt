@@ -2771,30 +2771,43 @@ fun MainLayout(viewModel: VectorViewModel) {
             viewModel.shapes
         }
 
-        val minX = remember(shapesToExport, exportSelectionOnly) {
-            if (exportSelectionOnly && shapesToExport.isNotEmpty()) {
-                shapesToExport.minOfOrNull { it.getBoundingBox().left } ?: 0f
+        val sortedShapesToExport = remember(shapesToExport, viewModel.layers) {
+            val sortedList = mutableListOf<VectorShape>()
+            viewModel.layers.forEach { layer ->
+                if (layer.isVisible) {
+                    val layerShapes = shapesToExport.filter { it.layerId == layer.id && it.isVisible }
+                    sortedList.addAll(layerShapes)
+                }
+            }
+            val remaining = shapesToExport.filter { s -> s.isVisible && sortedList.none { it.id == s.id } }
+            sortedList.addAll(remaining)
+            sortedList
+        }
+
+        val minX = remember(sortedShapesToExport, exportSelectionOnly) {
+            if (exportSelectionOnly && sortedShapesToExport.isNotEmpty()) {
+                sortedShapesToExport.minOfOrNull { it.getBoundingBox().left } ?: 0f
             } else {
                 0f
             }
         }
-        val maxX = remember(shapesToExport, exportSelectionOnly) {
-            if (exportSelectionOnly && shapesToExport.isNotEmpty()) {
-                shapesToExport.maxOfOrNull { it.getBoundingBox().right } ?: viewModel.canvasWidth
+        val maxX = remember(sortedShapesToExport, exportSelectionOnly) {
+            if (exportSelectionOnly && sortedShapesToExport.isNotEmpty()) {
+                sortedShapesToExport.maxOfOrNull { it.getBoundingBox().right } ?: viewModel.canvasWidth
             } else {
                 viewModel.canvasWidth
             }
         }
-        val minY = remember(shapesToExport, exportSelectionOnly) {
-            if (exportSelectionOnly && shapesToExport.isNotEmpty()) {
-                shapesToExport.minOfOrNull { it.getBoundingBox().top } ?: 0f
+        val minY = remember(sortedShapesToExport, exportSelectionOnly) {
+            if (exportSelectionOnly && sortedShapesToExport.isNotEmpty()) {
+                sortedShapesToExport.minOfOrNull { it.getBoundingBox().top } ?: 0f
             } else {
                 0f
             }
         }
-        val maxY = remember(shapesToExport, exportSelectionOnly) {
-            if (exportSelectionOnly && shapesToExport.isNotEmpty()) {
-                shapesToExport.maxOfOrNull { it.getBoundingBox().bottom } ?: viewModel.canvasHeight
+        val maxY = remember(sortedShapesToExport, exportSelectionOnly) {
+            if (exportSelectionOnly && sortedShapesToExport.isNotEmpty()) {
+                sortedShapesToExport.maxOfOrNull { it.getBoundingBox().bottom } ?: viewModel.canvasHeight
             } else {
                 viewModel.canvasHeight
             }
@@ -2803,18 +2816,18 @@ fun MainLayout(viewModel: VectorViewModel) {
         val exportWidth = remember(minX, maxX) { (maxX - minX).coerceAtLeast(1f) }
         val exportHeight = remember(minY, maxY) { (maxY - minY).coerceAtLeast(1f) }
 
-        val exportCode = remember(shapesToExport, chosenFormat, exportSelectionOnly, minX, minY, exportWidth, exportHeight) {
+        val exportCode = remember(sortedShapesToExport, chosenFormat, exportSelectionOnly, minX, minY, exportWidth, exportHeight, viewModel.layers) {
             if (chosenFormat == "SVG") {
-                generateSVGCode(shapesToExport, exportWidth, exportHeight, minX, minY)
+                generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers)
             } else if (chosenFormat == "EPS") {
-                generateEPSCode(shapesToExport, exportWidth, exportHeight, minX, minY)
+                generateEPSCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers)
             } else {
-                val svgStr = generateSVGCode(shapesToExport, exportWidth, exportHeight, minX, minY)
+                val svgStr = generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers)
                 "/* Scalable Vector Binary Header representing $chosenFormat format output */\n" +
                 "formatVersion: 1.0\n" +
                 "targetCanvasSize: ${exportWidth.toInt()}x${exportHeight.toInt()}\n" +
-                "elementsCount: ${shapesToExport.size}\n" +
-                "checksum: ${shapesToExport.hashCode()}\n" +
+                "elementsCount: ${sortedShapesToExport.size}\n" +
+                "checksum: ${sortedShapesToExport.hashCode()}\n" +
                 "svgSourceDataBlock: \n" + svgStr
             }
         }
@@ -2929,32 +2942,47 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 val offsetY = -minY + (size.height / scale - exportHeight) / 2f
                                 canvas.translate(offsetX, offsetY)
 
-                                shapesToExport.forEach { shape ->
-                                    if (shape.isVisible) {
-                                        val strokeColor = Color(android.graphics.Color.parseColor(shape.strokeColorHex)).copy(alpha = shape.strokeAlpha)
-                                        val fillColor = Color(android.graphics.Color.parseColor(shape.fillColorHex)).copy(alpha = shape.fillAlpha)
+                                sortedShapesToExport.forEach { shape ->
+                                    val layer = viewModel.layers.find { it.id == shape.layerId }
+                                    val layerOpacity = layer?.opacity ?: 1f
 
-                                        if (shape.type == ShapeType.TEXT) {
-                                            val paintText = android.graphics.Paint().apply {
-                                                color = android.graphics.Color.parseColor(shape.strokeColorHex)
-                                                textSize = shape.fontSize
-                                                typeface = viewModel.importedTypeface ?: android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-                                                isAntiAlias = true
+                                    val strokeColor = try {
+                                        Color(android.graphics.Color.parseColor(shape.strokeColorHex))
+                                    } catch (_: Exception) {
+                                        Color.Black
+                                    }.copy(alpha = shape.strokeAlpha * layerOpacity)
+
+                                    val fillColor = try {
+                                        Color(android.graphics.Color.parseColor(shape.fillColorHex))
+                                    } catch (_: Exception) {
+                                        Color.LightGray
+                                    }.copy(alpha = shape.fillAlpha * layerOpacity)
+
+                                    if (shape.type == ShapeType.TEXT) {
+                                        val paintText = android.graphics.Paint().apply {
+                                            color = try {
+                                                android.graphics.Color.parseColor(shape.strokeColorHex)
+                                            } catch (_: Exception) {
+                                                android.graphics.Color.BLACK
                                             }
-                                            canvas.nativeCanvas.drawText(
-                                                shape.textContent,
-                                                shape.x,
-                                                shape.y,
-                                                paintText
-                                            )
-                                        } else {
-                                            val path = shape.asComposePath()
-                                            if (shape.hasFill && shape.type != ShapeType.LINE) {
-                                                drawPath(path = path, color = fillColor)
-                                            }
-                                            if (shape.hasStroke && shape.strokeWidth > 0f) {
-                                                drawPath(path = path, color = strokeColor, style = Stroke(width = shape.strokeWidth))
-                                             }
+                                            alpha = (shape.strokeAlpha * layerOpacity * 255f).toInt().coerceIn(0, 255)
+                                            textSize = shape.fontSize
+                                            typeface = viewModel.importedTypeface ?: android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                                            isAntiAlias = true
+                                        }
+                                        canvas.nativeCanvas.drawText(
+                                            shape.textContent,
+                                            shape.x,
+                                            shape.y,
+                                            paintText
+                                        )
+                                    } else {
+                                        val path = shape.asComposePath()
+                                        if (shape.hasFill && shape.type != ShapeType.LINE) {
+                                            drawPath(path = path, color = fillColor)
+                                        }
+                                        if (shape.hasStroke && shape.strokeWidth > 0f) {
+                                            drawPath(path = path, color = strokeColor, style = Stroke(width = shape.strokeWidth))
                                         }
                                     }
                                 }
@@ -2981,13 +3009,14 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     if (currentFormat == "JPG" || currentFormat == "PNG" || currentFormat == "PNG transparent") {
                                         val isTransparent = currentFormat == "PNG transparent"
                                         val bitmap = renderShapesToBitmap(
-                                            shapes = shapesToExport,
+                                            shapes = sortedShapesToExport,
                                             width = exportWidth,
                                             height = exportHeight,
                                             transparent = isTransparent,
                                             importedTypeface = viewModel.importedTypeface,
                                             minX = minX,
-                                            minY = minY
+                                            minY = minY,
+                                            layers = viewModel.layers
                                         )
                                         val stream = java.io.ByteArrayOutputStream()
                                         val compressFormat = if (currentFormat == "JPG") {
@@ -5107,23 +5136,50 @@ fun AlignButton(
 }
 
 // Dynamic real-time compliant SVG raw vector text content generator for the export modal
-fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX: Float = 0f, minY: Float = 0f): String {
+fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX: Float = 0f, minY: Float = 0f, layers: List<com.example.model.VectorLayer> = emptyList()): String {
     val sb = StringBuilder()
     sb.append("<!-- Generated by Vector Design Pro Android Compose -->\n")
     sb.append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 $width $height\" width=\"${width}px\" height=\"${height}px\" style=\"background-color: #ffffff;\">\n")
     
-    for (shape in shapes) {
-        if (!shape.isVisible) continue
+    val layerMap = layers.associateBy { it.id }
+    val finalShapes = if (layers.isNotEmpty()) {
+        val sortedList = mutableListOf<VectorShape>()
+        layers.forEach { layer ->
+            if (layer.isVisible) {
+                val layerShapes = shapes.filter { it.layerId == layer.id && it.isVisible }
+                sortedList.addAll(layerShapes)
+            }
+        }
+        val remaining = shapes.filter { s -> s.isVisible && sortedList.none { it.id == s.id } }
+        sortedList.addAll(remaining)
+        sortedList
+    } else {
+        shapes.filter { it.isVisible }
+    }
+
+    for (shape in finalShapes) {
+        val layerOpacity = layerMap[shape.layerId]?.opacity ?: 1f
+        val fillOpacity = shape.fillAlpha * layerOpacity
+        val strokeOpacity = shape.strokeAlpha * layerOpacity
         
         val fillAttr = if (shape.hasFill && shape.type != ShapeType.LINE) {
-            "fill=\"${shape.fillColorHex}\" fill-opacity=\"${shape.fillAlpha}\""
+            "fill=\"${shape.fillColorHex}\" fill-opacity=\"$fillOpacity\""
         } else {
             "fill=\"none\""
         }
         val strokeAttr = if (shape.hasStroke && shape.strokeWidth > 0f) {
-            "stroke=\"${shape.strokeColorHex}\" stroke-width=\"${shape.strokeWidth}\" stroke-opacity=\"${shape.strokeAlpha}\" stroke-linecap=\"${shape.strokeCap.lowercase()}\" stroke-linejoin=\"${shape.strokeJoin.lowercase()}\""
+            "stroke=\"${shape.strokeColorHex}\" stroke-width=\"${shape.strokeWidth}\" stroke-opacity=\"$strokeOpacity\" stroke-linecap=\"${shape.strokeCap.lowercase()}\" stroke-linejoin=\"${shape.strokeJoin.lowercase()}\""
         } else {
             "stroke=\"none\" stroke-width=\"0\""
+        }
+        
+        val transformAttr = if (shape.rotationAngle != 0f) {
+            val bounds = shape.getBoundingBox()
+            val cx = ((bounds.left + bounds.right) / 2f) - minX
+            val cy = ((bounds.top + bounds.bottom) / 2f) - minY
+            " transform=\"rotate(${shape.rotationAngle}, $cx, $cy)\""
+        } else {
+            ""
         }
         
         val sx = shape.x - minX
@@ -5131,17 +5187,17 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
         
         when (shape.type) {
             ShapeType.RECTANGLE -> {
-                sb.append("  <rect x=\"$sx\" y=\"$sy\" width=\"${shape.width}\" height=\"${shape.height}\" $fillAttr $strokeAttr />\n")
+                sb.append("  <rect x=\"$sx\" y=\"$sy\" width=\"${shape.width}\" height=\"${shape.height}\" $fillAttr $strokeAttr$transformAttr />\n")
             }
             ShapeType.ELLIPSE -> {
-                sb.append("  <ellipse cx=\"$sx\" cy=\"$sy\" rx=\"${shape.width}\" ry=\"${shape.height}\" $fillAttr $strokeAttr />\n")
+                sb.append("  <ellipse cx=\"$sx\" cy=\"$sy\" rx=\"${shape.width}\" ry=\"${shape.height}\" $fillAttr $strokeAttr$transformAttr />\n")
             }
             ShapeType.LINE -> {
                 val lx1 = shape.startX - minX
                 val ly1 = shape.startY - minY
                 val lx2 = shape.endX - minX
                 val ly2 = shape.endY - minY
-                sb.append("  <line x1=\"$lx1\" y1=\"$ly1\" x2=\"$lx2\" y2=\"$ly2\" $strokeAttr />\n")
+                sb.append("  <line x1=\"$lx1\" y1=\"$ly1\" x2=\"$lx2\" y2=\"$ly2\" $strokeAttr$transformAttr />\n")
             }
             ShapeType.FREEHAND -> {
                 if (shape.freehandPoints.isNotEmpty()) {
@@ -5151,7 +5207,7 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
                         val pt = shape.freehandPoints[i]
                         sb.append("L ${pt.x - minX} ${pt.y - minY} ")
                     }
-                    sb.append("\" $fillAttr $strokeAttr />\n")
+                    sb.append("\" $fillAttr $strokeAttr$transformAttr />\n")
                 }
             }
             ShapeType.BEZIER_PATH -> {
@@ -5176,11 +5232,11 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
                         }
                         sb.append("Z")
                     }
-                    sb.append("\" $fillAttr $strokeAttr />\n")
+                    sb.append("\" $fillAttr $strokeAttr$transformAttr />\n")
                 }
             }
             ShapeType.TEXT -> {
-                sb.append("  <text x=\"$sx\" y=\"$sy\" font-family=\"sans-serif\" font-weight=\"bold\" font-size=\"${shape.fontSize}\" fill=\"${shape.strokeColorHex}\" fill-opacity=\"${shape.strokeAlpha}\">${shape.textContent}</text>\n")
+                sb.append("  <text x=\"$sx\" y=\"$sy\" font-family=\"sans-serif\" font-weight=\"bold\" font-size=\"${shape.fontSize}\" fill=\"${shape.strokeColorHex}\" fill-opacity=\"$strokeOpacity\"$transformAttr>${shape.textContent}</text>\n")
             }
             ShapeType.POLYGON -> {
                 val sbPts = StringBuilder()
@@ -5191,7 +5247,7 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
                     val py = sy + shape.height * kotlin.math.sin(angle).toFloat()
                     sbPts.append("$px,$py ")
                 }
-                sb.append("  <polygon points=\"${sbPts.toString().trim()}\" $fillAttr $strokeAttr />\n")
+                sb.append("  <polygon points=\"${sbPts.toString().trim()}\" $fillAttr $strokeAttr$transformAttr />\n")
             }
             ShapeType.STAR -> {
                 val sbPts = StringBuilder()
@@ -5207,10 +5263,10 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
                     val py = sy + rYFactor * kotlin.math.sin(angle).toFloat()
                     sbPts.append("$px,$py ")
                 }
-                sb.append("  <polygon points=\"${sbPts.toString().trim()}\" $fillAttr $strokeAttr />\n")
+                sb.append("  <polygon points=\"${sbPts.toString().trim()}\" $fillAttr $strokeAttr$transformAttr />\n")
             }
             ShapeType.IMAGE -> {
-                sb.append("  <image href=\"data:image/png;base64,${shape.textContent}\" x=\"$sx\" y=\"$sy\" width=\"${shape.width}\" height=\"${shape.height}\" />\n")
+                sb.append("  <image href=\"data:image/png;base64,${shape.textContent}\" x=\"$sx\" y=\"$sy\" width=\"${shape.width}\" height=\"${shape.height}\"$transformAttr />\n")
             }
         }
     }
@@ -5219,7 +5275,7 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
     return sb.toString()
 }
 
-fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX: Float = 0f, minY: Float = 0f): String {
+fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX: Float = 0f, minY: Float = 0f, layers: List<com.example.model.VectorLayer> = emptyList()): String {
     val sb = java.lang.StringBuilder()
     val roundedW = kotlin.math.ceil(width).toInt()
     val roundedH = kotlin.math.ceil(height).toInt()
@@ -5262,9 +5318,31 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX
         Triple(r, g, b)
     }
 
+    val layerMap = layers.associateBy { it.id }
+    val finalShapes = if (layers.isNotEmpty()) {
+        val sortedList = mutableListOf<VectorShape>()
+        layers.forEach { layer ->
+            if (layer.isVisible) {
+                val layerShapes = shapes.filter { it.layerId == layer.id && it.isVisible }
+                sortedList.addAll(layerShapes)
+            }
+        }
+        val remaining = shapes.filter { s -> s.isVisible && sortedList.none { it.id == s.id } }
+        sortedList.addAll(remaining)
+        sortedList
+    } else {
+        shapes.filter { it.isVisible }
+    }
+
     // Process shapes in order
-    for (shape in shapes) {
-        if (!shape.isVisible) continue
+    for (shape in finalShapes) {
+        val hasRotation = shape.rotationAngle != 0f
+        if (hasRotation) {
+            val bounds = shape.getBoundingBox()
+            val cx = ((bounds.left + bounds.right) / 2f) - minX
+            val cy = height - (((bounds.top + bounds.bottom) / 2f) - minY)
+            sb.append(String.format(java.util.Locale.US, "gsave\n  %.4f %.4f translate\n  %.4f rotate\n  %.4f %.4f translate\n", cx, cy, -shape.rotationAngle, -cx, -cy))
+        }
         
         sb.append("% Shape: ${shape.name} (${shape.type.name})\n")
         
@@ -5441,6 +5519,9 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX
                 applyPathColoring(pSb, true)
             }
         }
+        if (hasRotation) {
+            sb.append("grestore\n")
+        }
         sb.append("\n")
     }
     
@@ -5456,7 +5537,8 @@ fun renderShapesToBitmap(
     transparent: Boolean,
     importedTypeface: android.graphics.Typeface?,
     minX: Float = 0f,
-    minY: Float = 0f
+    minY: Float = 0f,
+    layers: List<com.example.model.VectorLayer> = emptyList()
 ): android.graphics.Bitmap {
     val w = if (width > 1f) width.toInt() else 1000
     val h = if (height > 1f) height.toInt() else 1000
@@ -5471,16 +5553,41 @@ fun renderShapesToBitmap(
     } else {
         canvas.drawColor(android.graphics.Color.TRANSPARENT)
     }
-    
-    shapes.forEach { shape ->
-        if (shape.isVisible) {
-            val strokeColor = android.graphics.Color.parseColor(shape.strokeColorHex)
-            val strokeAlpha = (shape.strokeAlpha * 255f).toInt().coerceIn(0, 255)
-            val strokeColorWithAlpha = (strokeColor and 0x00FFFFFF) or (strokeAlpha shl 24)
 
-            val fillColor = android.graphics.Color.parseColor(shape.fillColorHex)
-            val fillAlpha = (shape.fillAlpha * 255f).toInt().coerceIn(0, 255)
-            val fillColorWithAlpha = (fillColor and 0x00FFFFFF) or (fillAlpha shl 24)
+    val layerMap = layers.associateBy { it.id }
+    val finalShapes = if (layers.isNotEmpty()) {
+        val sortedList = mutableListOf<com.example.model.VectorShape>()
+        layers.forEach { layer ->
+            if (layer.isVisible) {
+                val layerShapes = shapes.filter { it.layerId == layer.id && it.isVisible }
+                sortedList.addAll(layerShapes)
+            }
+        }
+        val remaining = shapes.filter { s -> s.isVisible && sortedList.none { it.id == s.id } }
+        sortedList.addAll(remaining)
+        sortedList
+    } else {
+        shapes.filter { it.isVisible }
+    }
+    
+    finalShapes.forEach { shape ->
+        val layerOpacity = layerMap[shape.layerId]?.opacity ?: 1f
+        
+        val strokeColor = try {
+            android.graphics.Color.parseColor(shape.strokeColorHex)
+        } catch (_: Exception) {
+            android.graphics.Color.BLACK
+        }
+        val strokeAlpha = (shape.strokeAlpha * layerOpacity * 255f).toInt().coerceIn(0, 255)
+        val strokeColorWithAlpha = (strokeColor and 0x00FFFFFF) or (strokeAlpha shl 24)
+
+        val fillColor = try {
+            android.graphics.Color.parseColor(shape.fillColorHex)
+        } catch (_: Exception) {
+            android.graphics.Color.LTGRAY
+        }
+        val fillAlpha = (shape.fillAlpha * layerOpacity * 255f).toInt().coerceIn(0, 255)
+        val fillColorWithAlpha = (fillColor and 0x00FFFFFF) or (fillAlpha shl 24)
 
             if (shape.type == com.example.model.ShapeType.IMAGE) {
                 try {
@@ -5554,7 +5661,6 @@ fun renderShapesToBitmap(
                     canvas.drawPath(androidPath, paintStroke)
                 }
             }
-        }
     }
     return bitmap
 }
