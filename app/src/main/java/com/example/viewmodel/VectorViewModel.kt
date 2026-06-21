@@ -276,6 +276,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var hasStrokeEnabled by mutableStateOf(true)
     var currentFillColorHex by mutableStateOf("#E0E0E0")
     var currentFillAlpha by mutableStateOf(1f)
+    var importedPalette by mutableStateOf<List<String>>(emptyList())
 
     // Path building states
     var activeFreehandPoints by mutableStateOf<List<SerializedPoint>>(emptyList())

@@ -31,10 +31,80 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+
+fun extractColorsFromBitmap(bitmap: Bitmap, maxColors: Int = 24): List<String> {
+    val width = bitmap.width
+    val height = bitmap.height
+    val sampledColors = mutableListOf<Int>()
+    
+    val xSteps = 15
+    val ySteps = 15
+    for (i in 0 until xSteps) {
+        for (j in 0 until ySteps) {
+            val x = (width * (i + 0.5f) / xSteps).toInt().coerceIn(0, width - 1)
+            val y = (height * (j + 0.5f) / ySteps).toInt().coerceIn(0, height - 1)
+            val pixel = bitmap.getPixel(x, y)
+            val alpha = android.graphics.Color.alpha(pixel)
+            if (alpha > 128) {
+                sampledColors.add(pixel)
+            }
+        }
+    }
+
+    val freqMap = mutableMapOf<Int, Int>()
+    for (color in sampledColors) {
+        freqMap[color] = (freqMap[color] ?: 0) + 1
+    }
+
+    val sortedColors = freqMap.entries.sortedByDescending { it.value }.map { it.key }
+
+    val distinctColors = mutableListOf<Int>()
+    for (color in sortedColors) {
+        val r1 = android.graphics.Color.red(color)
+        val g1 = android.graphics.Color.green(color)
+        val b1 = android.graphics.Color.blue(color)
+        
+        var isDifferentEnough = true
+        for (existing in distinctColors) {
+            val r2 = android.graphics.Color.red(existing)
+            val g2 = android.graphics.Color.green(existing)
+            val b2 = android.graphics.Color.blue(existing)
+            
+            val distance = sqrt(
+                ((r1 - r2) * (r1 - r2) + (g1 - g2) * (g1 - g2) + (b1 - b2) * (b1 - b2)).toDouble()
+            )
+            if (distance < 35.0) {
+                isDifferentEnough = false
+                break
+            }
+        }
+        if (isDifferentEnough) {
+            distinctColors.add(color)
+            if (distinctColors.size >= maxColors) break
+        }
+    }
+
+    return distinctColors.map { color ->
+        val r = android.graphics.Color.red(color)
+        val g = android.graphics.Color.green(color)
+        val b = android.graphics.Color.blue(color)
+        String.format(java.util.Locale.US, "#%02X%02X%02X", r, g, b)
+    }
+}
 
 @Composable
 fun ColorPickerDialog(
@@ -82,6 +152,46 @@ fun ColorPickerDialog(
     // Dialog state
     var showImportDialog by remember { mutableStateOf(false) }
     var importTextState by remember { mutableStateOf("") }
+
+    var localImportedPalette by remember { mutableStateOf<List<String>>(emptyList()) }
+    val currentImportedColors = if (viewModel != null) {
+        viewModel.importedPalette
+    } else {
+        localImportedPalette
+    }
+    val setImportedColors: (List<String>) -> Unit = { newColors ->
+        if (viewModel != null) {
+            viewModel.importedPalette = newColors
+        } else {
+            localImportedPalette = newColors
+        }
+    }
+
+    val context = LocalContext.current
+    val imageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                context.contentResolver.openInputStream(uri).use { stream ->
+                    val bitmap = BitmapFactory.decodeStream(stream)
+                    if (bitmap != null) {
+                        val extracted = extractColorsFromBitmap(bitmap, maxColors = 24)
+                        if (extracted.isNotEmpty()) {
+                            setImportedColors(extracted)
+                            Toast.makeText(context, "Berhasil mengimport ${extracted.size} warna!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Tidak dapat mendeteksi warna dari gambar ini.", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Toast.makeText(context, "Gambar tidak dapat dibaca.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Gagal mengimport gambar: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     // Helpers to convert hex
     fun updateHex(newHex: String) {
@@ -260,6 +370,13 @@ fun ColorPickerDialog(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            ImportedPaletteContainer(
+                                importedColors = currentImportedColors,
+                                onColorClick = { hexInput = it },
+                                onImportClick = { imageLauncher.launch("image/*") }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
                             // Red Slider
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Red Channel:", color = Color.White, fontSize = 12.sp)
@@ -326,6 +443,13 @@ fun ColorPickerDialog(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            ImportedPaletteContainer(
+                                importedColors = currentImportedColors,
+                                onColorClick = { hexInput = it },
+                                onImportClick = { imageLauncher.launch("image/*") }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
                             // Hue
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Hue (Degree):", color = Color.White, fontSize = 12.sp)
@@ -405,35 +529,52 @@ fun ColorPickerDialog(
                                 }
                             }
 
-                            Box(modifier = Modifier.height(200.dp)) {
-                                LazyVerticalGrid(
-                                    columns = GridCells.Fixed(8),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    items(palettesState) { colorHex ->
-                                        val colorValue = try {
-                                            Color(android.graphics.Color.parseColor(colorHex))
-                                        } catch (_: Exception) {
-                                            Color.DarkGray
-                                        }
-                                        val isSel = hexInput.equals(colorHex, ignoreCase = true)
+                            val numCols = 8
+                            val numRows = (palettesState.size + numCols - 1) / numCols
 
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .aspectRatio(1f)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(colorValue)
-                                                .border(
-                                                    width = if (isSel) 2.5f.dp else 1.dp,
-                                                     color = if (isSel) Color(0xFFFF6D00) else Color(0x33FFFFFF),
-                                                    shape = RoundedCornerShape(4.dp)
-                                                )
-                                                .clickable {
-                                                    hexInput = colorHex
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                for (c in 0 until numCols) {
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        for (r in 0 until numRows) {
+                                            val index = c * numRows + r
+                                            if (index < palettesState.size) {
+                                                val colorHex = palettesState[index]
+                                                val colorValue = try {
+                                                    Color(android.graphics.Color.parseColor(colorHex))
+                                                } catch (_: Exception) {
+                                                    Color.DarkGray
                                                 }
-                                        )
+                                                val isSel = hexInput.equals(colorHex, ignoreCase = true)
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .aspectRatio(1f)
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(colorValue)
+                                                        .border(
+                                                            width = if (isSel) 2.dp else 1.dp,
+                                                            color = if (isSel) Color(0xFFFF6D00) else Color(0x33FFFFFF),
+                                                            shape = RoundedCornerShape(4.dp)
+                                                        )
+                                                        .clickable {
+                                                            hexInput = colorHex
+                                                        }
+                                                )
+                                            } else {
+                                                Spacer(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .aspectRatio(1f)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -688,4 +829,116 @@ private fun hsvToHex(h: Float, s: Float, v: Float): String {
         android.graphics.Color.green(colorInt),
         android.graphics.Color.blue(colorInt)
     )
+}
+
+@Composable
+fun ImportedPaletteContainer(
+    importedColors: List<String>,
+    onColorClick: (String) -> Unit,
+    onImportClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF0F172A))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFF6D00))
+                )
+                Text(
+                    text = "Imported Image Palette",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            Button(
+                onClick = onImportClick,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                modifier = Modifier.height(28.dp)
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Upload JPG",
+                    tint = Color.Black,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Upload JPG",
+                    color = Color.Black,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        if (importedColors.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Belum ada warna. Klik 'Upload JPG' untuk mengimport gambar palette.",
+                    color = Color.Gray,
+                    fontSize = 11.sp,
+                    style = androidx.compose.ui.text.TextStyle(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    importedColors.forEach { colorHex ->
+                        val colorVal = try {
+                            Color(android.graphics.Color.parseColor(colorHex))
+                        } catch (_: Exception) {
+                            Color.Gray
+                        }
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colorVal)
+                                .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(6.dp))
+                                .clickable {
+                                    onColorClick(colorHex)
+                                }
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
