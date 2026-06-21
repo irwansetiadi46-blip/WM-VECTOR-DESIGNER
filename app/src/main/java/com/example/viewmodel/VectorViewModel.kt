@@ -2250,6 +2250,41 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateSelectedShapeProperties(
+        strokeWidth: Float? = null,
+        strokeColorHex: String? = null,
+        strokeAlpha: Float? = null,
+        strokeJoin: String? = null,
+        strokeCap: String? = null,
+        hasStroke: Boolean? = null,
+        hasFill: Boolean? = null,
+        fillColorHex: String? = null,
+        fillAlpha: Float? = null,
+        lineStyle: String? = null
+    ) {
+        val id = selectedShapeId ?: return
+        val targetIds = if (selectedShapeIds.contains(id)) selectedShapeIds else setOf(id)
+        pushToUndoStack()
+        shapes = shapes.map { shape ->
+            if (targetIds.contains(shape.id) || (shape.groupId != null && shapes.find { targetIds.contains(it.id) }?.groupId == shape.groupId)) {
+                shape.copy(
+                    strokeWidth = strokeWidth ?: shape.strokeWidth,
+                    strokeColorHex = strokeColorHex ?: shape.strokeColorHex,
+                    strokeAlpha = strokeAlpha ?: shape.strokeAlpha,
+                    strokeJoin = strokeJoin ?: shape.strokeJoin,
+                    strokeCap = strokeCap ?: shape.strokeCap,
+                    hasStroke = hasStroke ?: shape.hasStroke,
+                    hasFill = hasFill ?: shape.hasFill,
+                    fillColorHex = fillColorHex ?: shape.fillColorHex,
+                    fillAlpha = fillAlpha ?: shape.fillAlpha,
+                    lineStyle = lineStyle ?: shape.lineStyle
+                )
+            } else {
+                shape
+            }
+        }
+    }
+
     // Adding primitive shapes
     fun addPrimitiveShape(start: Offset, end: Offset) {
         pushToUndoStack()

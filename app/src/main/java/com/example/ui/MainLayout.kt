@@ -1601,7 +1601,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                         onValueChange = {
                                             viewModel.currentFillAlpha = it
                                             if (viewModel.selectedShapeId != null) {
-                                                viewModel.updateSelectedShapeStyle()
+                                                viewModel.updateSelectedShapeProperties(fillAlpha = it)
                                             }
                                         },
                                         valueRange = 0f..1f,
@@ -2952,7 +2952,9 @@ fun MainLayout(viewModel: VectorViewModel) {
                                             if (shape.hasFill && shape.type != ShapeType.LINE) {
                                                 drawPath(path = path, color = fillColor)
                                             }
-                                            drawPath(path = path, color = strokeColor, style = Stroke(width = shape.strokeWidth))
+                                            if (shape.hasStroke && shape.strokeWidth > 0f) {
+                                                drawPath(path = path, color = strokeColor, style = Stroke(width = shape.strokeWidth))
+                                             }
                                         }
                                     }
                                 }
@@ -3478,7 +3480,7 @@ fun MainLayout(viewModel: VectorViewModel) {
             onNoneSelected = {
                 viewModel.hasFillEnabled = false
                 if (viewModel.selectedShapeId != null) {
-                    viewModel.updateSelectedShapeStyle()
+                    viewModel.updateSelectedShapeProperties(hasFill = false)
                 }
             },
             onColorSelected = { hex, alpha ->
@@ -3486,7 +3488,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                 viewModel.currentFillAlpha = alpha
                 viewModel.hasFillEnabled = true
                 if (viewModel.selectedShapeId != null) {
-                    viewModel.updateSelectedShapeStyle()
+                    viewModel.updateSelectedShapeProperties(hasFill = true, fillColorHex = hex, fillAlpha = alpha)
                 }
             },
             onDismissRequest = { showColorPickerFill = false }
@@ -3505,18 +3507,19 @@ fun MainLayout(viewModel: VectorViewModel) {
                 viewModel.currentStrokeWidth = 0f
                 viewModel.currentStrokeAlpha = 0f
                 if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                    viewModel.updateSelectedShapeStyle()
+                    viewModel.updateSelectedShapeProperties(hasStroke = false, strokeWidth = 0f, strokeAlpha = 0f)
                 }
             },
             onColorSelected = { hex, alpha ->
                 viewModel.currentStrokeColorHex = hex
                 viewModel.currentStrokeAlpha = alpha
                 viewModel.hasStrokeEnabled = true
+                val restoredWidth = if (viewModel.currentStrokeWidth <= 0f) 4f else viewModel.currentStrokeWidth
                 if (viewModel.currentStrokeWidth <= 0f) {
                     viewModel.currentStrokeWidth = 4f // Restore outline if previously none
                 }
                 if (viewModel.selectedShapeId != null) {
-                    viewModel.updateSelectedShapeStyle()
+                    viewModel.updateSelectedShapeProperties(hasStroke = true, strokeColorHex = hex, strokeAlpha = alpha, strokeWidth = restoredWidth)
                 }
             },
             onDismissRequest = { showColorPickerStroke = false },
@@ -4699,7 +4702,11 @@ fun PenToolPropertiesBlock(viewModel: VectorViewModel, onShowColorPickerStroke: 
                                 }
                             }
                             if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                                viewModel.updateSelectedShapeStyle()
+                                viewModel.updateSelectedShapeProperties(
+                                    hasStroke = enabled,
+                                    strokeWidth = viewModel.currentStrokeWidth,
+                                    strokeAlpha = viewModel.currentStrokeAlpha
+                                )
                             }
                         },
                         colors = CheckboxDefaults.colors(checkedColor = Color(0xFFFF6D00)),
@@ -4714,7 +4721,12 @@ fun PenToolPropertiesBlock(viewModel: VectorViewModel, onShowColorPickerStroke: 
                 ) {
                     Checkbox(
                         checked = viewModel.hasFillEnabled,
-                        onCheckedChange = { viewModel.hasFillEnabled = it },
+                        onCheckedChange = { fillVal ->
+                            viewModel.hasFillEnabled = fillVal
+                            if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
+                                viewModel.updateSelectedShapeProperties(hasFill = fillVal)
+                            }
+                        },
                         colors = CheckboxDefaults.colors(checkedColor = Color(0xFFFF6D00)),
                         modifier = Modifier.size(24.dp)
                     )
@@ -4746,7 +4758,9 @@ fun PenToolPropertiesBlock(viewModel: VectorViewModel, onShowColorPickerStroke: 
                             text = { Text(style, fontSize = 10.sp) },
                             onClick = {
                                 viewModel.currentLineStyle = style
-                                if (viewModel.selectedShapeId != null) viewModel.updateSelectedShapeStyle()
+                                if (viewModel.selectedShapeId != null) {
+                                    viewModel.updateSelectedShapeProperties(lineStyle = style)
+                                }
                                 lineStyleExpanded = false
                             }
                         )
@@ -4771,7 +4785,9 @@ fun PenToolPropertiesBlock(viewModel: VectorViewModel, onShowColorPickerStroke: 
                             text = { Text(join, fontSize = 10.sp) },
                             onClick = {
                                 viewModel.currentStrokeJoin = join
-                                if (viewModel.selectedShapeId != null) viewModel.updateSelectedShapeStyle()
+                                if (viewModel.selectedShapeId != null) {
+                                    viewModel.updateSelectedShapeProperties(strokeJoin = join)
+                                }
                                 joinExpanded = false
                             }
                         )
@@ -4796,7 +4812,9 @@ fun PenToolPropertiesBlock(viewModel: VectorViewModel, onShowColorPickerStroke: 
                             text = { Text(cap, fontSize = 10.sp) },
                             onClick = {
                                 viewModel.currentStrokeCap = cap
-                                if (viewModel.selectedShapeId != null) viewModel.updateSelectedShapeStyle()
+                                if (viewModel.selectedShapeId != null) {
+                                    viewModel.updateSelectedShapeProperties(strokeCap = cap)
+                                }
                                 capExpanded = false
                             }
                         )
@@ -4952,7 +4970,7 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
                             viewModel.currentStrokeWidth = strokeVal
                             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                                viewModel.updateSelectedShapeStyle()
+                                viewModel.updateSelectedShapeProperties(strokeWidth = strokeVal)
                             }
                         }
                     }
@@ -4979,7 +4997,7 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
                                 viewModel.currentStrokeWidth = valNum
                                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                 if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                                    viewModel.updateSelectedShapeStyle()
+                                    viewModel.updateSelectedShapeProperties(strokeWidth = valNum)
                                 }
                             },
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -5038,7 +5056,7 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
                             if (viewModel.currentStrokeWidth != coerced) {
                                 viewModel.currentStrokeWidth = coerced
                                 if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                                    viewModel.updateSelectedShapeStyle()
+                                    viewModel.updateSelectedShapeProperties(strokeWidth = coerced)
                                 }
                             }
                         }
@@ -5529,7 +5547,9 @@ fun renderShapesToBitmap(
                         else -> android.graphics.Paint.Cap.ROUND
                     }
                 }
-                canvas.drawPath(androidPath, paintStroke)
+                if (shape.hasStroke && shape.strokeWidth > 0f) {
+                    canvas.drawPath(androidPath, paintStroke)
+                }
             }
         }
     }

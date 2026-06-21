@@ -463,7 +463,7 @@ fun ColorPickerDialog(
                                                 .clickable {
                                                     viewModel.currentStrokeJoin = join
                                                     if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                                                        viewModel.updateSelectedShapeStyle()
+                                                        viewModel.updateSelectedShapeProperties(strokeJoin = join)
                                                     }
                                                 },
                                             contentAlignment = Alignment.Center
@@ -499,7 +499,7 @@ fun ColorPickerDialog(
                                                 .clickable {
                                                     viewModel.currentStrokeCap = cap
                                                     if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                                                        viewModel.updateSelectedShapeStyle()
+                                                        viewModel.updateSelectedShapeProperties(strokeCap = cap)
                                                     }
                                                 },
                                             contentAlignment = Alignment.Center
