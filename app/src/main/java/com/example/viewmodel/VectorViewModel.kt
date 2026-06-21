@@ -277,6 +277,39 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var currentFillColorHex by mutableStateOf("#E0E0E0")
     var currentFillAlpha by mutableStateOf(1f)
     var importedPalette by mutableStateOf<List<String>>(emptyList())
+    var importedPalettes by mutableStateOf<List<List<String>>>(emptyList())
+
+    fun saveImportedPalettes(palettes: List<List<String>>) {
+        val rootArray = org.json.JSONArray()
+        for (palette in palettes) {
+            val innerArray = org.json.JSONArray()
+            for (color in palette) {
+                innerArray.put(color)
+            }
+            rootArray.put(innerArray)
+        }
+        sharedPrefs.edit().putString("imported_palettes", rootArray.toString()).apply()
+        importedPalettes = palettes
+    }
+
+    fun loadImportedPalettes(): List<List<String>> {
+        val jsonStr = sharedPrefs.getString("imported_palettes", null) ?: return emptyList()
+        val list = mutableListOf<List<String>>()
+        try {
+            val rootArray = org.json.JSONArray(jsonStr)
+            for (i in 0 until rootArray.length()) {
+                val innerArray = rootArray.getJSONArray(i)
+                val palette = mutableListOf<String>()
+                for (j in 0 until innerArray.length()) {
+                    palette.add(innerArray.getString(j))
+                }
+                list.add(palette)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return list
+    }
 
     // Path building states
     var activeFreehandPoints by mutableStateOf<List<SerializedPoint>>(emptyList())
@@ -2075,6 +2108,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     init {
         // Load default shapes on startup or present beautiful preset
         loadDefaultWorkspace()
+        importedPalettes = loadImportedPalettes()
     }
 
     fun convertShapeToBezierPath(shapeId: String) {

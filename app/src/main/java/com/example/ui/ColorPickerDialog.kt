@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -153,17 +154,36 @@ fun ColorPickerDialog(
     var showImportDialog by remember { mutableStateOf(false) }
     var importTextState by remember { mutableStateOf("") }
 
-    var localImportedPalette by remember { mutableStateOf<List<String>>(emptyList()) }
-    val currentImportedColors = if (viewModel != null) {
-        viewModel.importedPalette
+    var localImportedPalettes by remember { mutableStateOf<List<List<String>>>(emptyList()) }
+    val currentImportedPalettes = if (viewModel != null) {
+        viewModel.importedPalettes
     } else {
-        localImportedPalette
+        localImportedPalettes
     }
-    val setImportedColors: (List<String>) -> Unit = { newColors ->
+    val addImportedPalette: (List<String>) -> Unit = { newColors ->
+        val newList = currentImportedPalettes + listOf(newColors)
         if (viewModel != null) {
-            viewModel.importedPalette = newColors
+            viewModel.saveImportedPalettes(newList)
         } else {
-            localImportedPalette = newColors
+            localImportedPalettes = newList
+        }
+    }
+    val deleteImportedPaletteGroup: (Int) -> Unit = { index ->
+        val newList = currentImportedPalettes.toMutableList()
+        if (index in newList.indices) {
+            newList.removeAt(index)
+            if (viewModel != null) {
+                viewModel.saveImportedPalettes(newList)
+            } else {
+                localImportedPalettes = newList
+            }
+        }
+    }
+    val clearAllImportedPalettes: () -> Unit = {
+        if (viewModel != null) {
+            viewModel.saveImportedPalettes(emptyList())
+        } else {
+            localImportedPalettes = emptyList()
         }
     }
 
@@ -178,7 +198,7 @@ fun ColorPickerDialog(
                     if (bitmap != null) {
                         val extracted = extractColorsFromBitmap(bitmap, maxColors = 24)
                         if (extracted.isNotEmpty()) {
-                            setImportedColors(extracted)
+                            addImportedPalette(extracted)
                             Toast.makeText(context, "Berhasil mengimport ${extracted.size} warna!", Toast.LENGTH_SHORT).show()
                         } else {
                             Toast.makeText(context, "Tidak dapat mendeteksi warna dari gambar ini.", Toast.LENGTH_SHORT).show()
@@ -371,9 +391,11 @@ fun ColorPickerDialog(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             ImportedPaletteContainer(
-                                importedColors = currentImportedColors,
+                                importedPalettes = currentImportedPalettes,
                                 onColorClick = { hexInput = it },
-                                onImportClick = { imageLauncher.launch("image/*") }
+                                onImportClick = { imageLauncher.launch("image/*") },
+                                onDeleteGroupClick = deleteImportedPaletteGroup,
+                                onDeleteAllClick = clearAllImportedPalettes
                             )
                             Spacer(modifier = Modifier.height(8.dp))
 
@@ -444,9 +466,11 @@ fun ColorPickerDialog(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             ImportedPaletteContainer(
-                                importedColors = currentImportedColors,
+                                importedPalettes = currentImportedPalettes,
                                 onColorClick = { hexInput = it },
-                                onImportClick = { imageLauncher.launch("image/*") }
+                                onImportClick = { imageLauncher.launch("image/*") },
+                                onDeleteGroupClick = deleteImportedPaletteGroup,
+                                onDeleteAllClick = clearAllImportedPalettes
                             )
                             Spacer(modifier = Modifier.height(8.dp))
 
@@ -833,9 +857,11 @@ private fun hsvToHex(h: Float, s: Float, v: Float): String {
 
 @Composable
 fun ImportedPaletteContainer(
-    importedColors: List<String>,
+    importedPalettes: List<List<String>>,
     onColorClick: (String) -> Unit,
-    onImportClick: () -> Unit
+    onImportClick: () -> Unit,
+    onDeleteGroupClick: (Int) -> Unit,
+    onDeleteAllClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -843,7 +869,7 @@ fun ImportedPaletteContainer(
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFF0F172A))
             .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -868,33 +894,53 @@ fun ImportedPaletteContainer(
                 )
             }
             
-            Button(
-                onClick = onImportClick,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                modifier = Modifier.height(28.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = "Upload JPG",
-                    tint = Color.Black,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Upload JPG",
-                    color = Color.Black,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                if (importedPalettes.isNotEmpty()) {
+                    TextButton(
+                        onClick = onDeleteAllClick,
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Text(
+                            text = "Hapus Semua",
+                            color = Color(0xFFEF4444),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = onImportClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Upload JPG",
+                        tint = Color.Black,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Upload JPG",
+                        color = Color.Black,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
 
-        if (importedColors.isEmpty()) {
+        if (importedPalettes.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
+                    .height(64.dp)
                     .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
@@ -907,35 +953,75 @@ fun ImportedPaletteContainer(
                 )
             }
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    importedColors.forEach { colorHex ->
-                        val colorVal = try {
-                            Color(android.graphics.Color.parseColor(colorHex))
-                        } catch (_: Exception) {
-                            Color.Gray
+                importedPalettes.forEachIndexed { groupIndex, colors ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(8.dp))
+                            .background(Color(0xFF1E293B).copy(alpha = 0.3f))
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Kelompok Palette ${groupIndex + 1}",
+                                color = Color.Gray,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Hapus Kelompok",
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clickable {
+                                        onDeleteGroupClick(groupIndex)
+                                    }
+                            )
                         }
-                        
+
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(colorVal)
-                                .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(6.dp))
-                                .clickable {
-                                    onColorClick(colorHex)
+                                .fillMaxWidth()
+                                .height(40.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                colors.forEach { colorHex ->
+                                    val colorVal = try {
+                                        Color(android.graphics.Color.parseColor(colorHex))
+                                    } catch (_: Exception) {
+                                        Color.Gray
+                                    }
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(colorVal)
+                                            .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(6.dp))
+                                            .clickable {
+                                                onColorClick(colorHex)
+                                            }
+                                    )
                                 }
-                        )
+                            }
+                        }
                     }
                 }
             }
