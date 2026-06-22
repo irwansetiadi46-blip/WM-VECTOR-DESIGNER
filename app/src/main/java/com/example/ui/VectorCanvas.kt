@@ -95,7 +95,9 @@ private fun getRotatedCombinedBoundingBox(shapeIds: Set<String>, list: List<Vect
         if (b.right > maxX) maxX = b.right
         if (b.bottom > maxY) maxY = b.bottom
     }
-    return Rect(minX, minY, maxX, maxY)
+    val maxStrokeWidth = selectedShapes.maxOfOrNull { if (it.hasStroke) it.strokeWidth else 0f } ?: 0f
+    val padding = (maxStrokeWidth / 2f) + 12f
+    return Rect(minX - padding, minY - padding, maxX + padding, maxY + padding)
 }
 
 private fun getUnrotatedCombinedBoundingBox(shapeIds: Set<String>, list: List<VectorShape>): Rect? {
@@ -112,7 +114,9 @@ private fun getUnrotatedCombinedBoundingBox(shapeIds: Set<String>, list: List<Ve
         if (b.right > maxX) maxX = b.right
         if (b.bottom > maxY) maxY = b.bottom
     }
-    return Rect(minX, minY, maxX, maxY)
+    val maxStrokeWidth = selectedShapes.maxOfOrNull { if (it.hasStroke) it.strokeWidth else 0f } ?: 0f
+    val padding = (maxStrokeWidth / 2f) + 12f
+    return Rect(minX - padding, minY - padding, maxX + padding, maxY + padding)
 }
 
 @Composable
@@ -2560,6 +2564,19 @@ private fun StaticShapesCanvas(
                                     join = mapStrokeJoin(shape.strokeJoin),
                                     cap = mapStrokeCap(shape.strokeCap),
                                     pathEffect = mapLineStyle(shape.lineStyle, shape.strokeWidth)
+                                )
+                            )
+                        }
+
+                        // Draw thin pink visual centerline/skeleton of the shape if selected
+                        if (viewModel.selectedShapeIds.contains(shape.id)) {
+                            drawPath(
+                                path = composePath,
+                                color = Color(0xFFFF007F), // Vibrant pink/magenta visual anchor line
+                                style = Stroke(
+                                    width = 1.2f / zoomScale,
+                                    join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
                                 )
                             )
                         }
