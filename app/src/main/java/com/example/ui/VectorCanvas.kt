@@ -529,9 +529,9 @@ fun VectorCanvas(
                                                     shape = viewModel.shapes.find { s -> s.id == sId }
                                                 }
                                                  if (shape != null) {
-                                                    val bounds = shape.getBoundingBox()
-                                                    val cx = (bounds.left + bounds.right) / 2f
-                                                    val cy = (bounds.top + bounds.bottom) / 2f
+                                                    val pivot = shape.getPivotCenter()
+                                                    val cx = pivot.x
+                                                    val cy = pivot.y
                                                     val centerPt = Offset(cx, cy)
                                                     initialDragPivot = centerPt
                                                     val localClickPos = if (shape.rotationAngle != 0f) {
@@ -788,17 +788,28 @@ fun VectorCanvas(
                                                                 viewModel.translateShapesAbsolute(startShapes, activeIds, finalDX, finalDY)
                                                             }
                                                         } else if (handle == "ROTATE_HOTSPOT") {
-                                                            val bounds = getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, dragStartShapes ?: viewModel.shapes)
-                                                            if (bounds != null && initialTouchCanvasPos != null && dragStartShapes != null) {
-                                                                val center = Offset((bounds.left + bounds.right) / 2f, (bounds.top + bounds.bottom) / 2f)
-                                                                val startVec = initialTouchCanvasPos!! - center
-                                                                val currentVec = rawCanvasPos - center
-                                                                val startAngle = Math.toDegrees(Math.atan2(startVec.y.toDouble(), startVec.x.toDouble())).toFloat()
-                                                                val currentAngle = Math.toDegrees(Math.atan2(currentVec.y.toDouble(), currentVec.x.toDouble())).toFloat()
-                                                                var diff = currentAngle - startAngle
-                                                                if (diff < -180f) diff += 360f
-                                                                if (diff > 180f) diff -= 360f
-                                                                viewModel.rotateSelectedShapesAbsolute(dragStartShapes!!, diff)
+                                                            if (initialTouchCanvasPos != null && dragStartShapes != null) {
+                                                                val activeStartShapes = dragStartShapes!!.filter { viewModel.selectedShapeIds.contains(it.id) }
+                                                                if (activeStartShapes.isNotEmpty()) {
+                                                                    val center = if (activeStartShapes.size == 1) {
+                                                                        activeStartShapes.first().getPivotCenter()
+                                                                    } else {
+                                                                        var sx = 0f; var sy = 0f
+                                                                        activeStartShapes.forEach {
+                                                                            val p = it.getPivotCenter()
+                                                                            sx += p.x; sy += p.y
+                                                                        }
+                                                                        Offset(sx / activeStartShapes.size, sy / activeStartShapes.size)
+                                                                    }
+                                                                    val startVec = initialTouchCanvasPos!! - center
+                                                                    val currentVec = rawCanvasPos - center
+                                                                    val startAngle = Math.toDegrees(Math.atan2(startVec.y.toDouble(), startVec.x.toDouble())).toFloat()
+                                                                    val currentAngle = Math.toDegrees(Math.atan2(currentVec.y.toDouble(), currentVec.x.toDouble())).toFloat()
+                                                                    var diff = currentAngle - startAngle
+                                                                    if (diff < -180f) diff += 360f
+                                                                    if (diff > 180f) diff -= 360f
+                                                                    viewModel.rotateSelectedShapesAbsolute(dragStartShapes!!, diff)
+                                                                }
                                                             }
                                                         } else {
                                                             // Absolute resize snapping logic
@@ -1110,9 +1121,9 @@ fun VectorCanvas(
                                                 if (sId != null) {
                                                     val shape = viewModel.shapes.find { it.id == sId }
                                                     if (shape != null) {
-                                                        val bounds = shape.getBoundingBox()
-                                                        val cx = (bounds.left + bounds.right) / 2f
-                                                        val cy = (bounds.top + bounds.bottom) / 2f
+                                                        val pivot = shape.getPivotCenter()
+                                                        val cx = pivot.x
+                                                        val cy = pivot.y
                                                         val centerPt = Offset(cx, cy)
                                                         val localE = if (shape.rotationAngle != 0f) {
                                                             rotatePoint(e, centerPt, -shape.rotationAngle)
@@ -1499,7 +1510,7 @@ fun VectorCanvas(
 
                         // Draw control handle lines and circles for draft path first
                         viewModel.activeBezierNodes.forEachIndexed { idx, node ->
-                            if (node.isCurve && node.nodeType != "HALUS") {
+                            if (node.isCurve) {
                                 val anchorPt = Offset(node.anchorX, node.anchorY)
                                 val c1Pt = Offset(node.control1X, node.control1Y)
                                 val c2Pt = Offset(node.control2X, node.control2Y)
@@ -1585,12 +1596,12 @@ fun VectorCanvas(
                         val activeNodeIndex = viewModel.selectedDirectSelectionNodes.firstOrNull()
 
                         if (isShapeSelected && shape.type == com.example.model.ShapeType.BEZIER_PATH) {
-                            val bounds = shape.getBoundingBox()
-                            val cx = (bounds.left + bounds.right) / 2f
-                            val cy = (bounds.top + bounds.bottom) / 2f
+                            val pivot = shape.getPivotCenter()
+                            val cx = pivot.x
+                            val cy = pivot.y
                             val centerPt = Offset(cx, cy)
                             shape.bezierNodes.forEachIndexed { idx, node ->
-                                if (node.isCurve && node.nodeType != "HALUS") {
+                                if (node.isCurve) {
                                     val rawAnchor = Offset(node.anchorX, node.anchorY)
                                     val rawC1 = Offset(node.control1X, node.control1Y)
                                     val rawC2 = Offset(node.control2X, node.control2Y)
@@ -1652,9 +1663,9 @@ fun VectorCanvas(
                         
                         if (isShapeSelected) {
                             nodes.forEachIndexed { idx, pt ->
-                                val bounds = shape.getBoundingBox()
-                                val cx = (bounds.left + bounds.right) / 2f
-                                val cy = (bounds.top + bounds.bottom) / 2f
+                                val pivot = shape.getPivotCenter()
+                                val cx = pivot.x
+                                val cy = pivot.y
                                 val rotatedPt = if (shape.rotationAngle != 0f) rotatePoint(pt, Offset(cx, cy), shape.rotationAngle) else pt
                                 
                                 val isNodeSelected = isShapeSelected && viewModel.selectedDirectSelectionNodes.contains(idx)
@@ -1712,9 +1723,9 @@ fun VectorCanvas(
                         val corners = shape.getLiveCornerWidgetPositions()
                         val activeCornerIdx = viewModel.selectedRoundedCornerIndex
                         corners.forEachIndexed { idx, pt ->
-                            val bounds = shape.getBoundingBox()
-                            val cx = (bounds.left + bounds.right) / 2f
-                            val cy = (bounds.top + bounds.bottom) / 2f
+                            val pivot = shape.getPivotCenter()
+                            val cx = pivot.x
+                            val cy = pivot.y
                             val rotatedPt = if (shape.rotationAngle != 0f) rotatePoint(pt, Offset(cx, cy), shape.rotationAngle) else pt
                             
                             val handleRad = (if (idx == activeCornerIdx) 10f else 7f) / viewModel.zoomScale
@@ -1924,11 +1935,21 @@ fun VectorCanvas(
                         bAngle = singleShape?.rotationAngle ?: 0f
                         getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
                     } else if (activeDragHandle == "ROTATE_HOTSPOT" && dragStartShapes != null && initialTouchCanvasPos != null && currentTouchPos != null) {
-                        val startingBounds = getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, dragStartShapes!!)
-                        if (startingBounds != null) {
-                            val center = Offset((startingBounds.left + startingBounds.right) / 2f, (startingBounds.top + startingBounds.bottom) / 2f)
-                            val startVec = initialTouchCanvasPos!! - center
-                            val currentVec = currentTouchPos!! - center
+                        val startingBounds = getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, dragStartShapes!!)
+                        val activeStartShapes = dragStartShapes!!.filter { viewModel.selectedShapeIds.contains(it.id) }
+                        if (activeStartShapes.isNotEmpty()) {
+                            val center = if (activeStartShapes.size == 1) {
+                                activeStartShapes.first().getPivotCenter()
+                                                            } else {
+                                                                var sx = 0f; var sy = 0f
+                                                                activeStartShapes.forEach {
+                                                                    val p = it.getPivotCenter()
+                                                                    sx += p.x; sy += p.y
+                                                                }
+                                                                Offset(sx / activeStartShapes.size, sy / activeStartShapes.size)
+                                                            }
+                                                            val startVec = initialTouchCanvasPos!! - center
+                                                            val currentVec = currentTouchPos!! - center
                             val startAngle = Math.toDegrees(Math.atan2(startVec.y.toDouble(), startVec.x.toDouble())).toFloat()
                             val currentAngle = Math.toDegrees(Math.atan2(currentVec.y.toDouble(), currentVec.x.toDouble())).toFloat()
                             var diff = currentAngle - startAngle
@@ -1945,8 +1966,22 @@ fun VectorCanvas(
                         val isRotating = activeDragHandle == "ROTATE_HOTSPOT"
                         val isMoving = activeDragHandle == "MOVE"
                         val borderW = 1.8f / viewModel.zoomScale
-                        val cX = (bounds.left + bounds.right) / 2f
-                        val cY = (bounds.top + bounds.bottom) / 2f
+                        val activeShapes = viewModel.shapes.filter { viewModel.selectedShapeIds.contains(it.id) }
+                        val pivot = if (activeShapes.size == 1) {
+                            activeShapes.first().getPivotCenter()
+                        } else if (activeShapes.isNotEmpty()) {
+                            var sx = 0f; var sy = 0f
+                            activeShapes.forEach { p ->
+                                val pc = p.getPivotCenter()
+                                sx += pc.x; sy += pc.y
+                            }
+                            Offset(sx / activeShapes.size, sy / activeShapes.size)
+                        } else {
+                            Offset((bounds.left + bounds.right) / 2f, (bounds.top + bounds.bottom) / 2f)
+                        }
+                        
+                        val cX = pivot.x
+                        val cY = pivot.y
                         if (bAngle != 0f) {
                             drawContext.transform.rotate(bAngle, Offset(cX, cY))
                         }
@@ -2505,8 +2540,9 @@ private fun StaticShapesCanvas(
                             val androidBitmap = viewModel.getCachedAndroidBitmap(shape.id, base64)
                             if (androidBitmap != null) {
                                 val rect = shape.getBoundingBox()
-                                val cx = (rect.left + rect.right) / 2f
-                                val cy = (rect.top + rect.bottom) / 2f
+                                val pivot = shape.getPivotCenter()
+                                val cx = pivot.x
+                                val cy = pivot.y
 
                                 val paint = android.graphics.Paint().apply {
                                     isAntiAlias = !isOptimizeTracing

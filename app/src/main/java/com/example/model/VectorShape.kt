@@ -291,9 +291,38 @@ data class VectorShape(
         Color.LightGray
     }
 
+    fun getPivotCenter(): Offset {
+        if (frozenBoundsLeft != null && frozenBoundsTop != null && frozenBoundsRight != null && frozenBoundsBottom != null) {
+            val frozenCx = (frozenBoundsLeft + frozenBoundsRight) / 2f
+            val frozenCy = (frozenBoundsTop + frozenBoundsBottom) / 2f
+            return Offset(frozenCx, frozenCy)
+        }
+        val pts = getNodePoints()
+        if (pts.isNotEmpty()) {
+            var sumX = 0f
+            var sumY = 0f
+            for (p in pts) {
+                sumX += p.x
+                sumY += p.y
+            }
+            return Offset(sumX / pts.size, sumY / pts.size)
+        }
+        val b = getBoundingBox()
+        return Offset((b.left + b.right) / 2f, (b.top + b.bottom) / 2f)
+    }
+
+    // Computes the visual bounds of the shape, incorporating rotation
+    fun getVisualBounds(): Rect {
+        if (rotationAngle != 0f && type != ShapeType.TEXT) {
+            val path = asComposePath()
+            return path.getBounds()
+        }
+        return getBoundingBox()
+    }
+
     // Computes the outer rectangular bounds of the shape without rotation
     fun getBoundingBox(): Rect {
-        if (originalPrimitive != null) {
+        if (originalPrimitive != null && (originalPrimitive.type == ShapeType.RECTANGLE || originalPrimitive.type == ShapeType.IMAGE)) {
             return originalPrimitive.getBoundingBox()
         }
         if (frozenBoundsLeft != null && frozenBoundsTop != null && frozenBoundsRight != null && frozenBoundsBottom != null) {
@@ -489,39 +518,28 @@ data class VectorShape(
         
         val tolerance = max(20f, strokeWidth + 10f)
 
+        // 1. Unrotate the raw point into the shape's local unrotated coordinate space
+        val pivot = getPivotCenter()
+        val cx = pivot.x
+        val cy = pivot.y
+        
+        var testX = ptX
+        var testY = ptY
+        if (rotationAngle != 0f) {
+            val rad = Math.toRadians(-rotationAngle.toDouble())
+            val cos = kotlin.math.cos(rad).toFloat()
+            val sin = kotlin.math.sin(rad).toFloat()
+            val dx = ptX - cx
+            val dy = ptY - cy
+            testX = cx + (dx * cos - dy * sin)
+            testY = cy + (dx * sin + dy * cos)
+        }
+
         if (type == ShapeType.TEXT) {
             val bounds = getBoundingBox()
-            val cx = (bounds.left + bounds.right) / 2f
-            val cy = (bounds.top + bounds.bottom) / 2f
-            
-            var testX = ptX
-            var testY = ptY
-            if (rotationAngle != 0f) {
-                val rad = Math.toRadians(-rotationAngle.toDouble())
-                val cos = kotlin.math.cos(rad).toFloat()
-                val sin = kotlin.math.sin(rad).toFloat()
-                val dx = ptX - cx
-                val dy = ptY - cy
-                testX = cx + (dx * cos - dy * sin)
-                testY = cy + (dx * sin + dy * cos)
-            }
             return testX in (bounds.left - tolerance)..(bounds.right + tolerance) &&
                    testY in (bounds.top - tolerance)..(bounds.bottom + tolerance)
         } else if (type == ShapeType.LINE) {
-            val bounds = getBoundingBox()
-            val cx = (bounds.left + bounds.right) / 2f
-            val cy = (bounds.top + bounds.bottom) / 2f
-            var testX = ptX
-            var testY = ptY
-            if (rotationAngle != 0f) {
-                val rad = Math.toRadians(-rotationAngle.toDouble())
-                val cos = kotlin.math.cos(rad).toFloat()
-                val sin = kotlin.math.sin(rad).toFloat()
-                val dx = ptX - cx
-                val dy = ptY - cy
-                testX = cx + (dx * cos - dy * sin)
-                testY = cy + (dx * sin + dy * cos)
-            }
             val l2 = dist2(startX, startY, endX, endY)
             if (l2 == 0f) return hypot(testX - startX, testY - startY) < tolerance
             var t = ((testX - startX) * (endX - startX) + (testY - startY) * (endY - startY)) / l2
@@ -531,7 +549,8 @@ data class VectorShape(
             return hypot(testX - projX, testY - projY) < tolerance
         }
 
-        val androidPath = asComposePath().asAndroidPath()
+        // Use the unrotated path layout for robust, axis-aligned android Region parsing
+        val androidPath = asComposePath(includeRotation = false).asAndroidPath()
         val testPath = android.graphics.Path()
 
         if (hasStroke) {
@@ -550,7 +569,7 @@ data class VectorShape(
         testPath.computeBounds(pathBounds, true)
         
         // Quick bounds check first
-        if (ptX < pathBounds.left - 5f || ptX > pathBounds.right + 5f || ptY < pathBounds.top - 5f || ptY > pathBounds.bottom + 5f) {
+        if (testX < pathBounds.left - 5f || testX > pathBounds.right + 5f || testY < pathBounds.top - 5f || testY > pathBounds.bottom + 5f) {
             return false
         }
 
@@ -562,7 +581,7 @@ data class VectorShape(
             (pathBounds.bottom + 10f).toInt()
         )
         region.setPath(testPath, clip)
-        return region.contains(ptX.toInt(), ptY.toInt())
+        return region.contains(testX.toInt(), testY.toInt())
     }
 
     private fun dist2(x1: Float, y1: Float, x2: Float, y2: Float): Float {
@@ -1159,7 +1178,7 @@ data class VectorShape(
     }
 
     // Builds a path representation of the shape for direct Compose canvas painting
-    fun asComposePath(): Path {
+    fun asComposePath(includeRotation: Boolean = true): Path {
         val path = Path()
         when (type) {
             ShapeType.RECTANGLE, ShapeType.IMAGE -> {
@@ -1274,10 +1293,10 @@ data class VectorShape(
                 // Text has no standard geometric path representation in simple canvas
             }
         }
-        if (rotationAngle != 0f && type != ShapeType.TEXT) {
-            val bounds = getBoundingBox()
-            val cx = (bounds.left + bounds.right) / 2f
-            val cy = (bounds.top + bounds.bottom) / 2f
+        if (includeRotation && rotationAngle != 0f && type != ShapeType.TEXT) {
+            val pivot = getPivotCenter()
+            val cx = pivot.x
+            val cy = pivot.y
             val m = android.graphics.Matrix()
             m.postRotate(rotationAngle, cx, cy)
             path.asAndroidPath().transform(m)

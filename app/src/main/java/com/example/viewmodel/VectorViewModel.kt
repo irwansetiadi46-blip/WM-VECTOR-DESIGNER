@@ -145,6 +145,14 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         get() = _selectedShapeId
         set(value) {
             _selectedShapeId = value
+            if (currentTool != VectorTool.ROUNDED_CORNER && currentTool != VectorTool.SHAPES) {
+                value?.let { id ->
+                    val shape = shapes.find { it.id == id }
+                    if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH) {
+                        convertShapeToBezierPath(id)
+                    }
+                }
+            }
             updateFrozenBoundsForSelection()
         }
 
@@ -153,6 +161,16 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         get() = _selectedShapeIds
         set(value) {
             _selectedShapeIds = value
+            if (currentTool != VectorTool.ROUNDED_CORNER && currentTool != VectorTool.SHAPES) {
+                val targetsToConvert = value.toMutableSet()
+                _selectedShapeId?.let { targetsToConvert.add(it) }
+                targetsToConvert.forEach { id ->
+                    val shape = shapes.find { it.id == id }
+                    if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH) {
+                        convertShapeToBezierPath(id)
+                    }
+                }
+            }
             updateFrozenBoundsForSelection()
         }
     var isCloneModeActive by mutableStateOf(false)
@@ -1241,8 +1259,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var isSmartGuideEnabled by mutableStateOf(false)
     var isSnapToObjectEnabled by mutableStateOf(false)
     var isSnapToPointEnabled by mutableStateOf(false)
-    var isSnapToAngleEnabled by mutableStateOf(false)
-    var isSnapToPathEnabled by mutableStateOf(false)
+    val isSnapToAngleEnabled get() = false
+    val isSnapToPathEnabled get() = false
     var activeSmartGuideHorizontal by mutableStateOf<Float?>(null)
     var activeSmartGuideVertical by mutableStateOf<Float?>(null)
     var activeSmartGuidesList by mutableStateOf<List<SmartGuideInfo>>(emptyList())
@@ -1367,18 +1385,46 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             return Offset(totalDX, totalDY)
         }
 
-        val left1 = originalCombinedBounds.left + totalDX
-        val right1 = originalCombinedBounds.right + totalDX
-        val top1 = originalCombinedBounds.top + totalDY
-        val bottom1 = originalCombinedBounds.bottom + totalDY
+        // Subtract the orange bounding box padding to get the clean stroke-centerline bounds
+        val selectedShapes = shapes.filter { selectedShapeIds.contains(it.id) && !ignoredIds.contains(it.id) && it.isVisible }
+        val maxStrokeWidth = selectedShapes.maxOfOrNull { if (it.hasStroke) it.strokeWidth else 0f } ?: 0f
+        val padding = (maxStrokeWidth / 2f) + 12f
+        
+        val cleanLeft = originalCombinedBounds.left + padding
+        val cleanTop = originalCombinedBounds.top + padding
+        val cleanRight = originalCombinedBounds.right - padding
+        val cleanBottom = originalCombinedBounds.bottom - padding
+        
+        val selCleanBounds = Rect(cleanLeft, cleanTop, cleanRight, cleanBottom)
+
+        val left1 = selCleanBounds.left + totalDX
+        val right1 = selCleanBounds.right + totalDX
+        val top1 = selCleanBounds.top + totalDY
+        val bottom1 = selCleanBounds.bottom + totalDY
         val cx1 = (left1 + right1) / 2f
         val cy1 = (top1 + bottom1) / 2f
 
-        val otherShapes = shapes.filter { !ignoredIds.contains(it.id) && it.isVisible }
+        val sourceXCandidates = mutableListOf(left1, cx1, right1)
+        val sourceYCandidates = mutableListOf(top1, cy1, bottom1)
+        
+        val activeSelected = shapes.filter { !ignoredIds.contains(it.id) && it.isVisible && selectedShapeIds.contains(it.id) }
+        for (selShape in activeSelected) {
+            val pivot = selShape.getPivotCenter()
+            sourceXCandidates.add(pivot.x + totalDX)
+            sourceYCandidates.add(pivot.y + totalDY)
+            selShape.getNodePoints().forEach { pt ->
+                val rotCenter = pivot
+                val rotated = if (selShape.rotationAngle != 0f) rotatePoint(pt, rotCenter, selShape.rotationAngle) else pt
+                sourceXCandidates.add(rotated.x + totalDX)
+                sourceYCandidates.add(rotated.y + totalDY)
+            }
+        }
+
+        val otherShapes = shapes.filter { !ignoredIds.contains(it.id) && it.isVisible && !selectedShapeIds.contains(it.id) }
 
         var bestDiffX = Float.MAX_VALUE
         var bestTargetX: Float? = null
-        var matchedSourceX: Float? = null // left1, cx1, or right1
+        var matchedSourceX: Float? = null // From sourceXCandidates
         var refShapeX: VectorShape? = null
 
         // Canvas X candidates: Left, Center, Right
@@ -1389,54 +1435,43 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         )
         for (cand in canvasXCandidates) {
             val cxVal = cand.first
-            val diffL = kotlin.math.abs(left1 - cxVal)
-            if (diffL < bestDiffX && diffL < canvasTolerance) {
-                bestDiffX = diffL
-                bestTargetX = cxVal
-                matchedSourceX = left1
-                refShapeX = null
-            }
-            val diffC = kotlin.math.abs(cx1 - cxVal)
-            if (diffC < bestDiffX && diffC < canvasTolerance) {
-                bestDiffX = diffC
-                bestTargetX = cxVal
-                matchedSourceX = cx1
-                refShapeX = null
-            }
-            val diffR = kotlin.math.abs(right1 - cxVal)
-            if (diffR < bestDiffX && diffR < canvasTolerance) {
-                bestDiffX = diffR
-                bestTargetX = cxVal
-                matchedSourceX = right1
-                refShapeX = null
+            for (srcX in sourceXCandidates) {
+                val diff = kotlin.math.abs(srcX - cxVal)
+                if (diff < bestDiffX && diff < canvasTolerance) {
+                    bestDiffX = diff
+                    bestTargetX = cxVal
+                    matchedSourceX = srcX
+                    refShapeX = null
+                }
             }
         }
 
         // Other shapes X candidates
         for (shape in otherShapes) {
-            val b = shape.getBoundingBox()
-            val shapeXCandidates = listOf(b.left, (b.left + b.right) / 2f, b.right)
+            val b = shape.getVisualBounds()
+            val shapeXCandidates = mutableListOf(b.left, (b.left + b.right) / 2f, b.right)
+            val pathBounds = shape.asComposePath().getBounds()
+            if (pathBounds.left != b.left) shapeXCandidates.add(pathBounds.left)
+            if (pathBounds.right != b.right) shapeXCandidates.add(pathBounds.right)
+            
+            val pivotCenter = shape.getPivotCenter()
+            shapeXCandidates.add(pivotCenter.x)
+            
+            // Add actual object points for snapping
+            shape.getNodePoints().forEach { pt ->
+                val rotated = if (shape.rotationAngle != 0f) rotatePoint(pt, pivotCenter, shape.rotationAngle) else pt
+                shapeXCandidates.add(rotated.x)
+            }
+            
             for (cxVal in shapeXCandidates) {
-                val diffL = kotlin.math.abs(left1 - cxVal)
-                if (diffL < bestDiffX && diffL < canvasTolerance) {
-                    bestDiffX = diffL
-                    bestTargetX = cxVal
-                    matchedSourceX = left1
-                    refShapeX = shape
-                }
-                val diffC = kotlin.math.abs(cx1 - cxVal)
-                if (diffC < bestDiffX && diffC < canvasTolerance) {
-                    bestDiffX = diffC
-                    bestTargetX = cxVal
-                    matchedSourceX = cx1
-                    refShapeX = shape
-                }
-                val diffR = kotlin.math.abs(right1 - cxVal)
-                if (diffR < bestDiffX && diffR < canvasTolerance) {
-                    bestDiffX = diffR
-                    bestTargetX = cxVal
-                    matchedSourceX = right1
-                    refShapeX = shape
+                for (srcX in sourceXCandidates) {
+                    val diff = kotlin.math.abs(srcX - cxVal)
+                    if (diff < bestDiffX && diff < canvasTolerance) {
+                        bestDiffX = diff
+                        bestTargetX = cxVal
+                        matchedSourceX = srcX
+                        refShapeX = shape
+                    }
                 }
             }
         }
@@ -1449,7 +1484,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
         var bestDiffY = Float.MAX_VALUE
         var bestTargetY: Float? = null
-        var matchedSourceY: Float? = null // top1, cy1, or bottom1
+        var matchedSourceY: Float? = null // From sourceYCandidates
         var refShapeY: VectorShape? = null
 
         // Canvas Y candidates: Top, Center, Bottom
@@ -1460,54 +1495,43 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         )
         for (cand in canvasYCandidates) {
             val cyVal = cand.first
-            val diffT = kotlin.math.abs(top1 - cyVal)
-            if (diffT < bestDiffY && diffT < canvasTolerance) {
-                bestDiffY = diffT
-                bestTargetY = cyVal
-                matchedSourceY = top1
-                refShapeY = null
-            }
-            val diffC = kotlin.math.abs(cy1 - cyVal)
-            if (diffC < bestDiffY && diffC < canvasTolerance) {
-                bestDiffY = diffC
-                bestTargetY = cyVal
-                matchedSourceY = cy1
-                refShapeY = null
-            }
-            val diffB = kotlin.math.abs(bottom1 - cyVal)
-            if (diffB < bestDiffY && diffB < canvasTolerance) {
-                bestDiffY = diffB
-                bestTargetY = cyVal
-                matchedSourceY = bottom1
-                refShapeY = null
+            for (srcY in sourceYCandidates) {
+                val diff = kotlin.math.abs(srcY - cyVal)
+                if (diff < bestDiffY && diff < canvasTolerance) {
+                    bestDiffY = diff
+                    bestTargetY = cyVal
+                    matchedSourceY = srcY
+                    refShapeY = null
+                }
             }
         }
 
         // Other shapes Y candidates
         for (shape in otherShapes) {
-            val b = shape.getBoundingBox()
-            val shapeYCandidates = listOf(b.top, (b.top + b.bottom) / 2f, b.bottom)
+            val b = shape.getVisualBounds()
+            val shapeYCandidates = mutableListOf(b.top, (b.top + b.bottom) / 2f, b.bottom)
+            val pathBounds = shape.asComposePath().getBounds()
+            if (pathBounds.top != b.top) shapeYCandidates.add(pathBounds.top)
+            if (pathBounds.bottom != b.bottom) shapeYCandidates.add(pathBounds.bottom)
+            
+            val pivotCenter = shape.getPivotCenter()
+            shapeYCandidates.add(pivotCenter.y)
+            
+            // Add actual object points for snapping
+            shape.getNodePoints().forEach { pt ->
+                val rotated = if (shape.rotationAngle != 0f) rotatePoint(pt, pivotCenter, shape.rotationAngle) else pt
+                shapeYCandidates.add(rotated.y)
+            }
+            
             for (cyVal in shapeYCandidates) {
-                val diffT = kotlin.math.abs(top1 - cyVal)
-                if (diffT < bestDiffY && diffT < canvasTolerance) {
-                    bestDiffY = diffT
-                    bestTargetY = cyVal
-                    matchedSourceY = top1
-                    refShapeY = shape
-                }
-                val diffC = kotlin.math.abs(cy1 - cyVal)
-                if (diffC < bestDiffY && diffC < canvasTolerance) {
-                    bestDiffY = diffC
-                    bestTargetY = cyVal
-                    matchedSourceY = cy1
-                    refShapeY = shape
-                }
-                val diffB = kotlin.math.abs(bottom1 - cyVal)
-                if (diffB < bestDiffY && diffB < canvasTolerance) {
-                    bestDiffY = diffB
-                    bestTargetY = cyVal
-                    matchedSourceY = bottom1
-                    refShapeY = shape
+                for (srcY in sourceYCandidates) {
+                    val diff = kotlin.math.abs(srcY - cyVal)
+                    if (diff < bestDiffY && diff < canvasTolerance) {
+                        bestDiffY = diff
+                        bestTargetY = cyVal
+                        matchedSourceY = srcY
+                        refShapeY = shape
+                    }
                 }
             }
         }
@@ -1527,8 +1551,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 var maxXVal = canvasWidth
                 if (refShapeY != null) {
                     val rb = refShapeY.getBoundingBox()
-                    minXVal = minOf(rb.left, originalCombinedBounds.left + finalDX)
-                    maxXVal = maxOf(rb.right, originalCombinedBounds.right + finalDX)
+                    minXVal = minOf(rb.left, selCleanBounds.left + finalDX)
+                    maxXVal = maxOf(rb.right, selCleanBounds.right + finalDX)
                 }
                 guides.add(SmartGuideInfo(minXVal, yVal, maxXVal, yVal, "ALIGN_LINE"))
             }
@@ -1539,20 +1563,20 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 var maxYVal = canvasHeight
                 if (refShapeX != null) {
                     val rb = refShapeX.getBoundingBox()
-                    minYVal = minOf(rb.top, originalCombinedBounds.top + finalDY)
-                    maxYVal = maxOf(rb.bottom, originalCombinedBounds.bottom + finalDY)
+                    minYVal = minOf(rb.top, selCleanBounds.top + finalDY)
+                    maxYVal = maxOf(rb.bottom, selCleanBounds.bottom + finalDY)
                 }
                 guides.add(SmartGuideInfo(xVal, minYVal, xVal, maxYVal, "ALIGN_LINE"))
             }
 
             // Spacing guides
             if (otherShapes.size >= 2) {
-                val currentLeft = originalCombinedBounds.left + finalDX
-                val currentRight = originalCombinedBounds.right + finalDX
-                val currentTop = originalCombinedBounds.top + finalDY
-                val currentBottom = originalCombinedBounds.bottom + finalDY
-                val currentWidth = originalCombinedBounds.width
-                val currentHeight = originalCombinedBounds.height
+                val currentLeft = selCleanBounds.left + finalDX
+                val currentRight = selCleanBounds.right + finalDX
+                val currentTop = selCleanBounds.top + finalDY
+                val currentBottom = selCleanBounds.bottom + finalDY
+                val currentWidth = selCleanBounds.width
+                val currentHeight = selCleanBounds.height
 
                 val sortedH = otherShapes.map { it.getBoundingBox() }.sortedBy { it.left }
                 for (i in 0 until sortedH.size - 1) {
@@ -1565,7 +1589,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             val snapShiftX = targetLeft - currentLeft
                             finalDX += snapShiftX
                             guides.add(SmartGuideInfo(s1.right, (s1.top + s1.bottom) / 2f, s2.left, (s2.top + s2.bottom) / 2f, "SPACING", "${gap.toInt()} px"))
-                            guides.add(SmartGuideInfo(s2.right, (s2.top + s2.bottom) / 2f, targetLeft, (originalCombinedBounds.top + originalCombinedBounds.bottom) / 2f + finalDY, "SPACING", "${gap.toInt()} px"))
+                            guides.add(SmartGuideInfo(s2.right, (s2.top + s2.bottom) / 2f, targetLeft, (selCleanBounds.top + selCleanBounds.bottom) / 2f + finalDY, "SPACING", "${gap.toInt()} px"))
                             break
                         }
                         val targetLeft2 = s1.left - gap - currentWidth
@@ -1573,7 +1597,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             val snapShiftX = targetLeft2 - currentLeft
                             finalDX += snapShiftX
                             guides.add(SmartGuideInfo(s1.right, (s1.top + s1.bottom) / 2f, s2.left, (s2.top + s2.bottom) / 2f, "SPACING", "${gap.toInt()} px"))
-                            guides.add(SmartGuideInfo(targetLeft2 + currentWidth, (originalCombinedBounds.top + originalCombinedBounds.bottom) / 2f + finalDY, s1.left, (s1.top + s1.bottom) / 2f, "SPACING", "${gap.toInt()} px"))
+                            guides.add(SmartGuideInfo(targetLeft2 + currentWidth, (selCleanBounds.top + selCleanBounds.bottom) / 2f + finalDY, s1.left, (s1.top + s1.bottom) / 2f, "SPACING", "${gap.toInt()} px"))
                             break
                         }
                     }
@@ -1590,7 +1614,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             val snapShiftY = targetTop - currentTop
                             finalDY += snapShiftY
                             guides.add(SmartGuideInfo((s1.left + s1.right) / 2f, s1.bottom, (s2.left + s2.right) / 2f, s2.top, "SPACING", "${gap.toInt()} px"))
-                            guides.add(SmartGuideInfo((s2.left + s2.right) / 2f, s2.bottom, (originalCombinedBounds.left + originalCombinedBounds.right) / 2f + finalDX, targetTop, "SPACING", "${gap.toInt()} px"))
+                            guides.add(SmartGuideInfo((s2.left + s2.right) / 2f, s2.bottom, (selCleanBounds.left + selCleanBounds.right) / 2f + finalDX, targetTop, "SPACING", "${gap.toInt()} px"))
                             break
                         }
                         val targetTop2 = s1.top - gap - currentHeight
@@ -1598,7 +1622,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             val snapShiftY = targetTop2 - currentTop
                             finalDY += snapShiftY
                             guides.add(SmartGuideInfo((s1.left + s1.right) / 2f, s1.bottom, (s2.left + s2.right) / 2f, s2.top, "SPACING", "${gap.toInt()} px"))
-                            guides.add(SmartGuideInfo((originalCombinedBounds.left + originalCombinedBounds.right) / 2f + finalDX, targetTop2 + currentHeight, (s1.left + s1.right) / 2f, s1.top, "SPACING", "${gap.toInt()} px"))
+                            guides.add(SmartGuideInfo((selCleanBounds.left + selCleanBounds.right) / 2f + finalDX, targetTop2 + currentHeight, (s1.left + s1.right) / 2f, s1.top, "SPACING", "${gap.toInt()} px"))
                             break
                         }
                     }
@@ -1608,11 +1632,11 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
         if (isSnapToPathEnabled) {
             val candidates = listOf(
-                Offset(originalCombinedBounds.left, originalCombinedBounds.top),
-                Offset(originalCombinedBounds.right, originalCombinedBounds.top),
-                Offset(originalCombinedBounds.left, originalCombinedBounds.bottom),
-                Offset(originalCombinedBounds.right, originalCombinedBounds.bottom),
-                Offset(originalCombinedBounds.left + originalCombinedBounds.width / 2f, originalCombinedBounds.top + originalCombinedBounds.height / 2f)
+                Offset(selCleanBounds.left, selCleanBounds.top),
+                Offset(selCleanBounds.right, selCleanBounds.top),
+                Offset(selCleanBounds.left, selCleanBounds.bottom),
+                Offset(selCleanBounds.right, selCleanBounds.bottom),
+                Offset(selCleanBounds.left + selCleanBounds.width / 2f, selCleanBounds.top + selCleanBounds.height / 2f)
             )
             
             var bestDist = tolerance
@@ -3100,25 +3124,31 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         if (selectedShapeIds.isEmpty()) return
         pushToUndoStack()
         
-        // Find center of the total bounding box representing selected shapes
-        var minX = Float.MAX_VALUE
-        var minY = Float.MAX_VALUE
-        var maxX = -Float.MAX_VALUE
-        var maxY = -Float.MAX_VALUE
-        
         val targets = shapes.filter { selectedShapeIds.contains(it.id) }
         if (targets.isEmpty()) return
         
-        for (target in targets) {
-            val bounds = target.getBoundingBox()
-            if (bounds.left < minX) minX = bounds.left
-            if (bounds.top < minY) minY = bounds.top
-            if (bounds.right > maxX) maxX = bounds.right
-            if (bounds.bottom > maxY) maxY = bounds.bottom
-        }
+        val cx: Float
+        val cy: Float
         
-        val cx = (minX + maxX) / 2f
-        val cy = (minY + maxY) / 2f
+        if (targets.size == 1) {
+            val pivot = targets.first().getPivotCenter()
+            cx = pivot.x
+            cy = pivot.y
+        } else {
+            var minX = Float.MAX_VALUE
+            var minY = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE
+            var maxY = -Float.MAX_VALUE
+            for (target in targets) {
+                val bounds = target.getBoundingBox()
+                if (bounds.left < minX) minX = bounds.left
+                if (bounds.top < minY) minY = bounds.top
+                if (bounds.right > maxX) maxX = bounds.right
+                if (bounds.bottom > maxY) maxY = bounds.bottom
+            }
+            cx = (minX + maxX) / 2f
+            cy = (minY + maxY) / 2f
+        }
         
         shapes = shapes.map { shape ->
             if (selectedShapeIds.contains(shape.id)) {
@@ -3381,19 +3411,23 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         val activeStartShapes = startShapes.filter { selectedShapeIds.contains(it.id) }
-        val minX = activeStartShapes.minOfOrNull { it.getBoundingBox().left } ?: 0f
-        val maxX = activeStartShapes.maxOfOrNull { it.getBoundingBox().right } ?: 0f
-        val minY = activeStartShapes.minOfOrNull { it.getBoundingBox().top } ?: 0f
-        val maxY = activeStartShapes.maxOfOrNull { it.getBoundingBox().bottom } ?: 0f
-        val combinedCenter = Offset((minX + maxX) / 2f, (minY + maxY) / 2f)
+        val combinedCenter = if (activeStartShapes.size == 1) {
+            activeStartShapes.first().getPivotCenter()
+        } else {
+            var sumX = 0f
+            var sumY = 0f
+            activeStartShapes.forEach {
+                val p = it.getPivotCenter()
+                sumX += p.x
+                sumY += p.y
+            }
+            Offset(sumX / activeStartShapes.size, sumY / activeStartShapes.size)
+        }
 
         shapes = shapes.map { shape ->
             val startVal = startShapes.find { it.id == shape.id }
             if (startVal != null && selectedShapeIds.contains(shape.id)) {
-                val sBounds = startVal.getBoundingBox()
-                val scx = (sBounds.left + sBounds.right) / 2f
-                val scy = (sBounds.top + sBounds.bottom) / 2f
-                val sCenter = Offset(scx, scy)
+                val sCenter = startVal.getPivotCenter()
                 
                 val sCenterRotated = rotatePoint(sCenter, combinedCenter, actualAngleOffset)
                 val dx = sCenterRotated.x - sCenter.x

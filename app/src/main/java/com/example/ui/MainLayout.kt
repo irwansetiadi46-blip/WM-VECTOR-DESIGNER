@@ -2712,41 +2712,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                             colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
                         )
                     }
-
-                    // 5. Snap to Angle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Snap to Angle", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("Snaps coordinates to 15° increments", color = Color.Gray, fontSize = 10.sp)
-                        }
-                        Switch(
-                            checked = viewModel.isSnapToAngleEnabled,
-                            onCheckedChange = { viewModel.isSnapToAngleEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
-                        )
-                    }
-
-                    // 6. Snap to Path
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Snap to Path", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("Snap nodes directly on shape outlines", color = Color.Gray, fontSize = 10.sp)
-                        }
-                        Switch(
-                            checked = viewModel.isSnapToPathEnabled,
-                            onCheckedChange = { viewModel.isSnapToPathEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
-                        )
-                    }
-
                     Button(
                         onClick = { showSnappingPopup = false },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
