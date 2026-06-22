@@ -172,6 +172,25 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             selectedDirectSelectionNodes = emptySet()
             isCloneModeActive = false
             
+            // Revert/Restore to primitive shape when switching to ROUNDED_CORNER tool
+            if (value == VectorTool.ROUNDED_CORNER) {
+                shapes = shapes.map { shape ->
+                    shape.restoreToPrimitive() ?: shape
+                }
+            }
+            
+            // Convert selected primitive shapes to Bezier paths when leaving ROUNDED_CORNER or switching to edit tools
+            if (value != VectorTool.ROUNDED_CORNER && value != VectorTool.SHAPES) {
+                val targetsToConvert = selectedShapeIds.toMutableSet()
+                selectedShapeId?.let { targetsToConvert.add(it) }
+                targetsToConvert.forEach { id ->
+                    val shape = shapes.find { it.id == id }
+                    if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH) {
+                        convertShapeToBezierPath(id)
+                    }
+                }
+            }
+            
             if (value == VectorTool.DIRECT_SELECTION && oldTool != VectorTool.DIRECT_SELECTION) {
                 updateFrozenBoundsForSelection()
             } else if (value != VectorTool.DIRECT_SELECTION && oldTool == VectorTool.DIRECT_SELECTION) {
@@ -2162,7 +2181,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     shape.copy(
                         type = ShapeType.BEZIER_PATH,
                         bezierNodes = bezierNodes,
-                        isPathClosed = true
+                        isPathClosed = true,
+                        originalPrimitive = shape
                     )
                 } else if (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR) {
                     val bezierNodes = shape.convertCornerPointsToEightBezierNodes()
@@ -2170,7 +2190,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         type = ShapeType.BEZIER_PATH,
                         bezierNodes = bezierNodes,
                         customCornerRadii = emptyList(),
-                        isPathClosed = true
+                        isPathClosed = true,
+                        originalPrimitive = shape
                     )
                 } else {
                     val corners = shape.getNodePoints()
@@ -2189,7 +2210,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         shape.copy(
                             type = ShapeType.BEZIER_PATH,
                             bezierNodes = bezierNodes,
-                            isPathClosed = (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR || shape.type == ShapeType.ELLIPSE)
+                            isPathClosed = (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR || shape.type == ShapeType.ELLIPSE),
+                            originalPrimitive = shape
                         )
                     } else {
                         shape

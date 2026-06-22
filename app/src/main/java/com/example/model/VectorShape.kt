@@ -250,8 +250,35 @@ data class VectorShape(
     val frozenBoundsBottom: Float? = null,
     
     // Selection Group grouping ID
-    val groupId: String? = null
+    val groupId: String? = null,
+    
+    // Store original primitive shape for reverting/non-destructive operations
+    val originalPrimitive: VectorShape? = null
 ) {
+    fun restoreToPrimitive(): VectorShape? {
+        val orig = originalPrimitive ?: return null
+        return orig.copy(
+            id = id,
+            name = name,
+            isVisible = isVisible,
+            isLocked = isLocked,
+            strokeColorHex = strokeColorHex,
+            strokeWidth = strokeWidth,
+            strokeAlpha = strokeAlpha,
+            hasStroke = hasStroke,
+            hasFill = hasFill,
+            fillColorHex = fillColorHex,
+            fillAlpha = fillAlpha,
+            strokeJoin = strokeJoin,
+            strokeCap = strokeCap,
+            rotationAngle = rotationAngle,
+            layerOrder = layerOrder,
+            layerId = layerId,
+            groupId = groupId,
+            originalPrimitive = null
+        )
+    }
+
     fun getStrokeColor(): Color = try {
         Color(android.graphics.Color.parseColor(strokeColorHex))
     } catch (_: Exception) {
@@ -541,27 +568,29 @@ data class VectorShape(
 
     // Creates a new shape offset by the delta translation
     fun copyWithTransform(dx: Float, dy: Float): VectorShape {
+        val updatedOriginal = originalPrimitive?.copyWithTransform(dx, dy)
         return when (type) {
             ShapeType.RECTANGLE, ShapeType.TEXT, ShapeType.IMAGE -> {
-                copy(x = x + dx, y = y + dy)
+                copy(x = x + dx, y = y + dy, originalPrimitive = updatedOriginal)
             }
             ShapeType.ELLIPSE, ShapeType.POLYGON, ShapeType.STAR -> {
-                copy(x = x + dx, y = y + dy)
+                copy(x = x + dx, y = y + dy, originalPrimitive = updatedOriginal)
             }
             ShapeType.LINE -> {
-                copy(startX = startX + dx, startY = startY + dy, endX = endX + dx, endY = endY + dy)
+                copy(startX = startX + dx, startY = startY + dy, endX = endX + dx, endY = endY + dy, originalPrimitive = updatedOriginal)
             }
             ShapeType.FREEHAND -> {
-                copy(freehandPoints = freehandPoints.map { SerializedPoint(it.x + dx, it.y + dy) })
+                copy(freehandPoints = freehandPoints.map { SerializedPoint(it.x + dx, it.y + dy) }, originalPrimitive = updatedOriginal)
             }
             ShapeType.BEZIER_PATH -> {
-                copy(bezierNodes = bezierNodes.map { it.copyWithTransform(dx, dy) })
+                copy(bezierNodes = bezierNodes.map { it.copyWithTransform(dx, dy) }, originalPrimitive = updatedOriginal)
             }
         }
     }
 
     // Creates a scaled version of the shape from a scale factor and anchor pivot
     fun copyWithScale(scaleX: Float, scaleY: Float, px: Float, py: Float): VectorShape {
+        val updatedOriginal = originalPrimitive?.copyWithScale(scaleX, scaleY, px, py)
         return when (type) {
             ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 val newX = px + (x - px) * scaleX
@@ -573,7 +602,8 @@ data class VectorShape(
                     x = if (newW >= 0) newX else newX + newW,
                     y = if (newH >= 0) newY else newY + newH,
                     width = kotlin.math.abs(newW),
-                    height = kotlin.math.abs(newH)
+                    height = kotlin.math.abs(newH),
+                    originalPrimitive = updatedOriginal
                 )
             }
             ShapeType.ELLIPSE, ShapeType.POLYGON, ShapeType.STAR -> {
@@ -581,7 +611,8 @@ data class VectorShape(
                     x = px + (x - px) * scaleX,
                     y = py + (y - py) * scaleY,
                     width = kotlin.math.abs(width * scaleX),
-                    height = kotlin.math.abs(height * scaleY)
+                    height = kotlin.math.abs(height * scaleY),
+                    originalPrimitive = updatedOriginal
                 )
             }
             ShapeType.LINE -> {
@@ -589,24 +620,26 @@ data class VectorShape(
                     startX = px + (startX - px) * scaleX,
                     startY = py + (startY - py) * scaleY,
                     endX = px + (endX - px) * scaleX,
-                    endY = py + (endY - py) * scaleY
+                    endY = py + (endY - py) * scaleY,
+                    originalPrimitive = updatedOriginal
                 )
             }
             ShapeType.FREEHAND -> {
                 copy(freehandPoints = freehandPoints.map {
                     SerializedPoint(px + (it.x - px) * scaleX, py + (it.y - py) * scaleY)
-                })
+                }, originalPrimitive = updatedOriginal)
             }
             ShapeType.BEZIER_PATH -> {
                 copy(bezierNodes = bezierNodes.map {
                     it.copyWithScale(scaleX, scaleY, px, py)
-                })
+                }, originalPrimitive = updatedOriginal)
             }
             ShapeType.TEXT -> {
                 copy(
                     x = px + (x - px) * scaleX,
                     y = py + (y - py) * scaleY,
-                    fontSize = max(8f, fontSize * scaleX)
+                    fontSize = max(8f, fontSize * scaleX),
+                    originalPrimitive = updatedOriginal
                 )
             }
         }
@@ -614,23 +647,24 @@ data class VectorShape(
 
     // Mirrors the shape horizontally or vertically relative to center pivot of the shape
     fun copyWithFlip(horizontal: Boolean, vertical: Boolean, cx: Float, cy: Float): VectorShape {
+        val updatedOriginal = originalPrimitive?.copyWithFlip(horizontal, vertical, cx, cy)
         return when (type) {
             ShapeType.RECTANGLE, ShapeType.IMAGE -> {
                 val newX = if (horizontal) cx - (x - cx + width) else x
                 val newY = if (vertical) cy - (y - cy + height) else y
-                copy(x = newX, y = newY)
+                copy(x = newX, y = newY, originalPrimitive = updatedOriginal)
             }
             ShapeType.ELLIPSE, ShapeType.POLYGON, ShapeType.STAR -> {
                 val newX = if (horizontal) cx - (x - cx) else x
                 val newY = if (vertical) cy - (y - cy) else y
-                copy(x = newX, y = newY)
+                copy(x = newX, y = newY, originalPrimitive = updatedOriginal)
             }
             ShapeType.LINE -> {
                 val sX = if (horizontal) cx - (startX - cx) else startX
                 val sY = if (vertical) cy - (startY - cy) else startY
                 val eX = if (horizontal) cx - (endX - cx) else endX
                 val eY = if (vertical) cy - (endY - cy) else endY
-                copy(startX = sX, startY = sY, endX = eX, endY = eY)
+                copy(startX = sX, startY = sY, endX = eX, endY = eY, originalPrimitive = updatedOriginal)
             }
             ShapeType.FREEHAND -> {
                 copy(freehandPoints = freehandPoints.map {
@@ -638,7 +672,7 @@ data class VectorShape(
                         if (horizontal) cx - (it.x - cx) else it.x,
                         if (vertical) cy - (it.y - cy) else it.y
                     )
-                })
+                }, originalPrimitive = updatedOriginal)
             }
             ShapeType.BEZIER_PATH -> {
                 copy(bezierNodes = bezierNodes.map {
@@ -653,12 +687,12 @@ data class VectorShape(
                         control1X = c1x, control1Y = c1y,
                         control2X = c2x, control2Y = c2y
                     )
-                })
+                }, originalPrimitive = updatedOriginal)
             }
             ShapeType.TEXT -> {
                 val newX = if (horizontal) cx - (x - cx) else x
                 val newY = if (vertical) cy - (y - cy) else y
-                copy(x = newX, y = newY)
+                copy(x = newX, y = newY, originalPrimitive = updatedOriginal)
             }
         }
     }
