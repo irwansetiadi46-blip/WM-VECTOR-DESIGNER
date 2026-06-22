@@ -5128,7 +5128,7 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
         val strokeOpacity = shape.strokeAlpha * layerOpacity
         
         val fillAttr = if (shape.hasFill && shape.type != ShapeType.LINE) {
-            "fill=\"${shape.fillColorHex}\" fill-opacity=\"$fillOpacity\""
+            "fill=\"${shape.fillColorHex}\" fill-opacity=\"$fillOpacity\" fill-rule=\"evenodd\""
         } else {
             "fill=\"none\""
         }
@@ -5177,25 +5177,50 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
             }
             ShapeType.BEZIER_PATH -> {
                 if (shape.bezierNodes.isNotEmpty()) {
-                    val first = shape.bezierNodes.first()
-                    sb.append("  <path d=\"M ${first.anchorX - minX} ${first.anchorY - minY} ")
-                    for (i in 1 until shape.bezierNodes.size) {
-                        val node = shape.bezierNodes[i]
-                        val prev = shape.bezierNodes[i - 1]
-                        if (node.isCurve) {
-                            sb.append("C ${prev.control2X - minX} ${prev.control2Y - minY}, ${node.control1X - minX} ${node.control1Y - minY}, ${node.anchorX - minX} ${node.anchorY - minY} ")
-                        } else {
-                            sb.append("L ${node.anchorX - minX} ${node.anchorY - minY} ")
+                    sb.append("  <path d=\"")
+                    val subpaths = mutableListOf<MutableList<com.example.model.BezierNode>>()
+                    var currentSubpath = mutableListOf<com.example.model.BezierNode>()
+                    for (node in shape.bezierNodes) {
+                        if (node.isMoveTo && currentSubpath.isNotEmpty()) {
+                            subpaths.add(currentSubpath)
+                            currentSubpath = mutableListOf()
                         }
+                        currentSubpath.add(node)
                     }
-                    if (shape.isPathClosed) {
-                        val last = shape.bezierNodes.last()
-                        if (first.isCurve) {
-                            sb.append("C ${last.control2X - minX} ${last.control2Y - minY}, ${first.control1X - minX} ${first.control1Y - minY}, ${first.anchorX - minX} ${first.anchorY - minY} ")
-                        } else {
-                            sb.append("L ${first.anchorX - minX} ${first.anchorY - minY} ")
+                    if (currentSubpath.isNotEmpty()) {
+                        subpaths.add(currentSubpath)
+                    }
+                    
+                    for (sub in subpaths) {
+                        if (sub.isEmpty()) continue
+                        val startNode = sub.first()
+                        sb.append("M ${startNode.anchorX - minX} ${startNode.anchorY - minY} ")
+                        for (j in 1 until sub.size) {
+                            val node = sub[j]
+                            val prev = sub[j - 1]
+                            if (prev.isCurve || node.isCurve) {
+                                val cp1X = if (prev.isCurve) prev.control2X else prev.anchorX
+                                val cp1Y = if (prev.isCurve) prev.control2Y else prev.anchorY
+                                val cp2X = if (node.isCurve) node.control1X else node.anchorX
+                                val cp2Y = if (node.isCurve) node.control1Y else node.anchorY
+                                sb.append("C ${cp1X - minX} ${cp1Y - minY}, ${cp2X - minX} ${cp2Y - minY}, ${node.anchorX - minX} ${node.anchorY - minY} ")
+                            } else {
+                                sb.append("L ${node.anchorX - minX} ${node.anchorY - minY} ")
+                            }
                         }
-                        sb.append("Z")
+                        if (shape.isPathClosed) {
+                            val last = sub.last()
+                            if (last.isCurve || startNode.isCurve) {
+                                val cp1X = if (last.isCurve) last.control2X else last.anchorX
+                                val cp1Y = if (last.isCurve) last.control2Y else last.anchorY
+                                val cp2X = if (startNode.isCurve) startNode.control1X else startNode.anchorX
+                                val cp2Y = if (startNode.isCurve) startNode.control1Y else startNode.anchorY
+                                sb.append("C ${cp1X - minX} ${cp1Y - minY}, ${cp2X - minX} ${cp2Y - minY}, ${startNode.anchorX - minX} ${startNode.anchorY - minY} ")
+                            } else {
+                                sb.append("L ${startNode.anchorX - minX} ${startNode.anchorY - minY} ")
+                            }
+                            sb.append("Z ")
+                        }
                     }
                     sb.append("\" $fillAttr $strokeAttr$transformAttr />\n")
                 }
@@ -5342,7 +5367,7 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX
                     val (sr, sg, sbCol) = hexToRgb(shape.strokeColorHex)
                     sb.append("gsave\n")
                     sb.append(String.format(java.util.Locale.US, "  %.4f %.4f %.4f setrgbcolor\n", fr, fg, fb))
-                    sb.append("  fill\n")
+                    sb.append("  eofill\n")
                     sb.append("grestore\n")
                     sb.append(String.format(java.util.Locale.US, "  %.4f %.4f %.4f setrgbcolor\n", sr, sg, sbCol))
                     sb.append(String.format(java.util.Locale.US, "  %.4f setlinewidth\n", shape.strokeWidth))
@@ -5352,7 +5377,7 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX
                 } else if (hasFill) {
                     val (fr, fg, fb) = hexToRgb(shape.fillColorHex)
                     sb.append(String.format(java.util.Locale.US, "  %.4f %.4f %.4f setrgbcolor\n", fr, fg, fb))
-                    sb.append("  fill\n")
+                    sb.append("  eofill\n")
                 } else {
                     val (sr, sg, sbCol) = hexToRgb(shape.strokeColorHex)
                     sb.append(String.format(java.util.Locale.US, "  %.4f %.4f %.4f setrgbcolor\n", sr, sg, sbCol))
@@ -5414,24 +5439,47 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX
             }
             ShapeType.BEZIER_PATH -> {
                 if (shape.bezierNodes.isNotEmpty()) {
-                    val firstNode = shape.bezierNodes.first()
-                    pSb.append("  ${firstNode.anchorX - minX} ${height - (firstNode.anchorY - minY)} moveto\n")
-                    for (i in 1 until shape.bezierNodes.size) {
-                        val node = shape.bezierNodes[i]
-                        val prev = shape.bezierNodes[i - 1]
-                        if (node.isCurve) {
-                            pSb.append("  ${prev.control2X - minX} ${height - (prev.control2Y - minY)} ${node.control1X - minX} ${height - (node.control1Y - minY)} ${node.anchorX - minX} ${height - (node.anchorY - minY)} curveto\n")
-                        } else {
-                            pSb.append("  ${node.anchorX - minX} ${height - (node.anchorY - minY)} lineto\n")
+                    val subpaths = mutableListOf<MutableList<com.example.model.BezierNode>>()
+                    var currentSubpath = mutableListOf<com.example.model.BezierNode>()
+                    for (node in shape.bezierNodes) {
+                        if (node.isMoveTo && currentSubpath.isNotEmpty()) {
+                            subpaths.add(currentSubpath)
+                            currentSubpath = mutableListOf()
                         }
+                        currentSubpath.add(node)
                     }
-                    if (shape.isPathClosed) {
-                        val first = shape.bezierNodes.first()
-                        val last = shape.bezierNodes.last()
-                        if (first.isCurve) {
-                            pSb.append("  ${last.control2X - minX} ${height - (last.control2Y - minY)} ${first.control1X - minX} ${height - (first.control1Y - minY)} ${first.anchorX - minX} ${height - (first.anchorY - minY)} curveto\n")
-                        } else {
-                            pSb.append("  ${first.anchorX - minX} ${height - (first.anchorY - minY)} lineto\n")
+                    if (currentSubpath.isNotEmpty()) {
+                        subpaths.add(currentSubpath)
+                    }
+                    
+                    for (sub in subpaths) {
+                        if (sub.isEmpty()) continue
+                        val startNode = sub.first()
+                        pSb.append("  ${startNode.anchorX - minX} ${height - (startNode.anchorY - minY)} moveto\n")
+                        for (j in 1 until sub.size) {
+                            val node = sub[j]
+                            val prev = sub[j - 1]
+                            if (prev.isCurve || node.isCurve) {
+                                val cp1X = if (prev.isCurve) prev.control2X else prev.anchorX
+                                val cp1Y = if (prev.isCurve) prev.control2Y else prev.anchorY
+                                val cp2X = if (node.isCurve) node.control1X else node.anchorX
+                                val cp2Y = if (node.isCurve) node.control1Y else node.anchorY
+                                pSb.append("  ${cp1X - minX} ${height - (cp1Y - minY)} ${cp2X - minX} ${height - (cp2Y - minY)} ${node.anchorX - minX} ${height - (node.anchorY - minY)} curveto\n")
+                            } else {
+                                pSb.append("  ${node.anchorX - minX} ${height - (node.anchorY - minY)} lineto\n")
+                            }
+                        }
+                        if (shape.isPathClosed) {
+                            val last = sub.last()
+                            if (last.isCurve || startNode.isCurve) {
+                                val cp1X = if (last.isCurve) last.control2X else last.anchorX
+                                val cp1Y = if (last.isCurve) last.control2Y else last.anchorY
+                                val cp2X = if (startNode.isCurve) startNode.control1X else startNode.anchorX
+                                val cp2Y = if (startNode.isCurve) startNode.control1Y else startNode.anchorY
+                                pSb.append("  ${cp1X - minX} ${height - (cp1Y - minY)} ${cp2X - minX} ${height - (cp2Y - minY)} ${startNode.anchorX - minX} ${height - (startNode.anchorY - minY)} curveto\n")
+                            } else {
+                                pSb.append("  ${startNode.anchorX - minX} ${height - (startNode.anchorY - minY)} lineto\n")
+                            }
                         }
                     }
                     applyPathColoring(pSb, shape.isPathClosed)

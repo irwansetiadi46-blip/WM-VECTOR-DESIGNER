@@ -1679,13 +1679,10 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         if (isSnapToGrid) {
-            val gridCandX = listOf(left1, cx1, right1)
-            val gridCandY = listOf(top1, cy1, bottom1)
-
             var bestGridDiffX = Float.MAX_VALUE
             var bestGridShiftX = 0f
             var snappedGridX = 0f
-            for (srcX in gridCandX) {
+            for (srcX in gridSourceXCandidates) {
                 val currentCandX = srcX - totalDX + finalDX
                 val gridX = kotlin.math.round(currentCandX / gridSize) * gridSize
                 val diff = kotlin.math.abs(currentCandX - gridX)
@@ -1699,7 +1696,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             var bestGridDiffY = Float.MAX_VALUE
             var bestGridShiftY = 0f
             var snappedGridY = 0f
-            for (srcY in gridCandY) {
+            for (srcY in gridSourceYCandidates) {
                 val currentCandY = srcY - totalDY + finalDY
                 val gridY = kotlin.math.round(currentCandY / gridSize) * gridSize
                 val diff = kotlin.math.abs(currentCandY - gridY)
