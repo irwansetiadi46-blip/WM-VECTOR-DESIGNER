@@ -767,7 +767,7 @@ fun VectorCanvas(
                                                                 val selBounds = viewModel.getCombinedBoundingBox(activeIds, startShapes)
                                                                 val finalDX: Float
                                                                 val finalDY: Float
-                                                                if (selBounds != null && !viewModel.isSnapToGrid) {
+                                                                if (selBounds != null) {
                                                                     val snappedDisplacement = viewModel.snapSelectionComprehensive(selBounds, totalDX, totalDY, activeIds)
                                                                     finalDX = snappedDisplacement.x
                                                                     finalDY = snappedDisplacement.y
@@ -775,13 +775,7 @@ fun VectorCanvas(
                                                                     val originalAnchor = getPrimaryAnchor(primaryShape)
                                                                     val targetUnsnappedX = originalAnchor.x + totalDX
                                                                     val targetUnsnappedY = originalAnchor.y + totalDY
-                                                                    val targetSnapped = if (viewModel.isSnapToGrid) {
-                                                                        val gridX = kotlin.math.round(targetUnsnappedX / viewModel.gridSize) * viewModel.gridSize
-                                                                        val gridY = kotlin.math.round(targetUnsnappedY / viewModel.gridSize) * viewModel.gridSize
-                                                                        Offset(gridX, gridY)
-                                                                    } else {
-                                                                        viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = primaryId)
-                                                                    }
+                                                                    val targetSnapped = viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = primaryId)
                                                                     finalDX = targetSnapped.x - originalAnchor.x
                                                                     finalDY = targetSnapped.y - originalAnchor.y
                                                                 }
@@ -963,18 +957,12 @@ fun VectorCanvas(
                                                                 val targetUnsnappedY = originalAnchor.y + totalDY
                                                                 val finalDX: Float
                                                                 val finalDY: Float
-                                                                if (selBounds != null && !viewModel.isSnapToGrid) {
+                                                                if (selBounds != null) {
                                                                     val snappedDisplacement = viewModel.snapSelectionComprehensive(selBounds, totalDX, totalDY, activeIds)
                                                                     finalDX = snappedDisplacement.x
                                                                     finalDY = snappedDisplacement.y
                                                                 } else {
-                                                                    val targetSnapped = if (viewModel.isSnapToGrid) {
-                                                                        val gridX = kotlin.math.round(targetUnsnappedX / viewModel.gridSize) * viewModel.gridSize
-                                                                        val gridY = kotlin.math.round(targetUnsnappedY / viewModel.gridSize) * viewModel.gridSize
-                                                                        Offset(gridX, gridY)
-                                                                    } else {
-                                                                        viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = id)
-                                                                    }
+                                                                    val targetSnapped = viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = id)
                                                                     finalDX = targetSnapped.x - originalAnchor.x
                                                                     finalDY = targetSnapped.y - originalAnchor.y
                                                                 }

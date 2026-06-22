@@ -1389,7 +1389,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         val tolerance = 15f // Snapping distance threshold in pixels
         val canvasTolerance = tolerance / zoomScale
 
-        if (!isSnapToObjectEnabled && !isSmartGuideEnabled && !isSnapToPathEnabled) {
+        if (!isSnapToObjectEnabled && !isSmartGuideEnabled && !isSnapToPathEnabled && !isSnapToGrid) {
             return Offset(totalDX, totalDY)
         }
 
@@ -1406,16 +1406,23 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         val sourceXCandidates = mutableListOf(left1, cx1, right1)
         val sourceYCandidates = mutableListOf(top1, cy1, bottom1)
         
+        val gridSourceXCandidates = mutableListOf<Float>()
+        val gridSourceYCandidates = mutableListOf<Float>()
+        
         val activeSelected = shapes.filter { !ignoredIds.contains(it.id) && it.isVisible && selectedShapeIds.contains(it.id) }
         for (selShape in activeSelected) {
             val pivot = selShape.getPivotCenter()
             sourceXCandidates.add(pivot.x + totalDX)
             sourceYCandidates.add(pivot.y + totalDY)
+            gridSourceXCandidates.add(pivot.x + totalDX)
+            gridSourceYCandidates.add(pivot.y + totalDY)
             selShape.getNodePoints().forEach { pt ->
                 val rotCenter = pivot
                 val rotated = if (selShape.rotationAngle != 0f) rotatePoint(pt, rotCenter, selShape.rotationAngle) else pt
                 sourceXCandidates.add(rotated.x + totalDX)
                 sourceYCandidates.add(rotated.y + totalDY)
+                gridSourceXCandidates.add(rotated.x + totalDX)
+                gridSourceYCandidates.add(rotated.y + totalDY)
             }
         }
 
@@ -1668,6 +1675,44 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     guides.clear()
                     guides.addAll(currentGuides)
                 }
+            }
+        }
+
+        if (isSnapToGrid) {
+            var bestGridDiffX = Float.MAX_VALUE
+            var bestGridShiftX = 0f
+            var snappedGridX = 0f
+            for (srcX in gridSourceXCandidates) {
+                val currentCandX = srcX - totalDX + finalDX
+                val gridX = kotlin.math.round(currentCandX / gridSize) * gridSize
+                val diff = kotlin.math.abs(currentCandX - gridX)
+                if (diff < bestGridDiffX) {
+                    bestGridDiffX = diff
+                    bestGridShiftX = gridX - currentCandX
+                    snappedGridX = gridX
+                }
+            }
+
+            var bestGridDiffY = Float.MAX_VALUE
+            var bestGridShiftY = 0f
+            var snappedGridY = 0f
+            for (srcY in gridSourceYCandidates) {
+                val currentCandY = srcY - totalDY + finalDY
+                val gridY = kotlin.math.round(currentCandY / gridSize) * gridSize
+                val diff = kotlin.math.abs(currentCandY - gridY)
+                if (diff < bestGridDiffY) {
+                    bestGridDiffY = diff
+                    bestGridShiftY = gridY - currentCandY
+                    snappedGridY = gridY
+                }
+            }
+            
+            finalDX += bestGridShiftX
+            finalDY += bestGridShiftY
+            
+            if (isSmartGuideEnabled) {
+                activeSmartGuideVertical = snappedGridX
+                activeSmartGuideHorizontal = snappedGridY
             }
         }
 
