@@ -472,7 +472,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         startNode
                     }
                 }
-                shape.copy(bezierNodes = newNodes)
+                shape.copy(bezierNodes = newNodes, originalPrimitive = null)
             } else {
                 shape
             }
@@ -509,7 +509,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                                 node
                             }
                         }
-                        shape.copy(bezierNodes = updatedNodes)
+                        shape.copy(bezierNodes = updatedNodes, originalPrimitive = null)
                     }
                     ShapeType.FREEHAND -> {
                         val updatedPts = shape.freehandPoints.mapIndexed { idx, pt ->
@@ -664,7 +664,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         node
                     }
                 }
-                shape.copy(bezierNodes = updatedNodes)
+                shape.copy(bezierNodes = updatedNodes, originalPrimitive = null)
             } else {
                 shape
             }
@@ -717,7 +717,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             control2Y = oldNode.anchorY
                         )
                     }
-                    shape.copy(bezierNodes = nodes)
+                    shape.copy(bezierNodes = nodes, originalPrimitive = null)
                 } else {
                     shape
                 }
@@ -787,7 +787,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     } else {
                         nodes.add(segmentIndex, newNode)
                     }
-                    shape.copy(bezierNodes = nodes)
+                    shape.copy(bezierNodes = nodes, originalPrimitive = null)
                 } else {
                     shape
                 }
@@ -807,7 +807,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     if (nodes.isNotEmpty() && nodeIndex == 0) {
                         nodes[0] = nodes[0].copy(isMoveTo = true)
                     }
-                    shape.copy(bezierNodes = nodes)
+                    shape.copy(bezierNodes = nodes, originalPrimitive = null)
                 } else {
                     shape
                 }
@@ -3034,7 +3034,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                                         if (i in indices) removeAt(i)
                                     }
                                 }
-                                shape.copy(bezierNodes = newNodes)
+                                shape.copy(bezierNodes = newNodes, originalPrimitive = null)
                             }
                             ShapeType.FREEHAND -> {
                                 val newPts = shape.freehandPoints.toMutableList().apply {

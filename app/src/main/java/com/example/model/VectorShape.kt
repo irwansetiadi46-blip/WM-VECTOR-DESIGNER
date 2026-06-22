@@ -293,6 +293,9 @@ data class VectorShape(
 
     // Computes the outer rectangular bounds of the shape without rotation
     fun getBoundingBox(): Rect {
+        if (originalPrimitive != null) {
+            return originalPrimitive.getBoundingBox()
+        }
         if (frozenBoundsLeft != null && frozenBoundsTop != null && frozenBoundsRight != null && frozenBoundsBottom != null) {
             return Rect(frozenBoundsLeft, frozenBoundsTop, frozenBoundsRight, frozenBoundsBottom)
         }
