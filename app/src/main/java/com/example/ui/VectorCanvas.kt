@@ -838,8 +838,19 @@ fun VectorCanvas(
                                                                 val finalTotalDX: Float
                                                                 val finalTotalDY: Float
                                                                 if (viewModel.isSnapToGrid) {
-                                                                    val snappedHandleX = kotlin.math.round(newHandleUnsnappedX / viewModel.gridSize) * viewModel.gridSize
-                                                                    val snappedHandleY = kotlin.math.round(newHandleUnsnappedY / viewModel.gridSize) * viewModel.gridSize
+                                                                    val activeStartShapes = dragStartShapes?.filter { activeIds.contains(it.id) }
+                                                                    val maxStrokeWidth = activeStartShapes?.maxOfOrNull { if (it.hasStroke) it.strokeWidth else 0f } ?: 0f
+                                                                    val padding = (maxStrokeWidth / 2f) + 12f
+                                                                    
+                                                                    val actualEdgeX = if (handle.contains("L")) newHandleUnsnappedX + padding else if (handle.contains("R")) newHandleUnsnappedX - padding else newHandleUnsnappedX
+                                                                    val actualEdgeY = if (handle.contains("T")) newHandleUnsnappedY + padding else if (handle.contains("B")) newHandleUnsnappedY - padding else newHandleUnsnappedY
+                                                                    
+                                                                    val snappedActualEdgeX = kotlin.math.round(actualEdgeX / viewModel.gridSize) * viewModel.gridSize
+                                                                    val snappedActualEdgeY = kotlin.math.round(actualEdgeY / viewModel.gridSize) * viewModel.gridSize
+                                                                    
+                                                                    val snappedHandleX = if (handle.contains("L")) snappedActualEdgeX - padding else if (handle.contains("R")) snappedActualEdgeX + padding else newHandleUnsnappedX
+                                                                    val snappedHandleY = if (handle.contains("T")) snappedActualEdgeY - padding else if (handle.contains("B")) snappedActualEdgeY + padding else newHandleUnsnappedY
+                                                                    
                                                                     finalTotalDX = snappedHandleX - startHandlePos.x
                                                                     finalTotalDY = snappedHandleY - startHandlePos.y
                                                                 } else {
