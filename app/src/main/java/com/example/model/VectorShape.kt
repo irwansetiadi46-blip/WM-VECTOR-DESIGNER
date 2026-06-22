@@ -321,9 +321,9 @@ data class VectorShape(
     }
 
     // Computes the outer rectangular bounds of the shape without rotation
-    fun getBoundingBox(): Rect {
+    fun getBoundingBox(includeStroke: Boolean = false): Rect {
         if (originalPrimitive != null && (originalPrimitive.type == ShapeType.RECTANGLE || originalPrimitive.type == ShapeType.IMAGE)) {
-            return originalPrimitive.getBoundingBox()
+            return originalPrimitive.getBoundingBox(includeStroke)
         }
         if (frozenBoundsLeft != null && frozenBoundsTop != null && frozenBoundsRight != null && frozenBoundsBottom != null) {
             return Rect(frozenBoundsLeft, frozenBoundsTop, frozenBoundsRight, frozenBoundsBottom)
@@ -435,7 +435,7 @@ data class VectorShape(
                 Rect(x, y - fontSize, x + estWidth, y + fontSize * 0.2f)
             }
         }
-        return if (hasStroke && strokeWidth > 0f) {
+        return if (includeStroke && hasStroke && strokeWidth > 0f) {
             val halfStroke = strokeWidth / 2f
             Rect(
                 left = baseBox.left - halfStroke,

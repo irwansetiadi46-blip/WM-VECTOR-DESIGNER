@@ -201,6 +201,14 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             if (value != VectorTool.ROUNDED_CORNER && value != VectorTool.SHAPES) {
                 val targetsToConvert = selectedShapeIds.toMutableSet()
                 selectedShapeId?.let { targetsToConvert.add(it) }
+                
+                // Keep triangles (polygon with 3 sides) converted to Bezier paths to avoid negative bounding box asymmetry when switching tools
+                shapes.forEach { shape ->
+                    if (shape.type == com.example.model.ShapeType.POLYGON && shape.polygonSides == 3) {
+                        targetsToConvert.add(shape.id)
+                    }
+                }
+
                 targetsToConvert.forEach { id ->
                     val shape = shapes.find { it.id == id }
                     if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH) {
@@ -1385,17 +1393,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             return Offset(totalDX, totalDY)
         }
 
-        // Subtract the orange bounding box padding to get the clean stroke-centerline bounds
-        val selectedShapes = shapes.filter { selectedShapeIds.contains(it.id) && !ignoredIds.contains(it.id) && it.isVisible }
-        val maxStrokeWidth = selectedShapes.maxOfOrNull { if (it.hasStroke) it.strokeWidth else 0f } ?: 0f
-        val padding = (maxStrokeWidth / 2f) + 12f
-        
-        val cleanLeft = originalCombinedBounds.left + padding
-        val cleanTop = originalCombinedBounds.top + padding
-        val cleanRight = originalCombinedBounds.right - padding
-        val cleanBottom = originalCombinedBounds.bottom - padding
-        
-        val selCleanBounds = Rect(cleanLeft, cleanTop, cleanRight, cleanBottom)
+        // originalCombinedBounds is already the clean, unpadded visual centerline/skeleton bounds
+        val selCleanBounds = originalCombinedBounds
 
         val left1 = selCleanBounds.left + totalDX
         val right1 = selCleanBounds.right + totalDX

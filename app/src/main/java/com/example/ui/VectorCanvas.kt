@@ -764,7 +764,7 @@ fun VectorCanvas(
                                                             val primaryShape = startShapes.find { it.id == primaryId }
                                                             if (primaryShape != null) {
                                                                 val activeIds = viewModel.selectedShapeIds.ifEmpty { setOfNotNull(primaryId) }
-                                                                val selBounds = getUnrotatedCombinedBoundingBox(activeIds, startShapes)
+                                                                val selBounds = viewModel.getCombinedBoundingBox(activeIds, startShapes)
                                                                 val finalDX: Float
                                                                 val finalDY: Float
                                                                 if (selBounds != null && !viewModel.isSnapToGrid) {
@@ -957,7 +957,7 @@ fun VectorCanvas(
                                                             val primaryShape = dragStartShapes!!.find { it.id == id }
                                                             if (primaryShape != null) {
                                                                 val activeIds = if (viewModel.selectedShapeIds.contains(id)) viewModel.selectedShapeIds else setOf(id)
-                                                                val selBounds = getUnrotatedCombinedBoundingBox(activeIds, dragStartShapes!!)
+                                                                val selBounds = viewModel.getCombinedBoundingBox(activeIds, dragStartShapes!!)
                                                                 val originalAnchor = getPrimaryAnchor(primaryShape)
                                                                 val targetUnsnappedX = originalAnchor.x + totalDX
                                                                 val targetUnsnappedY = originalAnchor.y + totalDY
