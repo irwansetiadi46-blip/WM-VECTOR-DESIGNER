@@ -713,6 +713,12 @@ data class VectorShape(
             ShapeType.BEZIER_PATH -> bezierNodes.map { Offset(it.anchorX, it.anchorY) }
             ShapeType.FREEHAND -> freehandPoints.map { Offset(it.x, it.y) }
             ShapeType.RECTANGLE, ShapeType.POLYGON, ShapeType.STAR, ShapeType.IMAGE -> getCornerPoints()
+            ShapeType.ELLIPSE -> listOf(
+                Offset(x + width, y),
+                Offset(x, y + height),
+                Offset(x - width, y),
+                Offset(x, y - height)
+            )
             else -> emptyList()
         }
     }

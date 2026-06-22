@@ -1803,9 +1803,14 @@ fun VectorCanvas(
                                 val ry = abs(e.y - s.y)
                                 val w = if (isAspectLocked) maxOf(rx, ry) else rx
                                 val h = if (isAspectLocked) maxOf(rx, ry) else ry
-                                moveTo(s.x, s.y - h)
-                                lineTo(s.x + w, s.y + h)
-                                lineTo(s.x - w, s.y + h)
+                                val sides = 3
+                                for (i in 0 until sides) {
+                                    val angle = i * 2 * Math.PI / sides - Math.PI / 2
+                                    val px = s.x + w * kotlin.math.cos(angle).toFloat()
+                                    val py = s.y + h * kotlin.math.sin(angle).toFloat()
+                                    if (i == 0) moveTo(px, py)
+                                    else lineTo(px, py)
+                                }
                                 close()
                             }
                             if (viewModel.hasFillEnabled) {

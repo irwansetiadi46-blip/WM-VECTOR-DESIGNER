@@ -2114,7 +2114,57 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     fun convertShapeToBezierPath(shapeId: String) {
         shapes = shapes.map { shape ->
             if (shape.id == shapeId && shape.type != ShapeType.BEZIER_PATH) {
-                if (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR) {
+                if (shape.type == ShapeType.ELLIPSE) {
+                    val rx = shape.width
+                    val ry = shape.height
+                    val cx = shape.x
+                    val cy = shape.y
+                    val kappa = 0.55228475f
+                    val bezierNodes = listOf(
+                        com.example.model.BezierNode(
+                            anchorX = cx + rx,
+                            anchorY = cy,
+                            isCurve = true,
+                            control1X = cx + rx,
+                            control1Y = cy - ry * kappa,
+                            control2X = cx + rx,
+                            control2Y = cy + ry * kappa,
+                            isMoveTo = true
+                        ),
+                        com.example.model.BezierNode(
+                            anchorX = cx,
+                            anchorY = cy + ry,
+                            isCurve = true,
+                            control1X = cx + rx * kappa,
+                            control1Y = cy + ry,
+                            control2X = cx - rx * kappa,
+                            control2Y = cy + ry
+                        ),
+                        com.example.model.BezierNode(
+                            anchorX = cx - rx,
+                            anchorY = cy,
+                            isCurve = true,
+                            control1X = cx - rx,
+                            control1Y = cy + ry * kappa,
+                            control2X = cx - rx,
+                            control2Y = cy - ry * kappa
+                        ),
+                        com.example.model.BezierNode(
+                            anchorX = cx,
+                            anchorY = cy - ry,
+                            isCurve = true,
+                            control1X = cx - rx * kappa,
+                            control1Y = cy - ry,
+                            control2X = cx + rx * kappa,
+                            control2Y = cy - ry
+                        )
+                    )
+                    shape.copy(
+                        type = ShapeType.BEZIER_PATH,
+                        bezierNodes = bezierNodes,
+                        isPathClosed = true
+                    )
+                } else if (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR) {
                     val bezierNodes = shape.convertCornerPointsToEightBezierNodes()
                     shape.copy(
                         type = ShapeType.BEZIER_PATH,
@@ -2139,7 +2189,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         shape.copy(
                             type = ShapeType.BEZIER_PATH,
                             bezierNodes = bezierNodes,
-                            isPathClosed = (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR)
+                            isPathClosed = (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR || shape.type == ShapeType.ELLIPSE)
                         )
                     } else {
                         shape
@@ -4635,7 +4685,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         } else {
                             val pointsInBlock = block.map { it.point }
                             if (pointsInBlock.size >= 2) {
-                                val fitted = fitCurveRecursive(pointsInBlock, 0, pointsInBlock.size - 1, tolerance = 1.8f, depth = 0)
+                                val fitted = fitCurveRecursive(pointsInBlock, 0, pointsInBlock.size - 1, tolerance = 0.5f, depth = 0)
                                 reconstructedSegments.addAll(fitted)
                             }
                         }
@@ -5106,7 +5156,57 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         // 1. Force permanent conversion to BEZIER_PATH using 8-point/multi-point node expansion
         shapes = shapes.map { shape ->
             if (selectedShapeIds.contains(shape.id)) {
-                if (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR) {
+                if (shape.type == ShapeType.ELLIPSE) {
+                    val rx = shape.width
+                    val ry = shape.height
+                    val cx = shape.x
+                    val cy = shape.y
+                    val kappa = 0.55228475f
+                    val bezierNodes = listOf(
+                        com.example.model.BezierNode(
+                            anchorX = cx + rx,
+                            anchorY = cy,
+                            isCurve = true,
+                            control1X = cx + rx,
+                            control1Y = cy - ry * kappa,
+                            control2X = cx + rx,
+                            control2Y = cy + ry * kappa,
+                            isMoveTo = true
+                        ),
+                        com.example.model.BezierNode(
+                            anchorX = cx,
+                            anchorY = cy + ry,
+                            isCurve = true,
+                            control1X = cx + rx * kappa,
+                            control1Y = cy + ry,
+                            control2X = cx - rx * kappa,
+                            control2Y = cy + ry
+                        ),
+                        com.example.model.BezierNode(
+                            anchorX = cx - rx,
+                            anchorY = cy,
+                            isCurve = true,
+                            control1X = cx - rx,
+                            control1Y = cy + ry * kappa,
+                            control2X = cx - rx,
+                            control2Y = cy - ry * kappa
+                        ),
+                        com.example.model.BezierNode(
+                            anchorX = cx,
+                            anchorY = cy - ry,
+                            isCurve = true,
+                            control1X = cx - rx * kappa,
+                            control1Y = cy - ry,
+                            control2X = cx + rx * kappa,
+                            control2Y = cy - ry
+                        )
+                    )
+                    shape.copy(
+                        type = ShapeType.BEZIER_PATH,
+                        bezierNodes = bezierNodes,
+                        isPathClosed = true
+                    )
+                } else if (shape.type == ShapeType.RECTANGLE || shape.type == ShapeType.POLYGON || shape.type == ShapeType.STAR) {
                     val bezierNodes = shape.convertCornerPointsToEightBezierNodes()
                     shape.copy(
                         type = ShapeType.BEZIER_PATH,
