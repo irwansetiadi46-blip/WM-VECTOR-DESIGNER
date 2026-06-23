@@ -148,7 +148,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             if (currentTool != VectorTool.ROUNDED_CORNER && currentTool != VectorTool.SHAPES) {
                 value?.let { id ->
                     val shape = shapes.find { it.id == id }
-                    if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH) {
+                    if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH && shape.type != com.example.model.ShapeType.IMAGE && shape.type != com.example.model.ShapeType.TEXT) {
                         convertShapeToBezierPath(id)
                     }
                 }
@@ -166,7 +166,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 _selectedShapeId?.let { targetsToConvert.add(it) }
                 targetsToConvert.forEach { id ->
                     val shape = shapes.find { it.id == id }
-                    if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH) {
+                    if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH && shape.type != com.example.model.ShapeType.IMAGE && shape.type != com.example.model.ShapeType.TEXT) {
                         convertShapeToBezierPath(id)
                     }
                 }
@@ -211,7 +211,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
                 targetsToConvert.forEach { id ->
                     val shape = shapes.find { it.id == id }
-                    if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH) {
+                    if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH && shape.type != com.example.model.ShapeType.IMAGE && shape.type != com.example.model.ShapeType.TEXT) {
                         convertShapeToBezierPath(id)
                     }
                 }
@@ -2200,7 +2200,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
     fun convertShapeToBezierPath(shapeId: String) {
         shapes = shapes.map { shape ->
-            if (shape.id == shapeId && shape.type != ShapeType.BEZIER_PATH) {
+            if (shape.id == shapeId && shape.type != ShapeType.BEZIER_PATH && shape.type != ShapeType.IMAGE && shape.type != ShapeType.TEXT) {
                 if (shape.type == ShapeType.ELLIPSE) {
                     val rx = shape.width
                     val ry = shape.height

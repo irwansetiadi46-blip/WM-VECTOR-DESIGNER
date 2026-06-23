@@ -428,7 +428,7 @@ fun VectorCanvas(
                                                 }
                                             } else if (true) {
                                             val singleIdTemp = viewModel.selectedShapeIds.firstOrNull()
-                                            val bounds = if (viewModel.selectedShapeIds.size == 1 && singleIdTemp != null) {
+                                            val bounds = if (false) {
                                                 getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
                                             } else {
                                                 getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
@@ -450,7 +450,7 @@ fun VectorCanvas(
                                                 val sclPos = Offset(centerX + 70f / viewModel.zoomScale, botB)
 
                                                 val singleId = viewModel.selectedShapeIds.firstOrNull()
-                                                val rotationAngle = if (viewModel.selectedShapeIds.size == 1 && singleId != null) {
+                                                val rotationAngle = if (false) {
                                                     viewModel.shapes.find { it.id == singleId }?.rotationAngle ?: 0f
                                                 } else {
                                                     0f
@@ -524,7 +524,7 @@ fun VectorCanvas(
                                             val sId = viewModel.selectedShapeId
                                             if (sId != null) {
                                                 var shape = viewModel.shapes.find { s -> s.id == sId }
-                                                if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH) {
+                                                if (shape != null && shape.type != com.example.model.ShapeType.BEZIER_PATH && shape.type != com.example.model.ShapeType.IMAGE && shape.type != com.example.model.ShapeType.TEXT) {
                                                     viewModel.convertShapeToBezierPath(sId)
                                                     shape = viewModel.shapes.find { s -> s.id == sId }
                                                 }
@@ -808,7 +808,7 @@ fun VectorCanvas(
                                                         } else {
                                                             // Absolute resize snapping logic
                                                             val activeIds = if (viewModel.selectedShapeIds.contains(id)) viewModel.selectedShapeIds else setOf(id)
-                                                            val bounds = if (activeIds.size == 1) {
+                                                            val bounds = if (false) {
                                                                 getUnrotatedCombinedBoundingBox(activeIds, startShapes)
                                                             } else {
                                                                 getRotatedCombinedBoundingBox(activeIds, startShapes)
@@ -816,7 +816,7 @@ fun VectorCanvas(
                                                             if (bounds != null) {
                                                                 val startHandlePos = getHandleStartPos(bounds, handle)
                                                                 val singleId = activeIds.firstOrNull()
-                                                                val rotationAngle = if (activeIds.size == 1 && singleId != null) {
+                                                                val rotationAngle = if (false) {
                                                                     viewModel.shapes.find { it.id == singleId }?.rotationAngle ?: 0f
                                                                 } else {
                                                                     0f
@@ -1050,7 +1050,7 @@ fun VectorCanvas(
                                                     }
                                                 }
                                                 
-                                                val bounds = if (viewModel.selectedShapeIds.size == 1) {
+                                                val bounds = if (false) {
                                                     getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
                                                 } else {
                                                     getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
@@ -1928,12 +1928,7 @@ fun VectorCanvas(
 
                 if (viewModel.currentTool == VectorTool.POINTER && viewModel.selectedShapeIds.isNotEmpty()) {
                     var bAngle = 0f
-                    val bounds = if (viewModel.selectedShapeIds.size == 1) {
-                        val singleId = viewModel.selectedShapeIds.firstOrNull()
-                        val singleShape = viewModel.shapes.find { it.id == singleId }
-                        bAngle = singleShape?.rotationAngle ?: 0f
-                        getUnrotatedCombinedBoundingBox(viewModel.selectedShapeIds, viewModel.shapes)
-                    } else if (activeDragHandle == "ROTATE_HOTSPOT" && dragStartShapes != null && initialTouchCanvasPos != null && currentTouchPos != null) {
+                    val bounds = if (activeDragHandle == "ROTATE_HOTSPOT" && dragStartShapes != null && initialTouchCanvasPos != null && currentTouchPos != null) {
                         val startingBounds = getRotatedCombinedBoundingBox(viewModel.selectedShapeIds, dragStartShapes!!)
                         val activeStartShapes = dragStartShapes!!.filter { viewModel.selectedShapeIds.contains(it.id) }
                         if (activeStartShapes.isNotEmpty()) {
