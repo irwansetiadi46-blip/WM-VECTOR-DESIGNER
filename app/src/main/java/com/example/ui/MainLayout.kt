@@ -1574,61 +1574,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         }
 
                         VectorTool.BUCKET -> {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Text(
-                                    text = "Opacity Cat:",
-                                    color = Color.LightGray,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.width(72.dp)
-                                )
-
-                                Text(
-                                    text = "${(viewModel.currentFillAlpha * 100).toInt()}%",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.width(36.dp),
-                                    textAlign = TextAlign.End
-                                )
-
-                                Box(
-                                    modifier = Modifier.weight(1f).height(20.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp)
-                                            .clip(RoundedCornerShape(2.dp))
-                                            .background(
-                                                brush = Brush.linearGradient(
-                                                    colors = listOf(Color(0x22FFFFFF), Color(0xAAFFFFFF))
-                                                )
-                                            )
-                                    )
-                                    Slider(
-                                        value = viewModel.currentFillAlpha,
-                                        onValueChange = {
-                                            viewModel.currentFillAlpha = it
-                                            if (viewModel.selectedShapeId != null) {
-                                                viewModel.updateSelectedShapeProperties(fillAlpha = it)
-                                            }
-                                        },
-                                        valueRange = 0f..1f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color.White,
-                                            activeTrackColor = Color.Transparent,
-                                            inactiveTrackColor = Color.Transparent
-                                        ),
-                                        modifier = Modifier.height(20.dp)
-                                    )
-                                }
-                            }
+                            // No opacity paint panel rendered above bottom bar when fill tool is active
                         }
 
                         VectorTool.SHAPES -> {
@@ -3688,7 +3634,7 @@ fun HomeScreenContent(
         }
 
         Text(
-            text = "Vector Studio v3.0 • Studio vektor profesional dengan layout presisi, layer canggih, & " +
+            text = "Vector Studio v3.0.1 • Studio vektor profesional dengan layout presisi, layer canggih, & " +
                     "sketsa dinamis.",
             color = Color.Gray,
             fontSize = 11.sp,
@@ -3980,7 +3926,7 @@ fun HomeScreenContent(
         }
 
         Text(
-            text = "Designed by Irwan Setiadi • War Machine Vector Studio v3.0",
+            text = "Designed by Irwan Setiadi • War Machine Vector Studio v3.0.1",
             color = Color(0xFF64748B),
             fontSize = 8.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -4643,241 +4589,12 @@ fun TransformPanelContent(
 
 @Composable
 fun PenToolPropertiesBlock(viewModel: VectorViewModel, onShowColorPickerStroke: () -> Unit) {
-    val activeNodeIndex = viewModel.activeEditNodeIndex
-    val isActiveNodeCurve = if (activeNodeIndex != null && activeNodeIndex in viewModel.activeBezierNodes.indices) {
-        viewModel.activeBezierNodes[activeNodeIndex].isCurve
-    } else false
-
-    var lineStyleExpanded by remember { mutableStateOf(false) }
-    var joinExpanded by remember { mutableStateOf(false) }
-    var capExpanded by remember { mutableStateOf(false) }
-
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         // 1. Stroke Width, Opacity sliders
         StrokeWidthAndOpacitySlidersSection(viewModel)
-
-        // 2. Stroke Color picker + Toggles Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val strokeC = try {
-                Color(android.graphics.Color.parseColor(viewModel.currentStrokeColorHex))
-            } catch (_: Exception) {
-                Color.White
-            }
-            
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF0F172A))
-                    .clickable { onShowColorPickerStroke() }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(if (viewModel.hasStrokeEnabled) strokeC else Color.Transparent)
-                        .border(2.dp, Color.White, CircleShape)
-                )
-                Text("Warna Stroke", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Checkbox(
-                        checked = viewModel.hasStrokeEnabled,
-                        onCheckedChange = { enabled ->
-                            viewModel.hasStrokeEnabled = enabled
-                            if (!enabled) {
-                                viewModel.currentStrokeWidth = 0f
-                                viewModel.currentStrokeAlpha = 0f
-                            } else {
-                                if (viewModel.currentStrokeWidth == 0f) {
-                                    viewModel.currentStrokeWidth = 8f
-                                }
-                                if (viewModel.currentStrokeAlpha == 0f) {
-                                    viewModel.currentStrokeAlpha = 1f
-                                }
-                            }
-                            if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                                viewModel.updateSelectedShapeProperties(
-                                    hasStroke = enabled,
-                                    strokeWidth = viewModel.currentStrokeWidth,
-                                    strokeAlpha = viewModel.currentStrokeAlpha
-                                )
-                            }
-                        },
-                        colors = CheckboxDefaults.colors(checkedColor = Color(0xFFFF6D00)),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text("Stroke", color = Color.White, fontSize = 9.sp)
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Checkbox(
-                        checked = viewModel.hasFillEnabled,
-                        onCheckedChange = { fillVal ->
-                            viewModel.hasFillEnabled = fillVal
-                            if (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty()) {
-                                viewModel.updateSelectedShapeProperties(hasFill = fillVal)
-                            }
-                        },
-                        colors = CheckboxDefaults.colors(checkedColor = Color(0xFFFF6D00)),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text("Fill", color = Color.White, fontSize = 9.sp)
-                }
-            }
-        }
-
-        // Dropdown Panel for Stroke Options
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Style Dropdown
-            Box(modifier = Modifier.weight(1f)) {
-                Button(
-                    onClick = { lineStyleExpanded = true },
-                    modifier = Modifier.fillMaxWidth().height(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
-                    shape = RoundedCornerShape(4.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text("Gaya: ${viewModel.currentLineStyle}", color = Color.White, fontSize = 8.sp, maxLines = 1)
-                }
-                DropdownMenu(expanded = lineStyleExpanded, onDismissRequest = { lineStyleExpanded = false }) {
-                    listOf("SOLID", "DASHED", "DOTTED").forEach { style ->
-                        DropdownMenuItem(
-                            text = { Text(style, fontSize = 10.sp) },
-                            onClick = {
-                                viewModel.currentLineStyle = style
-                                if (viewModel.selectedShapeId != null) {
-                                    viewModel.updateSelectedShapeProperties(lineStyle = style)
-                                }
-                                lineStyleExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-            
-            // Join Dropdown
-            Box(modifier = Modifier.weight(1f)) {
-                Button(
-                    onClick = { joinExpanded = true },
-                    modifier = Modifier.fillMaxWidth().height(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
-                    shape = RoundedCornerShape(4.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text("Join: ${viewModel.currentStrokeJoin}", color = Color.White, fontSize = 8.sp, maxLines = 1)
-                }
-                DropdownMenu(expanded = joinExpanded, onDismissRequest = { joinExpanded = false }) {
-                    listOf("ROUND", "MITER", "BEVEL").forEach { join ->
-                        DropdownMenuItem(
-                            text = { Text(join, fontSize = 10.sp) },
-                            onClick = {
-                                viewModel.currentStrokeJoin = join
-                                if (viewModel.selectedShapeId != null) {
-                                    viewModel.updateSelectedShapeProperties(strokeJoin = join)
-                                }
-                                joinExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Cap Dropdown
-            Box(modifier = Modifier.weight(1f)) {
-                Button(
-                    onClick = { capExpanded = true },
-                    modifier = Modifier.fillMaxWidth().height(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
-                    shape = RoundedCornerShape(4.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text("Cap: ${viewModel.currentStrokeCap}", color = Color.White, fontSize = 8.sp, maxLines = 1)
-                }
-                DropdownMenu(expanded = capExpanded, onDismissRequest = { capExpanded = false }) {
-                    listOf("ROUND", "BUTT", "SQUARE").forEach { cap ->
-                        DropdownMenuItem(
-                            text = { Text(cap, fontSize = 10.sp) },
-                            onClick = {
-                                viewModel.currentStrokeCap = cap
-                                if (viewModel.selectedShapeId != null) {
-                                    viewModel.updateSelectedShapeProperties(strokeCap = cap)
-                                }
-                                capExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        // 6. Real-time Node attributes (Corner / Curve toggling & Delete)
-        if (activeNodeIndex != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF334155))
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("Node #${activeNodeIndex + 1}:", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isActiveNodeCurve) Color(0xFFFF6D00) else Color.Gray)
-                            .clickable { viewModel.toggleNodeCurve(activeNodeIndex) }
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = if (isActiveNodeCurve) "Lengkung (Curve)" else "Lurus (Corner)",
-                            color = Color.Black,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFFEF4444))
-                        .clickable { viewModel.deleteSelectedNode() }
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text("Hapus Node", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
     }
 }
 
@@ -5154,9 +4871,9 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
         }
         
         val transformAttr = if (shape.rotationAngle != 0f) {
-            val bounds = shape.getBoundingBox()
-            val cx = ((bounds.left + bounds.right) / 2f) - minX
-            val cy = ((bounds.top + bounds.bottom) / 2f) - minY
+            val pivot = shape.getPivotCenter()
+            val cx = pivot.x - minX
+            val cy = pivot.y - minY
             " transform=\"rotate(${shape.rotationAngle}, $cx, $cy)\""
         } else {
             ""
@@ -5343,9 +5060,9 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX
     for (shape in finalShapes) {
         val hasRotation = shape.rotationAngle != 0f
         if (hasRotation) {
-            val bounds = shape.getBoundingBox()
-            val cx = ((bounds.left + bounds.right) / 2f) - minX
-            val cy = height - (((bounds.top + bounds.bottom) / 2f) - minY)
+            val pivot = shape.getPivotCenter()
+            val cx = pivot.x - minX
+            val cy = height - (pivot.y - minY)
             sb.append(String.format(java.util.Locale.US, "gsave\n  %.4f %.4f translate\n  %.4f rotate\n  %.4f %.4f translate\n", cx, cy, -shape.rotationAngle, -cx, -cy))
         }
         
@@ -5631,8 +5348,9 @@ fun renderShapesToBitmap(
                             
                             canvas.save()
                             if (shape.rotationAngle != 0f) {
-                                val cx = (rect.left + rect.right) / 2f
-                                val cy = (rect.top + rect.bottom) / 2f
+                                val pivot = shape.getPivotCenter()
+                                val cx = pivot.x
+                                val cy = pivot.y
                                 canvas.rotate(shape.rotationAngle, cx, cy)
                             }
                             canvas.drawBitmap(scaledImg, rect.left, rect.top, null)

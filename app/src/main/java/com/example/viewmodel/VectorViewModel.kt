@@ -311,11 +311,11 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             val cos = kotlin.math.cos(rad).toFloat()
                             val sin = kotlin.math.sin(rad).toFloat()
                             
-                            val rotX = dx * cos - dy * sin
-                            val rotY = dx * sin + dy * cos
+                            val rotX = dx * cos + dy * sin
+                            val rotY = -dx * sin + dy * cos
                             
-                            val deltaPx = rotX - dx
-                            val deltaPy = rotY - dy
+                            val deltaPx = dx - rotX
+                            val deltaPy = dy - rotY
                             
                             if (tempShape.type == com.example.model.ShapeType.BEZIER_PATH) {
                                 tempShape.copy(
