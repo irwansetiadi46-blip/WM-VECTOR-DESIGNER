@@ -317,20 +317,21 @@ fun MainLayout(viewModel: VectorViewModel) {
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .background(Color.White) // Styled exactly white like search background
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-                .height(56.hpx()), // Handled as hpx helper or just 56.dp
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+                .height(38.hpx()), // Handled as hpx helper or just 38.dp
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             // Left: Hamburger Menu
             IconButton(
                 onClick = { showMenuSheet = !showMenuSheet },
-                modifier = Modifier.testTag("menu_button")
+                modifier = Modifier.testTag("menu_button").size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Menu,
                     contentDescription = "Document Settings Menu",
-                    tint = Color(0xFF334155)
+                    tint = Color(0xFF334155),
+                    modifier = Modifier.size(18.dp)
                 )
             }
 
@@ -339,23 +340,25 @@ fun MainLayout(viewModel: VectorViewModel) {
                 IconButton(
                     onClick = { viewModel.undo() },
                     enabled = viewModel.canUndo(),
-                    modifier = Modifier.testTag("undo_button")
+                    modifier = Modifier.testTag("undo_button").size(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Undo,
                         contentDescription = "Undo Action",
-                        tint = if (viewModel.canUndo()) Color(0xFF1E293B) else Color(0xFFCBD5E1)
+                        tint = if (viewModel.canUndo()) Color(0xFF1E293B) else Color(0xFFCBD5E1),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
                 IconButton(
                     onClick = { viewModel.redo() },
                     enabled = viewModel.canRedo(),
-                    modifier = Modifier.testTag("redo_button")
+                    modifier = Modifier.testTag("redo_button").size(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Redo,
                         contentDescription = "Redo Action",
-                        tint = if (viewModel.canRedo()) Color(0xFF1E293B) else Color(0xFFCBD5E1)
+                        tint = if (viewModel.canRedo()) Color(0xFF1E293B) else Color(0xFFCBD5E1),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -376,24 +379,26 @@ fun MainLayout(viewModel: VectorViewModel) {
                     }
                 },
                 enabled = isPenNodeSelected || isDSNodeSelected || isShapeSelected,
-                modifier = Modifier.testTag("delete_button")
+                modifier = Modifier.testTag("delete_button").size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Delete Selected",
-                    tint = if (isPenNodeSelected || isDSNodeSelected || isShapeSelected) Color(0xFFEF4444) else Color(0xFFCBD5E1)
+                    tint = if (isPenNodeSelected || isDSNodeSelected || isShapeSelected) Color(0xFFEF4444) else Color(0xFFCBD5E1),
+                    modifier = Modifier.size(18.dp)
                 )
             }
 
             // Export / Download (bracket with downward arrow)
             IconButton(
                 onClick = { showExportDialog = true },
-                modifier = Modifier.testTag("export_button")
+                modifier = Modifier.testTag("export_button").size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.GetApp,
                     contentDescription = "Export Image / SVG",
-                    tint = Color(0xFF334155)
+                    tint = Color(0xFF334155),
+                    modifier = Modifier.size(18.dp)
                 )
             }
 
@@ -403,19 +408,20 @@ fun MainLayout(viewModel: VectorViewModel) {
                     viewModel.saveProjectLocally()
                     Toast.makeText(context, "Desain Tersimpan!", Toast.LENGTH_SHORT).show()
                 },
-                modifier = Modifier.testTag("save_button")
+                modifier = Modifier.testTag("save_button").size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Save,
                     contentDescription = "Save Draft",
-                    tint = Color(0xFF334155)
+                    tint = Color(0xFF334155),
+                    modifier = Modifier.size(18.dp)
                 )
             }
 
             // Color Swatches indicator widgets
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Fill Color (solid circle)
                 val fillC = try {
@@ -425,10 +431,10 @@ fun MainLayout(viewModel: VectorViewModel) {
                 }
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(20.dp)
                         .clip(CircleShape)
                         .background(if (viewModel.hasFillEnabled) fillC else Color.Transparent)
-                        .border(2.dp, Color(0xFF475569), CircleShape)
+                        .border(1.5.dp, Color(0xFF475569), CircleShape)
                         .clickable { showColorPickerFill = true }
                         .testTag("fill_color_indicator"),
                     contentAlignment = Alignment.Center
@@ -438,7 +444,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(2.dp)
+                                .height(1.5.dp)
                                 .background(Color.Red)
                         )
                     }
@@ -452,10 +458,10 @@ fun MainLayout(viewModel: VectorViewModel) {
                 }
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(20.dp)
                         .clip(CircleShape)
                         .background(Color.White)
-                        .border(4.dp, if (viewModel.hasStrokeEnabled) strokeC else Color.LightGray, CircleShape)
+                        .border(2.5.dp, if (viewModel.hasStrokeEnabled) strokeC else Color.LightGray, CircleShape)
                         .clickable { showColorPickerStroke = true }
                         .testTag("stroke_color_indicator"),
                     contentAlignment = Alignment.Center
@@ -464,7 +470,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(2.dp)
+                                .height(1.5.dp)
                                 .background(Color.Red)
                         )
                     }
@@ -474,12 +480,13 @@ fun MainLayout(viewModel: VectorViewModel) {
             // Right: Layers stack panel toggle
             IconButton(
                 onClick = { showLayersPanel = !showLayersPanel },
-                modifier = Modifier.testTag("layers_button")
+                modifier = Modifier.testTag("layers_button").size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Layers,
                     contentDescription = "Layers Manager Panel",
-                    tint = if (showLayersPanel) Color(0xFFFF6D00) else Color(0xFF334155)
+                    tint = if (showLayersPanel) Color(0xFFFF6D00) else Color(0xFF334155),
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -506,26 +513,26 @@ fun MainLayout(viewModel: VectorViewModel) {
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.6f)),
                     shape = androidx.compose.ui.graphics.RectangleShape,
                     contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
                         imageVector = if (showLeftToolbar) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
                         contentDescription = "Tools",
                         tint = Color.White,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 if (showLeftToolbar) {
                     Column(
                         modifier = Modifier
-                            .width(48.dp)
+                            .width(36.dp)
                             .fillMaxHeight()
                             .background(Color(0xFF1E293B).copy(alpha = 0.6f))
                             .border(width = 1.dp, color = Color(0xFF334155).copy(alpha = 0.6f))
-                            .padding(vertical = 12.dp, horizontal = 0.dp),
+                            .padding(vertical = 4.dp, horizontal = 0.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                     // 1. Pointer (Selection) Tool
                 SidebarToolButton(
@@ -1687,67 +1694,31 @@ fun MainLayout(viewModel: VectorViewModel) {
         // MULTI-LEVEL DYNAMIC ROTATABLE AND DRAGGABLE BOTTOM DRAWER TOOLBAR
         val currentLevel = bottomBarExpandedLevel
 
-        // A small pull-up Pill Floating Action Button if the bar is hidden (Level 0)
-        if (currentLevel == 0) {
+        // Always show the Column so that Drag Handle Pill is available even when currentLevel is 0
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(if (currentLevel > 0) Color(0xFF1E293B) else Color.Transparent)
+                .then(
+                    if (currentLevel > 0) {
+                        Modifier.border(
+                            width = 1.dp,
+                            color = Color(0xFF475569),
+                            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                        )
+                    } else Modifier
+                )
+                .navigationBarsPadding()
+        ) {
+            // Wide Touch Pill Handle supporting vertical drags & taps to collapse/expand
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.Transparent)
-                    .padding(bottom = 8.dp)
-                    .navigationBarsPadding(),
-                contentAlignment = Alignment.Center
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .width(165.dp)
-                        .height(36.dp)
-                        .clickable { bottomBarExpandedLevel = 2 }
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowUpward,
-                            contentDescription = "Expand Toolbar",
-                            tint = Color(0xFFFF6D00),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Tarik Toolbar Atas",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    .height(14.dp)
+                    .clickable {
+                        // Cycle through levels on tap or simple click between Minimized and Maximized!
+                        bottomBarExpandedLevel = if (bottomBarExpandedLevel >= 2) 0 else bottomBarExpandedLevel + 1
                     }
-                }
-            }
-        } else {
-            // Level >= 1 bottom toolbar drawer
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF1E293B))
-                    .border(
-                        width = 1.dp,
-                        color = Color(0xFF475569),
-                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                    )
-                    .navigationBarsPadding()
-            ) {
-                // Wide Touch Pill Handle supporting vertical drags & taps to collapse/expand
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(28.dp)
-                        .clickable {
-                            // Cycle through levels on tap or simple click between Minimized and Maximized!
-                            bottomBarExpandedLevel = if (bottomBarExpandedLevel >= 2) 1 else bottomBarExpandedLevel + 1
-                        }
                         .pointerInput(Unit) {
                             var accumulatedDragY = 0f
                             detectDragGestures(
@@ -1774,9 +1745,9 @@ fun MainLayout(viewModel: VectorViewModel) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(
                             modifier = Modifier
-                                .width(60.dp)
-                                .height(5.dp)
-                                .clip(RoundedCornerShape(3.dp))
+                                .width(40.dp)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(1.5.dp))
                                 .background(Color(0xFF64748B))
                         )
                     }
@@ -1789,8 +1760,8 @@ fun MainLayout(viewModel: VectorViewModel) {
                             .fillMaxWidth()
                             .background(Color(0xFF0F172A))
                             .horizontalScroll(rememberScrollState())
-                            .padding(bottom = 12.dp, top = 2.dp, start = 12.dp, end = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            .padding(bottom = 4.dp, top = 2.dp, start = 8.dp, end = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // 1. Boolean Operations
@@ -1920,7 +1891,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                     }
                 }
             }
-        }
     }
 
     // LAYER VIEW STACKS SIDE DRAWER OVERLAY
@@ -3535,23 +3505,23 @@ fun IconButtonWithLabel(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(4.dp))
             .background(if (isActive) Color(0xFF6366F1).copy(alpha = 0.35f) else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .widthIn(min = 44.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .padding(horizontal = 6.dp, vertical = 3.dp)
+            .widthIn(min = 36.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = if (isActive) Color(0xFF818CF8) else Color.White,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(15.dp)
         )
         Text(
             text = label,
             color = if (isActive) Color.White else Color.LightGray,
-            fontSize = 10.sp
+            fontSize = 8.sp
         )
     }
 }
@@ -3567,17 +3537,17 @@ fun SidebarToolButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(4.dp))
             .background(if (isSelected) Color(0xFFFF6D00) else Color(0x80334155)) // Background is 50% transparent when unselected
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 2.dp),
+            .padding(vertical = 4.dp, horizontal = 2.dp),
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = if (isSelected) Color.Black else Color.White, // Icon remains 100% opacity
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(16.dp)
         )
     }
 }
@@ -4639,10 +4609,10 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
-                .height(60.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .height(42.dp)
+                .clip(RoundedCornerShape(4.dp))
                 .background(Color(0xFF0F172A))
-                .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
+                .border(1.dp, Color(0xFF334155), RoundedCornerShape(4.dp))
         ) {
             val listState = rememberLazyListState()
             val itemWidth = 44.dp
@@ -4735,15 +4705,15 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
                         // Tick stroke marks
                         Box(
                             modifier = Modifier
-                                .width(if (isSelected) 3.dp else if (isWhole) 1.5.dp else 1.dp)
-                                .height(if (isSelected) 18.dp else if (isWhole) 12.dp else 6.dp)
+                                .width(if (isSelected) 2.dp else if (isWhole) 1.dp else 0.8.dp)
+                                .height(if (isSelected) 12.dp else if (isWhole) 8.dp else 4.dp)
                                 .background(if (isSelected) Color(0xFF39FF14) else Color(0xFF475569))
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = labelText,
                             color = if (isSelected) Color(0xFF39FF14) else Color.LightGray,
-                            fontSize = if (isSelected) 12.sp else if (isWhole) 10.sp else 8.sp,
+                            fontSize = if (isSelected) 10.sp else if (isWhole) 8.sp else 6.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
                     }
@@ -4763,11 +4733,11 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
         // Large manual measurement input box
         Box(
             modifier = Modifier
-                .width(80.dp)
-                .height(60.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .width(64.dp)
+                .height(42.dp)
+                .clip(RoundedCornerShape(4.dp))
                 .background(Color(0xFF0F172A))
-                .border(1.dp, Color(0xFFFF6D00), RoundedCornerShape(8.dp)),
+                .border(1.dp, Color(0xFFFF6D00), RoundedCornerShape(4.dp)),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -4796,18 +4766,18 @@ fun StrokeWidthAndOpacitySlidersSection(viewModel: VectorViewModel) {
                     ),
                     textStyle = androidx.compose.ui.text.TextStyle(
                         color = Color(0xFF39FF14),
-                        fontSize = 18.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
                         textAlign = TextAlign.Center
                     ),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
                 )
                 Text(
                     text = "px",
                     color = Color.Gray,
-                    fontSize = 9.sp,
+                    fontSize = 8.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
