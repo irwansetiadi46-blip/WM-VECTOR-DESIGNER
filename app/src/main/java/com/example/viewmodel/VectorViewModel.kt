@@ -175,6 +175,78 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         }
     var isCloneModeActive by mutableStateOf(false)
     
+    // Eyedropper state variables
+    var isEyedropperActive by mutableStateOf(false)
+    var eyedropperType by mutableStateOf("") // "FILL", "STROKE", "ARTBOARD", "GRID"
+    var eyedropperColor by mutableStateOf(Color.Transparent)
+    var eyedropperTouchPos by mutableStateOf<Offset?>(null)
+    var showColorPickerAfterEyedropper by mutableStateOf<String?>(null)
+
+    fun sampleColorAt(pt: Offset): Color {
+        // Traverse layers/shapes from top to bottom (visible shapes)
+        for (shape in shapes.asReversed()) {
+            if (!shape.isVisible) continue
+            
+            // Unrotate selected point to check bounds / hit
+            val pivot = shape.getPivotCenter()
+            val cx = pivot.x
+            val cy = pivot.y
+            
+            var testX = pt.x
+            var testY = pt.y
+            if (shape.rotationAngle != 0f) {
+                val rad = Math.toRadians(-shape.rotationAngle.toDouble())
+                val cos = kotlin.math.cos(rad).toFloat()
+                val sin = kotlin.math.sin(rad).toFloat()
+                val dx = pt.x - cx
+                val dy = pt.y - cy
+                testX = cx + (dx * cos - dy * sin)
+                testY = cy + (dx * sin + dy * cos)
+            }
+
+            if (shape.type == ShapeType.IMAGE) {
+                val rect = shape.getBoundingBox()
+                if (testX in rect.left..rect.right && testY in rect.top..rect.bottom) {
+                    val base64 = shape.textContent
+                    if (base64.isNotEmpty()) {
+                        val androidBitmap = getCachedAndroidBitmap(shape.id, base64)
+                        if (androidBitmap != null && rect.width > 0f && rect.height > 0f) {
+                            val widthFraction = (testX - rect.left) / rect.width
+                            val heightFraction = (testY - rect.top) / rect.height
+                            val bmpX = (widthFraction * androidBitmap.width).toInt().coerceIn(0, androidBitmap.width - 1)
+                            val bmpY = (heightFraction * androidBitmap.height).toInt().coerceIn(0, androidBitmap.height - 1)
+                            try {
+                                val pixel = androidBitmap.getPixel(bmpX, bmpY)
+                                val alpha = android.graphics.Color.alpha(pixel) / 255f
+                                if (alpha > 0.05f) {
+                                    val r = android.graphics.Color.red(pixel)
+                                    val g = android.graphics.Color.green(pixel)
+                                    val b = android.graphics.Color.blue(pixel)
+                                    return Color(r, g, b).copy(alpha = alpha)
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+            } else if (shape.isPointInside(pt.x, pt.y)) {
+                if (shape.hasFill) {
+                    val fColor = shape.getFillColor().copy(alpha = shape.fillAlpha)
+                    if (fColor.alpha > 0.05f) return fColor
+                } else if (shape.hasStroke && shape.strokeWidth > 0f) {
+                    val sColor = shape.getStrokeColor().copy(alpha = shape.strokeAlpha)
+                    if (sColor.alpha > 0.05f) return sColor
+                }
+            }
+        }
+        
+        // Return artboard background color as fallback
+        return try {
+            Color(android.graphics.Color.parseColor(artboardColorHex)).copy(alpha = artboardAlpha)
+        } catch (_: Exception) {
+            Color.White
+        }
+    }
+    
     // Tools parameters
     var currentPolygonSides by mutableStateOf(6)
     var currentStarPoints by mutableStateOf(5)

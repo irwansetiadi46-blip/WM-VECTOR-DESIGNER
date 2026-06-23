@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -310,42 +311,55 @@ fun ColorPickerDialog(
                             .background(parsedColor)
                             .border(1.5.dp, Color(0xFF475569), RoundedCornerShape(10.dp))
                     )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = hexInput.uppercase(),
-                            color = Color(0xFFFF6D00),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Hex Code Format Selection",
-                            color = Color.LightGray,
-                            fontSize = 11.sp
-                        )
+
+                    if (viewModel != null) {
+                        IconButton(
+                            onClick = {
+                                viewModel.eyedropperType = if (isStrokePanel || title.contains("Stroke", ignoreCase = true) || title.contains("Outline", ignoreCase = true)) "STROKE"
+                                                           else if (title.contains("Latar", ignoreCase = true) || title.contains("Artboard", ignoreCase = true)) "ARTBOARD"
+                                                           else if (title.contains("Grid", ignoreCase = true)) "GRID"
+                                                           else "FILL"
+                                viewModel.showColorPickerAfterEyedropper = viewModel.eyedropperType
+                                viewModel.isEyedropperActive = true
+                                onDismissRequest()
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Colorize,
+                                contentDescription = "Ambil Warna",
+                                tint = Color(0xFFFF6D00),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
 
-                    // Direct Hex field edits
-                    OutlinedTextField(
-                        value = hexInput,
-                        onValueChange = { input ->
-                            var clean = input.trim()
-                            if (!clean.startsWith("#")) {
-                                clean = "#$clean"
-                            }
-                            if (clean.length <= 9) {
-                                hexInput = clean
-                            }
-                        },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFFFF6D00),
-                            unfocusedBorderColor = Color(0xFF475569),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
-                        modifier = Modifier.width(110.dp)
-                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        OutlinedTextField(
+                            value = hexInput,
+                            onValueChange = { input ->
+                                var clean = input.trim()
+                                if (!clean.startsWith("#")) {
+                                    clean = "#$clean"
+                                }
+                                if (clean.length <= 9) {
+                                    hexInput = clean
+                                }
+                            },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFFFF6D00),
+                                unfocusedBorderColor = Color(0xFF475569),
+                                focusedTextColor = Color(0xFFFF6D00),
+                                unfocusedTextColor = Color(0xFFFF6D00)
+                            ),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                            modifier = Modifier.width(115.dp)
+                        )
+                    }
                 }
 
                 // Modes Navigation tabs

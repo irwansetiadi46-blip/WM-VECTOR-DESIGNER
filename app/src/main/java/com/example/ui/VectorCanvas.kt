@@ -202,7 +202,7 @@ fun VectorCanvas(
                     isFirstLayout = false
                 }
             }
-            .pointerInput(viewModel.currentTool) {
+            .pointerInput(viewModel.currentTool, viewModel.isEyedropperActive) {
                 awaitPointerEventScope {
                     var isDragging = false
                     var isMultiTouch = false
@@ -244,6 +244,66 @@ fun VectorCanvas(
                     while (true) {
                         val event = awaitPointerEvent()
                         val changes = event.changes
+                        
+                        if (viewModel.isEyedropperActive) {
+                            val change = changes.firstOrNull()
+                            if (change != null) {
+                                val rawPos = change.position
+                                val artboardPos = Offset(
+                                    (rawPos.x - viewModel.panOffset.x) / viewModel.zoomScale,
+                                    (rawPos.y - viewModel.panOffset.y) / viewModel.zoomScale
+                                )
+                                if (changes.any { it.pressed }) {
+                                    val sampledColor = viewModel.sampleColorAt(artboardPos)
+                                    viewModel.eyedropperColor = sampledColor
+                                    viewModel.eyedropperTouchPos = artboardPos
+                                    change.consume()
+                                } else {
+                                    // Released!
+                                    val finalColor = viewModel.eyedropperColor
+                                    val finalHex = String.format("#%02X%02X%02X", 
+                                        (finalColor.red * 255.0f).toInt().coerceIn(0, 255),
+                                        (finalColor.green * 255.0f).toInt().coerceIn(0, 255),
+                                        (finalColor.blue * 255.0f).toInt().coerceIn(0, 255)
+                                    )
+                                    val finalAlpha = finalColor.alpha
+                                    
+                                    when (viewModel.eyedropperType) {
+                                        "FILL" -> {
+                                            viewModel.currentFillColorHex = finalHex
+                                            viewModel.currentFillAlpha = finalAlpha
+                                            viewModel.hasFillEnabled = true
+                                            if (viewModel.selectedShapeId != null) {
+                                                viewModel.updateSelectedShapeProperties(hasFill = true, fillColorHex = finalHex, fillAlpha = finalAlpha)
+                                            }
+                                        }
+                                        "STROKE" -> {
+                                            viewModel.currentStrokeColorHex = finalHex
+                                            viewModel.currentStrokeAlpha = finalAlpha
+                                            viewModel.hasStrokeEnabled = true
+                                            val restoredWidth = if (viewModel.currentStrokeWidth <= 0f) 4f else viewModel.currentStrokeWidth
+                                            if (viewModel.currentStrokeWidth <= 0f) {
+                                                viewModel.currentStrokeWidth = 4f
+                                            }
+                                            if (viewModel.selectedShapeId != null) {
+                                                viewModel.updateSelectedShapeProperties(hasStroke = true, strokeColorHex = finalHex, strokeAlpha = finalAlpha, strokeWidth = restoredWidth)
+                                            }
+                                        }
+                                        "ARTBOARD" -> {
+                                            viewModel.artboardColorHex = finalHex
+                                            viewModel.artboardAlpha = finalAlpha
+                                            viewModel.saveCurrentProject()
+                                        }
+                                        "GRID" -> {
+                                            viewModel.gridColorHex = finalHex
+                                        }
+                                    }
+                                    viewModel.isEyedropperActive = false
+                                    viewModel.eyedropperTouchPos = null
+                                }
+                            }
+                            continue
+                        }
                         
                         if (changes.any { it.pressed }) {
                             if (changes.size > 1) {
@@ -2428,6 +2488,142 @@ fun VectorCanvas(
                     size = Size(canvasWidthVal, canvasHeightVal),
                     style = Stroke(width = 1f)
                 )
+
+                if (viewModel.isEyedropperActive) {
+                    viewModel.eyedropperTouchPos?.let { pt ->
+                        val zoom = viewModel.zoomScale
+                        // Raise it higher (120f instead of 50f) to avoid being covered by the user's finger
+                        val bubbleOffset = Offset(0f, -120f / zoom)
+                        val bubbleCenter = pt + bubbleOffset
+                        val bubbleRadius = 45f / zoom
+                        val innerRadius = 33f / zoom
+                        
+                        // 1. Draw target crosshair at the actual finger touch position pt
+                        drawCircle(
+                            color = Color.White,
+                            radius = 6f / zoom,
+                            center = pt,
+                            style = Stroke(width = 2f / zoom)
+                        )
+                        drawCircle(
+                            color = Color.Black,
+                            radius = 7f / zoom,
+                            center = pt,
+                            style = Stroke(width = 1f / zoom)
+                        )
+                        
+                        // Draw dashed line connecting target to magnifying bubble
+                        drawLine(
+                            color = Color.White,
+                            start = pt,
+                            end = bubbleCenter + Offset(0f, bubbleRadius * 1.5f),
+                            strokeWidth = 1.5f / zoom,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f / zoom, 5f / zoom), 0f)
+                        )
+                        
+                        // 2. Draw GPS Pin Mark Shape
+                        val pinPath = Path().apply {
+                            val tipX = bubbleCenter.x
+                            val tipY = bubbleCenter.y + bubbleRadius * 1.5f
+                            moveTo(tipX, tipY)
+                            
+                            // Left connection point on circle: 135 degrees.
+                            val leftConnX = bubbleCenter.x - bubbleRadius * 0.7071f
+                            val leftConnY = bubbleCenter.y + bubbleRadius * 0.7071f
+                            lineTo(leftConnX, leftConnY)
+                            
+                            // Draw the top circular arc from 135 degrees to 45 degrees (clockwise, 270 degrees sweep)
+                            val rect = Rect(
+                                bubbleCenter.x - bubbleRadius,
+                                bubbleCenter.y - bubbleRadius,
+                                bubbleCenter.x + bubbleRadius,
+                                bubbleCenter.y + bubbleRadius
+                            )
+                            arcTo(rect, 135f, 270f, forceMoveTo = false)
+                            
+                            close()
+                        }
+
+                        // Fill Pin Mark with beautiful light gray border background
+                        drawPath(
+                            path = pinPath,
+                            color = Color(0xFFE2E8F0) // Light slate gray background
+                        )
+                        
+                        // Draw GPS Pin outer border outline (abu-abu terang / light gray border)
+                        drawPath(
+                            path = pinPath,
+                            color = Color(0xFFCBD5E1), // Slightly distinct light gray border outline
+                            style = Stroke(width = 3f / zoom)
+                        )
+                        
+                        // Draw an inner dark border/contrast line for visibility on any background
+                        drawPath(
+                            path = pinPath,
+                            color = Color(0xFF1E293B),
+                            style = Stroke(width = 1f / zoom)
+                        )
+                        
+                        // 3. Center Color Fill (The color ring inside the magnifying bubble)
+                        drawCircle(
+                            color = viewModel.eyedropperColor,
+                            radius = innerRadius,
+                            center = bubbleCenter
+                        )
+                        
+                        // Inner dark accent border outline for color preview circle separation
+                        drawCircle(
+                            color = Color(0xFF475569),
+                            radius = innerRadius,
+                            center = bubbleCenter,
+                            style = Stroke(width = 1.5f / zoom)
+                        )
+                        
+                        // 4. Draw tag/badge containing the Hex string
+                        val hexStr = String.format("#%02X%02X%02X", 
+                            (viewModel.eyedropperColor.red * 255.0f).toInt().coerceIn(0, 255),
+                            (viewModel.eyedropperColor.green * 255.0f).toInt().coerceIn(0, 255),
+                            (viewModel.eyedropperColor.blue * 255.0f).toInt().coerceIn(0, 255)
+                        ).uppercase()
+                        
+                        // Draw hex text using Native Canvas to position it beautifully above the bubble
+                        val paintText = Paint().apply {
+                            color = android.graphics.Color.WHITE
+                            style = Paint.Style.FILL
+                            textSize = 10f / zoom
+                            typeface = Typeface.DEFAULT_BOLD
+                            isAntiAlias = true
+                        }
+                        val textWidth = paintText.measureText(hexStr)
+                        
+                        // Draw tag background
+                        val rectLeft = bubbleCenter.x - textWidth / 2f - 4f / zoom
+                        val rectTop = bubbleCenter.y - bubbleRadius - 18f / zoom
+                        val rectRight = bubbleCenter.x + textWidth / 2f + 4f / zoom
+                        val rectBottom = bubbleCenter.y - bubbleRadius - 2f / zoom
+                        
+                        drawRoundRect(
+                            color = Color(0xFF0F172A),
+                            topLeft = Offset(rectLeft, rectTop),
+                            size = Size(rectRight - rectLeft, rectBottom - rectTop),
+                            cornerRadius = CornerRadius(4f / zoom, 4f / zoom)
+                        )
+                        drawRoundRect(
+                            color = Color(0xFFFF6D00),
+                            topLeft = Offset(rectLeft, rectTop),
+                            size = Size(rectRight - rectLeft, rectBottom - rectTop),
+                            cornerRadius = CornerRadius(4f / zoom, 4f / zoom),
+                            style = Stroke(width = 1f / zoom)
+                        )
+                        
+                        canvas.nativeCanvas.drawText(
+                            hexStr,
+                            bubbleCenter.x - textWidth / 2f,
+                            rectBottom - 5f / zoom,
+                            paintText
+                        )
+                    }
+                }
 
                 canvas.restore()
             }

@@ -216,6 +216,21 @@ fun MainLayout(viewModel: VectorViewModel) {
         showAlignmentSelector = false
         showGridPanel = false
     }
+
+    LaunchedEffect(viewModel.isEyedropperActive) {
+        if (!viewModel.isEyedropperActive) {
+            val type = viewModel.showColorPickerAfterEyedropper
+            if (type != null) {
+                when (type) {
+                    "FILL" -> showColorPickerFill = true
+                    "STROKE" -> showColorPickerStroke = true
+                    "ARTBOARD" -> showArtboardColorPicker = true
+                    "GRID" -> showGridColorPicker = true
+                }
+                viewModel.showColorPickerAfterEyedropper = null
+            }
+        }
+    }
     
     LaunchedEffect(viewModel.selectedShapeIds, viewModel.shapes) {
         val selShapes = viewModel.shapes.filter { viewModel.selectedShapeIds.contains(it.id) }
