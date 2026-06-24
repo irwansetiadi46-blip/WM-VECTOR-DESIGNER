@@ -227,13 +227,17 @@ fun ColorPickerDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismissRequest) {
+    androidx.compose.ui.window.Popup(
+        alignment = androidx.compose.ui.Alignment.TopCenter,
+        onDismissRequest = onDismissRequest,
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
                 .wrapContentHeight(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)), // High contrast deep slate
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(0.dp),
             border = borderStrokeHelper()
         ) {
             Column(
@@ -788,7 +792,7 @@ fun ColorPickerDialog(
                     .fillMaxWidth(0.9f)
                     .wrapContentHeight(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(0.dp),
                 border = borderStrokeHelper()
             ) {
                 Column(

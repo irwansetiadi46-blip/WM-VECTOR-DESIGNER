@@ -828,15 +828,15 @@ fun MainLayout(viewModel: VectorViewModel) {
             // 1. Primitive Shapes Selection panel
             androidx.compose.animation.AnimatedVisibility(
                 visible = viewModel.currentTool == VectorTool.SHAPES && showPrimitiveSelector,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+                enter = fadeIn() + androidx.compose.animation.slideInHorizontally(initialOffsetX = { -it }),
+                exit = fadeOut() + androidx.compose.animation.slideOutHorizontally(targetOffsetX = { -it }),
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 12.dp)
+                    .align(Alignment.TopStart)
+                    .padding(start = 44.dp, top = 220.dp) // Adjusted to align vertically with the Shapes tool icon
             ) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(0.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF475569)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                     modifier = Modifier
@@ -1707,6 +1707,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                 .fillMaxWidth()
                 .systemGestureExclusion()
                 .background(if (currentLevel > 0) Color(0xFF1E293B) else Color.Transparent)
+                .padding(bottom = if (currentLevel == 0) 36.dp else 0.dp) // Lift handle above system gesture zone to prevent nav bar transient reveal
                 .then(
                     if (currentLevel > 0) {
                         Modifier.border(
@@ -1910,16 +1911,18 @@ fun MainLayout(viewModel: VectorViewModel) {
                         )
                     }
                 }
+                // Add safe padding area to prevent bottom edge gesture interference
+                if (currentLevel > 0) {
+                    Spacer(modifier = Modifier.height(16.dp).fillMaxWidth().systemGestureExclusion())
+                }
             } // Closes Column(1699)
         } // Closes Bottom Bar wrapper
-        } // Closes Canvas Box
-    } // Closes Main Column
 
     // LAYER VIEW STACKS SIDE DRAWER OVERLAY
     if (showLayersPanel) {
         androidx.compose.ui.window.Popup(
             alignment = Alignment.TopEnd,
-            offset = androidx.compose.ui.unit.IntOffset(-12, 100),
+            offset = androidx.compose.ui.unit.IntOffset(-12, 0),
             onDismissRequest = { showLayersPanel = false }
         ) {
             Card(
@@ -1927,7 +1930,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     .width(300.dp)
                     .heightIn(min = 200.dp, max = 500.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xCC1E293B)), // Transparan
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(0.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -2495,7 +2498,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     if (showMenuSheet) {
         androidx.compose.ui.window.Popup(
             alignment = Alignment.TopStart,
-            offset = androidx.compose.ui.unit.IntOffset(12, 110),
+            offset = androidx.compose.ui.unit.IntOffset(12, 0),
             onDismissRequest = { showMenuSheet = false },
             properties = androidx.compose.ui.window.PopupProperties(focusable = true)
         ) {
@@ -2504,7 +2507,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     .width(260.dp)
                     .wrapContentHeight(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(0.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF475569))
             ) {
                 Column(
@@ -2582,7 +2585,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     .fillMaxWidth(0.9f)
                     .wrapContentHeight(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xEE1E293B)),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(0.dp),
                 border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFFFF6D00))
             ) {
                 Column(
@@ -3477,6 +3480,8 @@ fun MainLayout(viewModel: VectorViewModel) {
             viewModel = viewModel
         )
     }
+        } // Closes Canvas Box
+    } // Closes Main Column
 }
 
 // Extension to avoid parsing errors
