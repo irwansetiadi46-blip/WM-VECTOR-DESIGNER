@@ -1712,7 +1712,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                         )
                     } else Modifier
                 )
-                .navigationBarsPadding()
         ) {
             // Wide Touch Pill Handle supporting vertical drags & taps to collapse/expand
             Box(
