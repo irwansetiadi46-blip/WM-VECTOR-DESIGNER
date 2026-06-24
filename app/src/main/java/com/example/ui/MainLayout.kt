@@ -545,6 +545,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
                         showTransformPanel = false
+                        showSnappingPopup = false
                     }
                 )
 
@@ -558,6 +559,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
                         showTransformPanel = false
+                        showSnappingPopup = false
                     }
                 )
 
@@ -572,6 +574,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
                         showTransformPanel = false
+                        showSnappingPopup = false
                     }
                 )
 
@@ -587,6 +590,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
                         showTransformPanel = false
+                        showSnappingPopup = false
                     }
                 )
 
@@ -602,6 +606,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
                         showTransformPanel = false
+                        showSnappingPopup = false
                     }
                 )
 
@@ -615,6 +620,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         showBooleanInBottomScope = false
                         showExpandOptionsPanel = false
                         showTransformPanel = false
+                        showSnappingPopup = false
                     }
                 )
 
@@ -825,280 +831,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     }
                 }
 
-            // 1. Primitive Shapes Selection panel
-            androidx.compose.animation.AnimatedVisibility(
-                visible = viewModel.currentTool == VectorTool.SHAPES && showPrimitiveSelector,
-                enter = fadeIn() + androidx.compose.animation.slideInHorizontally(initialOffsetX = { -it }),
-                exit = fadeOut() + androidx.compose.animation.slideOutHorizontally(targetOffsetX = { -it }),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 44.dp, top = 220.dp) // Adjusted to align vertically with the Shapes tool icon
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                    shape = RoundedCornerShape(0.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF475569)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                    modifier = Modifier
-                        .width(340.dp)
-                        .wrapContentHeight()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Lock / Unlock aspect ratio selector
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Shape Aspect:",
-                                color = Color.White,
-                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f)
-                            )
-                            
-                            // Lock Button (default)
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (viewModel.isAspectLocked) Color(0xFFFF6D00) else Color(0xFF0F172A))
-                                    .border(1.dp, if (viewModel.isAspectLocked) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        viewModel.isAspectLocked = true
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                androidx.compose.material3.Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.Lock,
-                                    contentDescription = "Lock",
-                                    tint = if (viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = "Lock",
-                                    color = if (viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
-                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
-                                )
-                            }
 
-                            // Unlock Button
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (!viewModel.isAspectLocked) Color(0xFFFF6D00) else Color(0xFF0F172A))
-                                    .border(1.dp, if (!viewModel.isAspectLocked) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        viewModel.isAspectLocked = false
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                androidx.compose.material3.Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.LockOpen,
-                                    contentDescription = "Unlock",
-                                    tint = if (!viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = "Unlock",
-                                    color = if (!viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
-                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
-                                )
-                            }
-                        }
-
-                        // Primitive list with previews!
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            listOf(
-                                PrimitiveType.RECTANGLE to "Box",
-                                PrimitiveType.ELLIPSE to "Circle",
-                                PrimitiveType.TRIANGLE to "Tri",
-                                PrimitiveType.POLYGON to "Poly",
-                                PrimitiveType.STAR to "Star",
-                                PrimitiveType.LINE to "Line"
-                            ).forEach { (type, shortLabel) ->
-                                val isSel = viewModel.activePrimitiveType == type
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
-                                        .border(1.dp, if (isSel) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            viewModel.activePrimitiveType = type
-                                        }
-                                        .padding(horizontal = 6.dp, vertical = 8.dp)
-                                        .width(42.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    // Mini Shape preview
-                                    Canvas(modifier = Modifier.size(24.dp)) {
-                                        val fillBrush = if (isSel) Color.Black else Color(0xFFFF6D00)
-                                        
-                                        when (type) {
-                                            PrimitiveType.RECTANGLE -> {
-                                                drawRect(
-                                                    color = fillBrush,
-                                                    size = size,
-                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
-                                                )
-                                            }
-                                            PrimitiveType.ELLIPSE -> {
-                                                drawOval(
-                                                    color = fillBrush,
-                                                    size = size,
-                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
-                                                )
-                                            }
-                                            PrimitiveType.TRIANGLE -> {
-                                                val path = Path().apply {
-                                                    moveTo(size.width / 2f, 2f)
-                                                    lineTo(size.width - 2f, size.height - 2f)
-                                                    lineTo(2f, size.height - 2f)
-                                                    close()
-                                                }
-                                                drawPath(
-                                                    path = path,
-                                                    color = fillBrush,
-                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
-                                                )
-                                            }
-                                            PrimitiveType.POLYGON -> {
-                                                val path = Path().apply {
-                                                    moveTo(size.width / 2f, 2f)
-                                                    lineTo(size.width - 2f, size.height * 0.4f)
-                                                    lineTo(size.width * 0.8f, size.height - 2f)
-                                                    lineTo(size.width * 0.2f, size.height - 2f)
-                                                    lineTo(2f, size.height * 0.4f)
-                                                    close()
-                                                }
-                                                drawPath(
-                                                    path = path,
-                                                    color = fillBrush,
-                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
-                                                )
-                                            }
-                                            PrimitiveType.STAR -> {
-                                                val path = Path().apply {
-                                                    moveTo(size.width / 2f, 2f)
-                                                    lineTo(size.width * 0.65f, size.height * 0.35f)
-                                                    lineTo(size.width - 2f, size.height * 0.4f)
-                                                    lineTo(size.width * 0.7f, size.height * 0.65f)
-                                                    lineTo(size.width * 0.8f, size.height - 2f)
-                                                    lineTo(size.width / 2f, size.height * 0.75f)
-                                                    lineTo(size.width * 0.2f, size.height - 2f)
-                                                    lineTo(size.width * 0.3f, size.height * 0.65f)
-                                                    lineTo(2f, size.height * 0.4f)
-                                                    lineTo(size.width * 0.35f, size.height * 0.35f)
-                                                    close()
-                                                }
-                                                drawPath(
-                                                    path = path,
-                                                    color = fillBrush,
-                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
-                                                )
-                                            }
-                                            PrimitiveType.LINE -> {
-                                                drawLine(
-                                                    color = fillBrush,
-                                                    start = Offset(2f, size.height - 2f),
-                                                    end = Offset(size.width - 2f, 2f),
-                                                    strokeWidth = 2.dp.toPx()
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Options if POLYGON or STAR is active!
-                        if (viewModel.activePrimitiveType == PrimitiveType.POLYGON) {
-                            Divider(color = Color(0xFF334155))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Sisi Poligon (e.g. Hexagon):",
-                                    color = Color.White,
-                                    fontSize = 11.sp
-                                )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    IconButton(
-                                        onClick = { viewModel.currentPolygonSides = (viewModel.currentPolygonSides - 1).coerceAtLeast(3) },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.Remove, "Less sides", tint = Color.White, modifier = Modifier.size(16.dp))
-                                    }
-                                    Text(
-                                        text = "${viewModel.currentPolygonSides}",
-                                        color = Color(0xFFFF6D00),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    IconButton(
-                                        onClick = { viewModel.currentPolygonSides = (viewModel.currentPolygonSides + 1).coerceAtMost(20) },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, "More sides", tint = Color.White, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
-                        } else if (viewModel.activePrimitiveType == PrimitiveType.STAR) {
-                            Divider(color = Color(0xFF334155))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Sisi Bintang (Points):",
-                                    color = Color.White,
-                                    fontSize = 11.sp
-                                )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    IconButton(
-                                        onClick = { viewModel.currentStarPoints = (viewModel.currentStarPoints - 1).coerceAtLeast(3) },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.Remove, "Less points", tint = Color.White, modifier = Modifier.size(16.dp))
-                                    }
-                                    Text(
-                                        text = "${viewModel.currentStarPoints}",
-                                        color = Color(0xFFFF6D00),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    IconButton(
-                                        onClick = { viewModel.currentStarPoints = (viewModel.currentStarPoints + 1).coerceAtMost(30) },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, "More points", tint = Color.White, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
 
 
 
@@ -1168,7 +901,116 @@ fun MainLayout(viewModel: VectorViewModel) {
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                if (showBooleanInBottomScope) {
+                if (showSnappingPopup) {
+                    // --- SNAP OPTIONS PANEL ---
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LeakAdd,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF6D00),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "MAGNETIC SNAPPING TOGGLES",
+                                    color = Color(0xFFFF6D00),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "Tutup [X]",
+                                color = Color.LightGray,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { showSnappingPopup = false }
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        Divider(color = Color.DarkGray)
+
+                        // 1. Smart Guide
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Smart Guide", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Dynamic alignment helper guides", color = Color.Gray, fontSize = 9.sp)
+                            }
+                            Switch(
+                                checked = viewModel.isSmartGuideEnabled,
+                                onCheckedChange = { viewModel.isSmartGuideEnabled = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
+                            )
+                        }
+
+                        // 2. Snap to Object
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Snap to Object", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Snap edges to relative designs", color = Color.Gray, fontSize = 9.sp)
+                            }
+                            Switch(
+                                checked = viewModel.isSnapToObjectEnabled,
+                                onCheckedChange = { viewModel.isSnapToObjectEnabled = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
+                            )
+                        }
+
+                        // 3. Snap to Grid
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Snap to Grid", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Lock points to grid cells outline", color = Color.Gray, fontSize = 9.sp)
+                            }
+                            Switch(
+                                checked = viewModel.isSnapToGrid,
+                                onCheckedChange = { viewModel.isSnapToGrid = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
+                            )
+                        }
+
+                        // 4. Snap to Point
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Snap to Point", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Magnet coordinates to nodes", color = Color.Gray, fontSize = 9.sp)
+                            }
+                            Switch(
+                                checked = viewModel.isSnapToPointEnabled,
+                                onCheckedChange = { viewModel.isSnapToPointEnabled = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
+                            )
+                        }
+                    }
+                } else if (showBooleanInBottomScope) {
                     // --- BOOLEAN OPERATIONS PANEL ---
                     val canApplyBoolean = viewModel.selectedShapeIds.size >= 2
                     Column(
@@ -1594,8 +1436,217 @@ fun MainLayout(viewModel: VectorViewModel) {
                         VectorTool.SHAPES -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                if (showPrimitiveSelector) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF0F172A))
+                                            .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
+                                            .padding(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "SHAPE PRIMITIVE SELECTOR",
+                                                color = Color(0xFFFF6D00),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "Tutup [X]",
+                                                color = Color.LightGray,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .clickable { showPrimitiveSelector = false }
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+
+                                        // Lock / Unlock aspect ratio selector
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Shape Aspect:",
+                                                color = Color.White,
+                                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            
+                                            // Lock Button (default)
+                                            Row(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(if (viewModel.isAspectLocked) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                                    .border(1.dp, if (viewModel.isAspectLocked) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
+                                                    .clickable {
+                                                        viewModel.isAspectLocked = true
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                androidx.compose.material3.Icon(
+                                                    imageVector = androidx.compose.material.icons.Icons.Default.Lock,
+                                                    contentDescription = "Lock",
+                                                    tint = if (viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Text(
+                                                    text = "Lock",
+                                                    color = if (viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
+                                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+
+                                            // Unlock Button
+                                            Row(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(if (!viewModel.isAspectLocked) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                                    .border(1.dp, if (!viewModel.isAspectLocked) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
+                                                    .clickable {
+                                                        viewModel.isAspectLocked = false
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                androidx.compose.material3.Icon(
+                                                    imageVector = androidx.compose.material.icons.Icons.Default.LockOpen,
+                                                    contentDescription = "Unlock",
+                                                    tint = if (!viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Text(
+                                                    text = "Unlock",
+                                                    color = if (!viewModel.isAspectLocked) Color.White else Color(0xFF94A3B8),
+                                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        }
+
+                                        // Primitive list with previews!
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            listOf(
+                                                PrimitiveType.RECTANGLE to "Box",
+                                                PrimitiveType.ELLIPSE to "Circle",
+                                                PrimitiveType.TRIANGLE to "Tri",
+                                                PrimitiveType.POLYGON to "Poly",
+                                                PrimitiveType.STAR to "Star",
+                                                PrimitiveType.LINE to "Line"
+                                            ).forEach { (type, shortLabel) ->
+                                                val isSel = viewModel.activePrimitiveType == type
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
+                                                        .border(1.dp, if (isSel) Color.White else Color(0xFF334155), RoundedCornerShape(8.dp))
+                                                        .clickable {
+                                                            viewModel.activePrimitiveType = type
+                                                        }
+                                                        .padding(horizontal = 6.dp, vertical = 8.dp)
+                                                        .width(42.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    // Mini Shape preview
+                                                    Canvas(modifier = Modifier.size(24.dp)) {
+                                                        val fillBrush = if (isSel) Color.Black else Color(0xFFFF6D00)
+                                                        
+                                                        when (type) {
+                                                            PrimitiveType.RECTANGLE -> {
+                                                                drawRect(
+                                                                    color = fillBrush,
+                                                                    size = size,
+                                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+                                                                )
+                                                            }
+                                                            PrimitiveType.ELLIPSE -> {
+                                                                drawOval(
+                                                                    color = fillBrush,
+                                                                    size = size,
+                                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+                                                                )
+                                                            }
+                                                            PrimitiveType.TRIANGLE -> {
+                                                                val path = Path().apply {
+                                                                    moveTo(size.width / 2f, 2f)
+                                                                    lineTo(size.width - 2f, size.height - 2f)
+                                                                    lineTo(2f, size.height - 2f)
+                                                                    close()
+                                                                }
+                                                                drawPath(
+                                                                    path = path,
+                                                                    color = fillBrush,
+                                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+                                                                )
+                                                            }
+                                                            PrimitiveType.POLYGON -> {
+                                                                val path = Path().apply {
+                                                                    moveTo(size.width / 2f, 2f)
+                                                                    lineTo(size.width - 2f, size.height * 0.4f)
+                                                                    lineTo(size.width * 0.8f, size.height - 2f)
+                                                                    lineTo(size.width * 0.2f, size.height - 2f)
+                                                                    lineTo(2f, size.height * 0.4f)
+                                                                    close()
+                                                                }
+                                                                drawPath(
+                                                                    path = path,
+                                                                    color = fillBrush,
+                                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+                                                                )
+                                                            }
+                                                            PrimitiveType.STAR -> {
+                                                                val path = Path().apply {
+                                                                    moveTo(size.width / 2f, 2f)
+                                                                    lineTo(size.width * 0.65f, size.height * 0.35f)
+                                                                    lineTo(size.width - 2f, size.height * 0.4f)
+                                                                    lineTo(size.width * 0.7f, size.height * 0.65f)
+                                                                    lineTo(size.width * 0.8f, size.height - 2f)
+                                                                    lineTo(size.width / 2f, size.height * 0.75f)
+                                                                    lineTo(size.width * 0.2f, size.height - 2f)
+                                                                    lineTo(size.width * 0.3f, size.height * 0.65f)
+                                                                    lineTo(2f, size.height * 0.4f)
+                                                                    lineTo(size.width * 0.35f, size.height * 0.35f)
+                                                                    close()
+                                                                }
+                                                                drawPath(
+                                                                    path = path,
+                                                                    color = fillBrush,
+                                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+                                                                )
+                                                            }
+                                                            PrimitiveType.LINE -> {
+                                                                drawLine(
+                                                                    color = fillBrush,
+                                                                    start = Offset(2f, size.height - 2f),
+                                                                    end = Offset(size.width - 2f, 2f),
+                                                                    strokeWidth = 2.dp.toPx()
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 StrokeWidthAndOpacitySlidersSection(viewModel)
                                 
                                 if (viewModel.activePrimitiveType == PrimitiveType.POLYGON) {
@@ -1796,6 +1847,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     showTransformPanel = false
                                     showAlignmentSelector = false
                                     showGridPanel = false
+                                    showSnappingPopup = false
                                     bottomBarExpandedLevel = 2
                                 }
                             }
@@ -1833,6 +1885,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     showExpandOptionsPanel = false
                                     showAlignmentSelector = false
                                     showGridPanel = false
+                                    showSnappingPopup = false
                                 }
                             }
                         )
@@ -1880,6 +1933,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                         showExpandOptionsPanel = false
                                         showTransformPanel = false
                                         showGridPanel = false
+                                        showSnappingPopup = false
                                     }
                                 }
                             }
@@ -1898,6 +1952,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     showExpandOptionsPanel = false
                                     showTransformPanel = false
                                     showAlignmentSelector = false
+                                    showSnappingPopup = false
                                 }
                             }
                         )
@@ -1907,7 +1962,18 @@ fun MainLayout(viewModel: VectorViewModel) {
                         IconButtonWithLabel(
                             icon = if (viewModel.isSnapToGrid || viewModel.isSnapToObjectEnabled || viewModel.isSnapToPointEnabled) Icons.Default.LeakAdd else Icons.Default.FlashOff,
                             label = "Snap Options",
-                            onClick = { showSnappingPopup = !showSnappingPopup }
+                            isActive = showSnappingPopup,
+                            onClick = {
+                                showSnappingPopup = !showSnappingPopup
+                                if (showSnappingPopup) {
+                                    bottomBarExpandedLevel = 2
+                                    showBooleanInBottomScope = false
+                                    showExpandOptionsPanel = false
+                                    showTransformPanel = false
+                                    showAlignmentSelector = false
+                                    showGridPanel = false
+                                }
+                            }
                         )
                     }
                 }
@@ -1973,7 +2039,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("No layers yet.", color = Color.Gray, fontSize = 13.sp)
+                            Text("No layers yet.", color = Color.Gray, fontSize = 11.sp)
                         }
                     } else {
                         LazyColumn(modifier = Modifier.weight(1f)) {
@@ -2034,7 +2100,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                 Text(
                                                     text = layer.name,
                                                     color = Color.White,
-                                                    fontSize = 12.sp,
+                                                    fontSize = 10.sp,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
@@ -2042,7 +2108,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                 Text(
                                                     text = "$shapeCount objects",
                                                     color = Color.LightGray,
-                                                    fontSize = 9.sp
+                                                    fontSize = 8.sp
                                                 )
                                             }
                                         }
@@ -2517,7 +2583,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     Text(
                         text = "STUDIO MENU",
                         color = Color.Gray,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
@@ -2577,108 +2643,7 @@ fun MainLayout(viewModel: VectorViewModel) {
 
 
 
-    // COMPREHENSIVE SNAPPING SYSTEM CONFIGURATION POPUP
-    if (showSnappingPopup) {
-        Dialog(onDismissRequest = { showSnappingPopup = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .wrapContentHeight(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xEE1E293B)),
-                shape = RoundedCornerShape(0.dp),
-                border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFFFF6D00))
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        "Magnetic Snapping Toggles",
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
 
-                    Divider(color = Color.DarkGray)
-
-                    // 1. Smart Guide
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Smart Guide", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("Dynamic alignment helper guides", color = Color.Gray, fontSize = 10.sp)
-                        }
-                        Switch(
-                            checked = viewModel.isSmartGuideEnabled,
-                            onCheckedChange = { viewModel.isSmartGuideEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
-                        )
-                    }
-
-                    // 2. Snap to Object
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Snap to Object", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("Snap edges to relative designs", color = Color.Gray, fontSize = 10.sp)
-                        }
-                        Switch(
-                            checked = viewModel.isSnapToObjectEnabled,
-                            onCheckedChange = { viewModel.isSnapToObjectEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
-                        )
-                    }
-
-                    // 3. Snap to Grid
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Snap to Grid", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("Lock points to grid cells outline", color = Color.Gray, fontSize = 10.sp)
-                        }
-                        Switch(
-                            checked = viewModel.isSnapToGrid,
-                            onCheckedChange = { viewModel.isSnapToGrid = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
-                        )
-                    }
-
-                    // 4. Snap to Point
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Snap to Point", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("Magnet coordinates to nodes", color = Color.Gray, fontSize = 10.sp)
-                        }
-                        Switch(
-                            checked = viewModel.isSnapToPointEnabled,
-                            onCheckedChange = { viewModel.isSnapToPointEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
-                        )
-                    }
-                    Button(
-                        onClick = { showSnappingPopup = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text("Save Configurations", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
 
     // REVAMPED EXPORT PREVIEW DIALOG
     if (showExportDialog) {
@@ -2753,13 +2718,17 @@ fun MainLayout(viewModel: VectorViewModel) {
             }
         }
 
-        Dialog(onDismissRequest = { showExportDialog = false }) {
+        androidx.compose.ui.window.Popup(
+            alignment = androidx.compose.ui.Alignment.TopCenter,
+            onDismissRequest = { showExportDialog = false },
+            properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+        ) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth(0.95f)
                     .fillMaxHeight(0.85f),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(0.dp),
                 border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF475569))
             ) {
                 Column(
@@ -2772,7 +2741,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     Text(
                         "Design Export Preview",
                         color = Color.White,
-                        fontSize = 17.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.align(Alignment.Start)
                     )
@@ -2785,7 +2754,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         FilterChip(
                             selected = !exportSelectionOnly,
                             onClick = { exportSelectionOnly = false },
-                            label = { Text("Export Document", fontSize = 11.sp) },
+                            label = { Text("Export Document", fontSize = 9.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Color(0xFFFF6D00),
                                 selectedLabelColor = Color.Black,
@@ -2802,7 +2771,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     exportSelectionOnly = true
                                 }
                             },
-                            label = { Text("Export Selection Object", fontSize = 11.sp) },
+                            label = { Text("Export Selection Object", fontSize = 9.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Color(0xFFFF6D00),
                                 selectedLabelColor = Color.Black,
@@ -2813,7 +2782,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     }
 
                     // FILE FORMAT CHIPS
-                    Text("Select Export Format:", color = Color.White, fontSize = 11.sp, modifier = Modifier.align(Alignment.Start))
+                    Text("Select Export Format:", color = Color.White, fontSize = 9.sp, modifier = Modifier.align(Alignment.Start))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2833,7 +2802,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 Text(
                                     text = format,
                                     color = if (isSel) Color.Black else Color.LightGray,
-                                    fontSize = 11.sp,
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -2841,7 +2810,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                     }
 
                     // LIVE DESIGN PREVIEW RENDERING CANVAS Box
-                    Text("Design Live Preview:", color = Color.White, fontSize = 11.sp, modifier = Modifier.align(Alignment.Start))
+                    Text("Design Live Preview:", color = Color.White, fontSize = 9.sp, modifier = Modifier.align(Alignment.Start))
                     Box(
                         modifier = Modifier
                             .size(200.dp)
@@ -3631,7 +3600,7 @@ fun HomeScreenContent(
         }
 
         Text(
-            text = "Vector Studio v3.0.1 • Studio vektor profesional dengan layout presisi, layer canggih, & " +
+            text = "Vector Studio v3.0.2 • Studio vektor profesional dengan layout presisi, layer canggih, & " +
                     "sketsa dinamis.",
             color = Color.Gray,
             fontSize = 11.sp,
@@ -3643,7 +3612,7 @@ fun HomeScreenContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(0.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
         ) {
             Column(
@@ -3653,7 +3622,7 @@ fun HomeScreenContent(
                 Text(
                     "BUAT PROYEK BARU",
                     color = Color(0xFFFF6D00),
-                    fontSize = 13.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
@@ -3678,7 +3647,7 @@ fun HomeScreenContent(
                 Text(
                     text = "PILIH UKURAN ARTBOARD",
                     color = Color.LightGray,
-                    fontSize = 11.sp,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
 
@@ -3756,7 +3725,7 @@ fun HomeScreenContent(
                         .height(48.dp),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("BUAT PROYEK & KANVAS", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("BUAT PROYEK & KANVAS", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             }
         }
@@ -3765,7 +3734,7 @@ fun HomeScreenContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(0.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
         ) {
             Column(
@@ -3780,7 +3749,7 @@ fun HomeScreenContent(
                     Text(
                         "📂 FOLDER MY PROJECTS",
                         color = Color(0xFFFF6D00),
-                        fontSize = 13.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
@@ -3923,7 +3892,7 @@ fun HomeScreenContent(
         }
 
         Text(
-            text = "Designed by Irwan Setiadi • War Machine Vector Studio v3.0.1",
+            text = "Designed by Irwan Setiadi • War Machine Vector Studio v3.0.2",
             color = Color(0xFF64748B),
             fontSize = 8.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,

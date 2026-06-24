@@ -255,7 +255,7 @@ fun ColorPickerDialog(
                     Text(
                         text = title,
                         color = Color.White,
-                        fontSize = 17.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
@@ -268,7 +268,7 @@ fun ColorPickerDialog(
                             Text(
                                 text = if (isEnabledState) "Aktif" else "Nonaktif",
                                 color = if (isEnabledState) Color(0xFFFF6D00) else Color.LightGray,
-                                fontSize = 12.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Switch(

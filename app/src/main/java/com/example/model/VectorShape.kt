@@ -359,75 +359,7 @@ data class VectorShape(
                 Rect(minX, minY, maxX, maxY)
             }
             ShapeType.BEZIER_PATH -> {
-                if (bezierNodes.isEmpty()) return Rect(0f, 0f, 0f, 0f)
-                val subpaths = mutableListOf<MutableList<BezierNode>>()
-                var currentSubpath = mutableListOf<BezierNode>()
-                for (node in bezierNodes) {
-                    if (node.isMoveTo && currentSubpath.isNotEmpty()) {
-                        subpaths.add(currentSubpath)
-                        currentSubpath = mutableListOf()
-                    }
-                    currentSubpath.add(node)
-                }
-                if (currentSubpath.isNotEmpty()) {
-                    subpaths.add(currentSubpath)
-                }
-
-                var minX = Float.MAX_VALUE
-                var maxX = -Float.MAX_VALUE
-                var minY = Float.MAX_VALUE
-                var maxY = -Float.MAX_VALUE
-
-                fun updateBounds(x: Float, y: Float) {
-                    minX = minOf(minX, x)
-                    maxX = maxOf(maxX, x)
-                    minY = minOf(minY, y)
-                    maxY = maxOf(maxY, y)
-                }
-
-                for (sub in subpaths) {
-                    if (sub.isEmpty()) continue
-                    val startNode = sub.first()
-                    updateBounds(startNode.anchorX, startNode.anchorY)
-                    for (j in 1 until sub.size) {
-                        val node = sub[j]
-                        val prev = sub[j - 1]
-                        if (prev.isCurve || node.isCurve) {
-                            val cp1X = if (prev.isCurve) prev.control2X else prev.anchorX
-                            val cp1Y = if (prev.isCurve) prev.control2Y else prev.anchorY
-                            val cp2X = if (node.isCurve) node.control1X else node.anchorX
-                            val cp2Y = if (node.isCurve) node.control1Y else node.anchorY
-                            
-                            val (xMin, xMax) = getCubicBezierExtrema(prev.anchorX, cp1X, cp2X, node.anchorX)
-                            val (yMin, yMax) = getCubicBezierExtrema(prev.anchorY, cp1Y, cp2Y, node.anchorY)
-                            minX = minOf(minX, xMin)
-                            maxX = maxOf(maxX, xMax)
-                            minY = minOf(minY, yMin)
-                            maxY = maxOf(maxY, yMax)
-                        } else {
-                            updateBounds(node.anchorX, node.anchorY)
-                        }
-                    }
-                    if (isPathClosed) {
-                        val last = sub.last()
-                        if (last.isCurve || startNode.isCurve) {
-                            val cp1X = if (last.isCurve) last.control2X else last.anchorX
-                            val cp1Y = if (last.isCurve) last.control2Y else last.anchorY
-                            val cp2X = if (startNode.isCurve) startNode.control1X else startNode.anchorX
-                            val cp2Y = if (startNode.isCurve) startNode.control1Y else startNode.anchorY
-                            
-                            val (xMin, xMax) = getCubicBezierExtrema(last.anchorX, cp1X, cp2X, startNode.anchorX)
-                            val (yMin, yMax) = getCubicBezierExtrema(last.anchorY, cp1Y, cp2Y, startNode.anchorY)
-                            minX = minOf(minX, xMin)
-                            maxX = maxOf(maxX, xMax)
-                            minY = minOf(minY, yMin)
-                            maxY = maxOf(maxY, yMax)
-                        } else {
-                            updateBounds(startNode.anchorX, startNode.anchorY)
-                        }
-                    }
-                }
-                if (minX == Float.MAX_VALUE) Rect(0f, 0f, 0f, 0f) else Rect(minX, minY, maxX, maxY)
+                getBezierPathExtrema(bezierNodes, isPathClosed)
             }
             ShapeType.TEXT -> {
                 // Estimated size based on character count and font size
@@ -492,8 +424,108 @@ data class VectorShape(
         return Pair(minVal, maxVal)
     }
 
+    private fun rotatePoint(x: Float, y: Float, cx: Float, cy: Float, angleDegrees: Float): Pair<Float, Float> {
+        if (angleDegrees == 0f) return Pair(x, y)
+        val rad = Math.toRadians(angleDegrees.toDouble())
+        val cos = Math.cos(rad).toFloat()
+        val sin = Math.sin(rad).toFloat()
+        val dx = x - cx
+        val dy = y - cy
+        val rx = cx + (dx * cos - dy * sin)
+        val ry = cy + (dx * sin + dy * cos)
+        return Pair(rx, ry)
+    }
+
+    private fun getBezierPathExtrema(nodes: List<BezierNode>, isClosed: Boolean): Rect {
+        if (nodes.isEmpty()) return Rect(0f, 0f, 0f, 0f)
+        
+        val subpaths = mutableListOf<MutableList<BezierNode>>()
+        var currentSubpath = mutableListOf<BezierNode>()
+        for (node in nodes) {
+            if (node.isMoveTo && currentSubpath.isNotEmpty()) {
+                subpaths.add(currentSubpath)
+                currentSubpath = mutableListOf()
+            }
+            currentSubpath.add(node)
+        }
+        if (currentSubpath.isNotEmpty()) {
+            subpaths.add(currentSubpath)
+        }
+
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+
+        fun updateBounds(x: Float, y: Float) {
+            minX = minOf(minX, x)
+            maxX = maxOf(maxX, x)
+            minY = minOf(minY, y)
+            maxY = maxOf(maxY, y)
+        }
+
+        for (sub in subpaths) {
+            if (sub.isEmpty()) continue
+            val startNode = sub.first()
+            updateBounds(startNode.anchorX, startNode.anchorY)
+            for (j in 1 until sub.size) {
+                val node = sub[j]
+                val prev = sub[j - 1]
+                if (prev.isCurve || node.isCurve) {
+                    val cp1X = if (prev.isCurve) prev.control2X else prev.anchorX
+                    val cp1Y = if (prev.isCurve) prev.control2Y else prev.anchorY
+                    val cp2X = if (node.isCurve) node.control1X else node.anchorX
+                    val cp2Y = if (node.isCurve) node.control1Y else node.anchorY
+                    
+                    val (xMin, xMax) = getCubicBezierExtrema(prev.anchorX, cp1X, cp2X, node.anchorX)
+                    val (yMin, yMax) = getCubicBezierExtrema(prev.anchorY, cp1Y, cp2Y, node.anchorY)
+                    minX = minOf(minX, xMin)
+                    maxX = maxOf(maxX, xMax)
+                    minY = minOf(minY, yMin)
+                    maxY = maxOf(maxY, yMax)
+                } else {
+                    updateBounds(node.anchorX, node.anchorY)
+                }
+            }
+            if (isClosed) {
+                val last = sub.last()
+                if (last.isCurve || startNode.isCurve) {
+                    val cp1X = if (last.isCurve) last.control2X else last.anchorX
+                    val cp1Y = if (last.isCurve) last.control2Y else last.anchorY
+                    val cp2X = if (startNode.isCurve) startNode.control1X else startNode.anchorX
+                    val cp2Y = if (startNode.isCurve) startNode.control1Y else startNode.anchorY
+                    
+                    val (xMin, xMax) = getCubicBezierExtrema(last.anchorX, cp1X, cp2X, startNode.anchorX)
+                    val (yMin, yMax) = getCubicBezierExtrema(last.anchorY, cp1Y, cp2Y, startNode.anchorY)
+                    minX = minOf(minX, xMin)
+                    maxX = maxOf(maxX, xMax)
+                    minY = minOf(minY, yMin)
+                    maxY = maxOf(maxY, yMax)
+                } else {
+                    updateBounds(startNode.anchorX, startNode.anchorY)
+                }
+            }
+        }
+        return if (minX == Float.MAX_VALUE) Rect(0f, 0f, 0f, 0f) else Rect(minX, minY, maxX, maxY)
+    }
+
     fun getRotatedBounds(): Rect {
-        val baseBox = if (type == ShapeType.TEXT) {
+        val baseBox = if (type == ShapeType.BEZIER_PATH) {
+            val pivot = getPivotCenter()
+            val cx = pivot.x
+            val cy = pivot.y
+            val rotatedNodes = bezierNodes.map { node ->
+                val (ax, ay) = rotatePoint(node.anchorX, node.anchorY, cx, cy, rotationAngle)
+                val (c1x, c1y) = rotatePoint(node.control1X, node.control1Y, cx, cy, rotationAngle)
+                val (c2x, c2y) = rotatePoint(node.control2X, node.control2Y, cx, cy, rotationAngle)
+                node.copy(
+                    anchorX = ax, anchorY = ay,
+                    control1X = c1x, control1Y = c1y,
+                    control2X = c2x, control2Y = c2y
+                )
+            }
+            getBezierPathExtrema(rotatedNodes, isPathClosed)
+        } else if (type == ShapeType.TEXT) {
             val estWidth = textContent.length * fontSize * 0.6f
             Rect(x, y - fontSize, x + estWidth, y + fontSize * 0.2f)
         } else {
