@@ -514,26 +514,26 @@ fun MainLayout(viewModel: VectorViewModel) {
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.6f)),
                     shape = androidx.compose.ui.graphics.RectangleShape,
                     contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.width(56.dp).height(36.dp)
                 ) {
                     Icon(
                         imageVector = if (showLeftToolbar) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
                         contentDescription = "Tools",
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
                 if (showLeftToolbar) {
                     Column(
                         modifier = Modifier
-                            .width(36.dp)
+                            .width(56.dp)
                             .fillMaxHeight()
                             .background(Color(0xFF1E293B).copy(alpha = 0.6f))
                             .border(width = 1.dp, color = Color(0xFF334155).copy(alpha = 0.6f))
-                            .padding(vertical = 4.dp, horizontal = 0.dp),
+                            .padding(vertical = 12.dp, horizontal = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                     // 1. Pointer (Selection) Tool
                 SidebarToolButton(
@@ -3529,21 +3529,19 @@ fun SidebarToolButton(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
+        contentAlignment = Alignment.Center,
         modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
-            .background(if (isSelected) Color(0xFFFF6D00) else Color(0x80334155)) // Background is 50% transparent when unselected
+            .size(48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isSelected) Color(0xFFFF6D00) else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(vertical = 4.dp, horizontal = 2.dp),
-        verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = if (isSelected) Color.Black else Color.White, // Icon remains 100% opacity
-            modifier = Modifier.size(16.dp)
+            tint = if (isSelected) Color.Black else Color.White,
+            modifier = Modifier.size(24.dp)
         )
     }
 }
