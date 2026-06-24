@@ -6285,6 +6285,16 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                 } else {
                     onError("Format SVG tidak valid atau tidak ada path yang didukung.")
                 }
+            } else if (extension == "eps") {
+                val epsText = inputStream.bufferedReader().use { it.readText() }
+                val importedShapes = parseEpsStringContents(epsText)
+                if (importedShapes.isNotEmpty()) {
+                    pushToUndoStack()
+                    shapes = shapes + importedShapes
+                    onSuccess("Berhasil mengimpor ${importedShapes.size} objek dari EPS!")
+                } else {
+                    onError("Format EPS tidak valid atau tidak ada path yang didukung.")
+                }
             } else if (extension in listOf("png", "jpg", "jpeg", "webp")) {
                 val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
                 if (bitmap != null) {
@@ -6390,12 +6400,35 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     onError("Gagal men-decode file gambar.")
                 }
             } else {
-                onError("Tipe file tidak didukung (.${extension}). Silakan upload file JSON, SVG, PNG, atau JPG.")
+                onError("Tipe file tidak didukung (.${extension}). Silakan upload file JSON, SVG, EPS, PNG, atau JPG.")
             }
         } catch (e: Exception) {
             e.printStackTrace()
             onError("Kesalahan saat mengimport file: ${e.message}")
         }
+    }
+
+    private val namedColors = mapOf(
+        "red" to "#FF0000",
+        "green" to "#008000",
+        "blue" to "#0000FF",
+        "black" to "#000000",
+        "white" to "#FFFFFF",
+        "gray" to "#808080",
+        "yellow" to "#FFFF00",
+        "cyan" to "#00FFFF",
+        "magenta" to "#FF00FF",
+        "orange" to "#FFA500",
+        "purple" to "#800080",
+        "pink" to "#FFC0CB",
+        "brown" to "#A52A2A",
+        "silver" to "#C0C0C0"
+    )
+
+    private fun resolveColor(hexOrName: String, defaultHex: String): String {
+        val trimmed = hexOrName.trim()
+        if (trimmed.startsWith("#")) return trimmed
+        return namedColors[trimmed.lowercase()] ?: defaultHex
     }
 
     private fun parseSvgStringContents(svgContent: String): List<VectorShape> {
@@ -6430,8 +6463,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         width = w,
                         height = h,
                         hasFill = hasFill,
-                        fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
-                        strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                        fillColorHex = resolveColor(fillHex, "#D1D5DB"),
+                        strokeColorHex = resolveColor(strokeHex, "#374151"),
                         strokeWidth = strokeW,
                         strokeAlpha = if (hasStroke) 1f else 0f
                     ))
@@ -6450,8 +6483,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         width = r * 2f,
                         height = r * 2f,
                         hasFill = hasFill,
-                        fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
-                        strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                        fillColorHex = resolveColor(fillHex, "#D1D5DB"),
+                        strokeColorHex = resolveColor(strokeHex, "#374151"),
                         strokeWidth = strokeW,
                         strokeAlpha = if (hasStroke) 1f else 0f
                     ))
@@ -6471,8 +6504,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         width = rx * 2f,
                         height = ry * 2f,
                         hasFill = hasFill,
-                        fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
-                        strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                        fillColorHex = resolveColor(fillHex, "#D1D5DB"),
+                        strokeColorHex = resolveColor(strokeHex, "#374151"),
                         strokeWidth = strokeW,
                         strokeAlpha = if (hasStroke) 1f else 0f
                     ))
@@ -6491,7 +6524,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         startY = y1,
                         endX = x2,
                         endY = y2,
-                        strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                        strokeColorHex = resolveColor(strokeHex, "#374151"),
                         strokeWidth = if (strokeW > 0f) strokeW else 4f,
                         strokeAlpha = 1f
                     ))
@@ -6508,8 +6541,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             bezierNodes = nodes,
                             isPathClosed = isClosed,
                             hasFill = hasFill,
-                            fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
-                            strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                            fillColorHex = resolveColor(fillHex, "#D1D5DB"),
+                            strokeColorHex = resolveColor(strokeHex, "#374151"),
                             strokeWidth = strokeW,
                             strokeAlpha = if (hasStroke) 1f else 0f
                         ))
@@ -6537,8 +6570,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             bezierNodes = nodes,
                             isPathClosed = tagName == "polygon",
                             hasFill = hasFill && tagName == "polygon",
-                            fillColorHex = if (fillHex.startsWith("#")) fillHex else "#D1D5DB",
-                            strokeColorHex = if (strokeHex.startsWith("#")) strokeHex else "#374151",
+                            fillColorHex = resolveColor(fillHex, "#D1D5DB"),
+                            strokeColorHex = resolveColor(strokeHex, "#374151"),
                             strokeWidth = strokeW,
                             strokeAlpha = if (hasStroke) 1f else 0f
                         ))
@@ -6556,12 +6589,36 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         if (m1 != null) return m1.groupValues[1]
         val m2 = pattern2.find(tag)
         if (m2 != null) return m2.groupValues[1]
+        
+        // Try extracting from style="..." attribute
+        val stylePattern = "style\\s*=\\s*\"([^\"]*)\"".toRegex(RegexOption.IGNORE_CASE)
+        val styleMatch = stylePattern.find(tag)
+        if (styleMatch != null) {
+            val styleContent = styleMatch.groupValues[1]
+            val attrPattern = "(?:^|;)\\s*$attr\\s*:\\s*([^;\\s]*)".toRegex(RegexOption.IGNORE_CASE)
+            val attrMatch = attrPattern.find(styleContent)
+            if (attrMatch != null) {
+                return attrMatch.groupValues[1].trim()
+            }
+        }
+        
+        val stylePattern2 = "style\\s*=\\s*'([^']*)'".toRegex(RegexOption.IGNORE_CASE)
+        val styleMatch2 = stylePattern2.find(tag)
+        if (styleMatch2 != null) {
+            val styleContent = styleMatch2.groupValues[1]
+            val attrPattern = "(?:^|;)\\s*$attr\\s*:\\s*([^;\\s]*)".toRegex(RegexOption.IGNORE_CASE)
+            val attrMatch = attrPattern.find(styleContent)
+            if (attrMatch != null) {
+                return attrMatch.groupValues[1].trim()
+            }
+        }
         return null
     }
 
     private fun parseSvgPathData(d: String): List<BezierNode> {
         val nodes = mutableListOf<BezierNode>()
-        val formatted = d.replace("([a-df-zM-Z])".toRegex(), " $1 ")
+        val normalizedMinus = d.replace("(?<![eE\\s])-".toRegex(), " -")
+        val formatted = normalizedMinus.replace("([a-df-zM-Z])".toRegex(), " $1 ")
                          .replace(",", " ")
                          .trim()
         val tokens = formatted.split("\\s+".toRegex()).filter { it.isNotEmpty() }
@@ -6571,6 +6628,10 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         var currentY = 0f
         var startX = 0f
         var startY = 0f
+        
+        var lastControlX = 0f
+        var lastControlY = 0f
+        var lastCommand = ""
         
         while (i < tokens.size) {
             val cmd = tokens[cmdIndiceWorkaround(i)]
@@ -6587,6 +6648,18 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         startX = currentX
                         startY = currentY
                         nodes.add(BezierNode(anchorX = currentX, anchorY = currentY, isMoveTo = true, isCurve = false))
+                        lastCommand = cmd
+                        
+                        // Subsequent coordinates are lines!
+                        while (i + 1 < tokens.size && tokens[i].toFloatOrNull() != null && tokens[i+1].toFloatOrNull() != null) {
+                            val lx = tokens[i].toFloatOrNull() ?: 0f
+                            val ly = tokens[i+1].toFloatOrNull() ?: 0f
+                            i += 2
+                            currentX = if (isRelative) currentX + lx else lx
+                            currentY = if (isRelative) currentY + ly else ly
+                            nodes.add(BezierNode(anchorX = currentX, anchorY = currentY, isMoveTo = false, isCurve = false))
+                            lastCommand = if (isRelative) "l" else "L"
+                        }
                     }
                 }
                 "L", "l" -> {
@@ -6598,6 +6671,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         currentX = if (isRelative) currentX + x else x
                         currentY = if (isRelative) currentY + y else y
                         nodes.add(BezierNode(anchorX = currentX, anchorY = currentY, isMoveTo = false, isCurve = false))
+                        lastCommand = cmd
                     }
                 }
                 "H", "h" -> {
@@ -6607,6 +6681,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         i += 1
                         currentX = if (isRelative) currentX + x else x
                         nodes.add(BezierNode(anchorX = currentX, anchorY = currentY, isMoveTo = false, isCurve = false))
+                        lastCommand = cmd
                     }
                 }
                 "V", "v" -> {
@@ -6616,6 +6691,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         i += 1
                         currentY = if (isRelative) currentY + y else y
                         nodes.add(BezierNode(anchorX = currentX, anchorY = currentY, isMoveTo = false, isCurve = false))
+                        lastCommand = cmd
                     }
                 }
                 "C", "c" -> {
@@ -6646,6 +6722,55 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             control2Y = absC2Y,
                             isMoveTo = false
                         ))
+                        
+                        lastControlX = absC2X
+                        lastControlY = absC2Y
+                        lastCommand = cmd
+                        
+                        currentX = absX
+                        currentY = absY
+                    }
+                }
+                "S", "s" -> {
+                    val isRelative = cmd == "s"
+                    while (i + 3 < tokens.size && tokens[i].toFloatOrNull() != null) {
+                        val c2x = tokens[i].toFloatOrNull() ?: 0f
+                        val c2y = tokens[i+1].toFloatOrNull() ?: 0f
+                        val x = tokens[i+2].toFloatOrNull() ?: 0f
+                        val y = tokens[i+3].toFloatOrNull() ?: 0f
+                        i += 4
+                        
+                        val absC2X = if (isRelative) currentX + c2x else c2x
+                        val absC2Y = if (isRelative) currentY + c2y else c2y
+                        val absX = if (isRelative) currentX + x else x
+                        val absY = if (isRelative) currentY + y else y
+                        
+                        val absC1X = if (lastCommand.lowercase() in listOf("c", "s")) {
+                            2f * currentX - lastControlX
+                        } else {
+                            currentX
+                        }
+                        val absC1Y = if (lastCommand.lowercase() in listOf("c", "s")) {
+                            2f * currentY - lastControlY
+                        } else {
+                            currentY
+                        }
+                        
+                        nodes.add(BezierNode(
+                            anchorX = absX,
+                            anchorY = absY,
+                            isCurve = true,
+                            control1X = absC1X,
+                            control1Y = absC1Y,
+                            control2X = absC2X,
+                            control2Y = absC2Y,
+                            isMoveTo = false
+                        ))
+                        
+                        lastControlX = absC2X
+                        lastControlY = absC2Y
+                        lastCommand = cmd
+                        
                         currentX = absX
                         currentY = absY
                     }
@@ -6679,17 +6804,292 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             control2Y = c2y,
                             isMoveTo = false
                         ))
+                        
+                        lastControlX = absCX
+                        lastControlY = absCY
+                        lastCommand = cmd
+                        
                         currentX = absX
                         currentY = absY
+                    }
+                }
+                "A", "a" -> {
+                    val isRelative = cmd == "a"
+                    while (i + 6 < tokens.size && tokens[i].toFloatOrNull() != null) {
+                        val rx = tokens[i].toFloatOrNull() ?: 0f
+                        val ry = tokens[i+1].toFloatOrNull() ?: 0f
+                        val xAxisRotation = tokens[i+2].toFloatOrNull() ?: 0f
+                        val largeArcFlag = tokens[i+3].toFloatOrNull() ?: 0f
+                        val sweepFlag = tokens[i+4].toFloatOrNull() ?: 0f
+                        val x = tokens[i+5].toFloatOrNull() ?: 0f
+                        val y = tokens[i+6].toFloatOrNull() ?: 0f
+                        i += 7
+                        
+                        val absX = if (isRelative) currentX + x else x
+                        val absY = if (isRelative) currentY + y else y
+                        
+                        val dx = absX - currentX
+                        val dy = absY - currentY
+                        val dist = kotlin.math.sqrt(dx * dx + dy * dy)
+                        if (dist > 0.1f) {
+                            val mx = (currentX + absX) / 2f
+                            val my = (currentY + absY) / 2f
+                            val px = -dy / dist * (rx.coerceAtMost(dist))
+                            val py = dx / dist * (ry.coerceAtMost(dist))
+                            val cx1 = currentX + dx * 0.25f + px * 0.5f
+                            val cy1 = currentY + dy * 0.25f + py * 0.5f
+                            val cx2 = currentX + dx * 0.75f + px * 0.5f
+                            val cy2 = currentY + dy * 0.75f + py * 0.5f
+                            
+                            nodes.add(BezierNode(
+                                anchorX = absX,
+                                anchorY = absY,
+                                isCurve = true,
+                                control1X = cx1,
+                                control1Y = cy1,
+                                control2X = cx2,
+                                control2Y = cy2,
+                                isMoveTo = false
+                            ))
+                        } else {
+                            nodes.add(BezierNode(anchorX = absX, anchorY = absY, isMoveTo = false, isCurve = false))
+                        }
+                        
+                        currentX = absX
+                        currentY = absY
+                        lastCommand = cmd
                     }
                 }
                 "Z", "z" -> {
                     currentX = startX
                     currentY = startY
+                    lastCommand = cmd
                 }
             }
         }
         return nodes
+    }
+
+    private fun parseEpsStringContents(epsContent: String): List<VectorShape> {
+        val result = mutableListOf<VectorShape>()
+        
+        var llx = 0f
+        var lly = 0f
+        var urx = 800f
+        var ury = 800f
+        var hasBoundingBox = false
+        
+        val bboxRegex = Regex("%%(?:HiRes)?BoundingBox:\\s*(-?\\d+(?:\\.\\d+)?)\\s*(-?\\d+(?:\\.\\d+)?)\\s*(-?\\d+(?:\\.\\d+)?)\\s*(-?\\d+(?:\\.\\d+)?)")
+        epsContent.lineSequence().forEach { line ->
+            if (line.startsWith("%%BoundingBox:") || line.startsWith("%%HiResBoundingBox:")) {
+                bboxRegex.find(line)?.let { match ->
+                    llx = match.groupValues[1].toFloatOrNull() ?: 0f
+                    lly = match.groupValues[2].toFloatOrNull() ?: 0f
+                    urx = match.groupValues[3].toFloatOrNull() ?: 800f
+                    ury = match.groupValues[4].toFloatOrNull() ?: 800f
+                    hasBoundingBox = true
+                }
+            }
+        }
+        
+        val width = (urx - llx).coerceAtLeast(10f)
+        val height = (ury - lly).coerceAtLeast(10f)
+        
+        val stack = java.util.Stack<Float>()
+        val nodes = mutableListOf<BezierNode>()
+        var isClosed = false
+        
+        var currentFillColor = "#D1D5DB"
+        var currentStrokeColor = "#374151"
+        var currentStrokeWidth = 2f
+        var hasFill = true
+        var hasStroke = false
+        
+        fun tx(x: Float): Float = x - llx
+        fun ty(y: Float): Float = ury - y
+        
+        epsContent.lineSequence().forEach { line ->
+            val cleanLine = if (line.contains("%")) {
+                if (line.startsWith("%%")) "" else line.substringBefore("%")
+            } else {
+                line
+            }.trim()
+            
+            if (cleanLine.isEmpty()) return@forEach
+            
+            val tokens = cleanLine.split(Regex("\\s+")).filter { it.isNotEmpty() }
+            for (token in tokens) {
+                val fValue = token.toFloatOrNull()
+                if (fValue != null) {
+                    stack.push(fValue)
+                } else {
+                    val op = token.lowercase()
+                    try {
+                        when (op) {
+                            "moveto", "m" -> {
+                                if (stack.size >= 2) {
+                                    val y = stack.pop()
+                                    val x = stack.pop()
+                                    nodes.add(BezierNode(anchorX = tx(x), anchorY = ty(y), isMoveTo = true, isCurve = false))
+                                }
+                            }
+                            "lineto", "l" -> {
+                                if (stack.size >= 2) {
+                                    val y = stack.pop()
+                                    val x = stack.pop()
+                                    nodes.add(BezierNode(anchorX = tx(x), anchorY = ty(y), isMoveTo = false, isCurve = false))
+                                }
+                            }
+                            "curveto", "c" -> {
+                                if (stack.size >= 6) {
+                                    val y3 = stack.pop()
+                                    val x3 = stack.pop()
+                                    val y2 = stack.pop()
+                                    val x2 = stack.pop()
+                                    val y1 = stack.pop()
+                                    val x1 = stack.pop()
+                                    nodes.add(BezierNode(
+                                        anchorX = tx(x3),
+                                        anchorY = ty(y3),
+                                        control1X = tx(x1),
+                                        control1Y = ty(y1),
+                                        control2X = tx(x2),
+                                        control2Y = ty(y2),
+                                        isCurve = true,
+                                        isMoveTo = false
+                                    ))
+                                }
+                            }
+                            "closepath", "h" -> {
+                                isClosed = true
+                            }
+                            "setrgbcolor", "rg", "RG" -> {
+                                if (stack.size >= 3) {
+                                    val b = stack.pop()
+                                    val g = stack.pop()
+                                    val r = stack.pop()
+                                    val rInt = (r * 255f).toInt().coerceIn(0, 255)
+                                    val gInt = (g * 255f).toInt().coerceIn(0, 255)
+                                    val bInt = (b * 255f).toInt().coerceIn(0, 255)
+                                    val colorHex = String.format("#%02X%02X%02X", rInt, gInt, bInt)
+                                    currentFillColor = colorHex
+                                    currentStrokeColor = colorHex
+                                }
+                            }
+                            "setcmykcolor", "k", "K" -> {
+                                if (stack.size >= 4) {
+                                    val k = stack.pop()
+                                    val y = stack.pop()
+                                    val m = stack.pop()
+                                    val c = stack.pop()
+                                    val rInt = (255f * (1f - c) * (1f - k)).toInt().coerceIn(0, 255)
+                                    val gInt = (255f * (1f - m) * (1f - k)).toInt().coerceIn(0, 255)
+                                    val bInt = (255f * (1f - y) * (1f - k)).toInt().coerceIn(0, 255)
+                                    val colorHex = String.format("#%02X%02X%02X", rInt, gInt, bInt)
+                                    currentFillColor = colorHex
+                                    currentStrokeColor = colorHex
+                                }
+                            }
+                            "setgray", "g", "G" -> {
+                                if (stack.size >= 1) {
+                                    val gray = stack.pop()
+                                    val grayInt = (gray * 255f).toInt().coerceIn(0, 255)
+                                    val colorHex = String.format("#%02X%02X%02X", grayInt, grayInt, grayInt)
+                                    currentFillColor = colorHex
+                                    currentStrokeColor = colorHex
+                                }
+                            }
+                            "setlinewidth", "w" -> {
+                                if (stack.size >= 1) {
+                                    currentStrokeWidth = stack.pop()
+                                }
+                            }
+                            "fill", "eofill", "f" -> {
+                                hasFill = true
+                                hasStroke = false
+                                if (nodes.isNotEmpty()) {
+                                    result.add(VectorShape(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = "Imported EPS Path",
+                                        type = ShapeType.BEZIER_PATH,
+                                        bezierNodes = nodes.toList(),
+                                        isPathClosed = isClosed,
+                                        hasFill = true,
+                                        fillColorHex = currentFillColor,
+                                        strokeColorHex = currentStrokeColor,
+                                        strokeWidth = currentStrokeWidth,
+                                        strokeAlpha = 0f
+                                    ))
+                                    nodes.clear()
+                                    isClosed = false
+                                }
+                            }
+                            "stroke", "s" -> {
+                                hasFill = false
+                                hasStroke = true
+                                if (nodes.isNotEmpty()) {
+                                    result.add(VectorShape(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = "Imported EPS Path",
+                                        type = ShapeType.BEZIER_PATH,
+                                        bezierNodes = nodes.toList(),
+                                        isPathClosed = isClosed,
+                                        hasFill = false,
+                                        fillColorHex = currentFillColor,
+                                        strokeColorHex = currentStrokeColor,
+                                        strokeWidth = currentStrokeWidth,
+                                        strokeAlpha = 1f
+                                    ))
+                                    nodes.clear()
+                                    isClosed = false
+                                }
+                            }
+                            "b", "b*" -> {
+                                if (nodes.isNotEmpty()) {
+                                    result.add(VectorShape(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = "Imported EPS Path",
+                                        type = ShapeType.BEZIER_PATH,
+                                        bezierNodes = nodes.toList(),
+                                        isPathClosed = isClosed,
+                                        hasFill = true,
+                                        fillColorHex = currentFillColor,
+                                        strokeColorHex = currentStrokeColor,
+                                        strokeWidth = currentStrokeWidth,
+                                        strokeAlpha = 1f
+                                    ))
+                                    nodes.clear()
+                                    isClosed = false
+                                }
+                            }
+                            else -> {
+                                stack.clear()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        stack.clear()
+                    }
+                }
+            }
+        }
+        
+        if (nodes.isNotEmpty()) {
+            result.add(VectorShape(
+                id = java.util.UUID.randomUUID().toString(),
+                name = "Imported EPS Path",
+                type = ShapeType.BEZIER_PATH,
+                bezierNodes = nodes.toList(),
+                isPathClosed = isClosed,
+                hasFill = hasFill,
+                fillColorHex = currentFillColor,
+                strokeColorHex = currentStrokeColor,
+                strokeWidth = currentStrokeWidth,
+                strokeAlpha = if (hasStroke) 1f else 0f
+            ))
+        }
+        
+        return result
     }
 
     private fun cmdIndiceWorkaround(i: Int): Int = i
