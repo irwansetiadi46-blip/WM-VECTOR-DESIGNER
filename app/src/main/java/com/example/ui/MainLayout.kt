@@ -1705,6 +1705,7 @@ fun MainLayout(viewModel: VectorViewModel) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .systemGestureExclusion()
                 .background(if (currentLevel > 0) Color(0xFF1E293B) else Color.Transparent)
                 .then(
                     if (currentLevel > 0) {
