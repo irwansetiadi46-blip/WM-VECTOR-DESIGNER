@@ -6712,14 +6712,26 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         val absX = if (isRelative) currentX + x else x
                         val absY = if (isRelative) currentY + y else y
                         
+                        // Update the previous node's control2 (outgoing handle) to absC1
+                        if (nodes.isNotEmpty()) {
+                            val lastIdx = nodes.size - 1
+                            val prevNode = nodes[lastIdx]
+                            nodes[lastIdx] = prevNode.copy(
+                                isCurve = true,
+                                control2X = absC1X,
+                                control2Y = absC1Y
+                            )
+                        }
+                        
+                        // Add current node with control1 (incoming handle) set to absC2
                         nodes.add(BezierNode(
                             anchorX = absX,
                             anchorY = absY,
                             isCurve = true,
-                            control1X = absC1X,
-                            control1Y = absC1Y,
-                            control2X = absC2X,
-                            control2Y = absC2Y,
+                            control1X = absC2X,
+                            control1Y = absC2Y,
+                            control2X = absX,
+                            control2Y = absY,
                             isMoveTo = false
                         ))
                         
@@ -6756,14 +6768,26 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             currentY
                         }
                         
+                        // Update the previous node's control2 (outgoing handle) to absC1
+                        if (nodes.isNotEmpty()) {
+                            val lastIdx = nodes.size - 1
+                            val prevNode = nodes[lastIdx]
+                            nodes[lastIdx] = prevNode.copy(
+                                isCurve = true,
+                                control2X = absC1X,
+                                control2Y = absC1Y
+                            )
+                        }
+                        
+                        // Add current node with control1 (incoming handle) set to absC2
                         nodes.add(BezierNode(
                             anchorX = absX,
                             anchorY = absY,
                             isCurve = true,
-                            control1X = absC1X,
-                            control1Y = absC1Y,
-                            control2X = absC2X,
-                            control2Y = absC2Y,
+                            control1X = absC2X,
+                            control1Y = absC2Y,
+                            control2X = absX,
+                            control2Y = absY,
                             isMoveTo = false
                         ))
                         
@@ -6794,14 +6818,26 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                         val c2x = absX + (2f / 3f) * (absCX - absX)
                         val c2y = absY + (2f / 3f) * (absCY - absY)
                         
+                        // Update the previous node's control2 to c1
+                        if (nodes.isNotEmpty()) {
+                            val lastIdx = nodes.size - 1
+                            val prevNode = nodes[lastIdx]
+                            nodes[lastIdx] = prevNode.copy(
+                                isCurve = true,
+                                control2X = c1x,
+                                control2Y = c1y
+                            )
+                        }
+                        
+                        // Add current node with control1 set to c2
                         nodes.add(BezierNode(
                             anchorX = absX,
                             anchorY = absY,
                             isCurve = true,
-                            control1X = c1x,
-                            control1Y = c1y,
-                            control2X = c2x,
-                            control2Y = c2y,
+                            control1X = c2x,
+                            control1Y = c2y,
+                            control2X = absX,
+                            control2Y = absY,
                             isMoveTo = false
                         ))
                         
@@ -6841,14 +6877,26 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                             val cx2 = currentX + dx * 0.75f + px * 0.5f
                             val cy2 = currentY + dy * 0.75f + py * 0.5f
                             
+                            // Update the previous node's control2 to cx1
+                            if (nodes.isNotEmpty()) {
+                                val lastIdx = nodes.size - 1
+                                val prevNode = nodes[lastIdx]
+                                nodes[lastIdx] = prevNode.copy(
+                                    isCurve = true,
+                                    control2X = cx1,
+                                    control2Y = cy1
+                                )
+                            }
+                            
+                            // Add current node with control1 set to cx2
                             nodes.add(BezierNode(
                                 anchorX = absX,
                                 anchorY = absY,
                                 isCurve = true,
-                                control1X = cx1,
-                                control1Y = cy1,
-                                control2X = cx2,
-                                control2Y = cy2,
+                                control1X = cx2,
+                                control1Y = cy2,
+                                control2X = absX,
+                                control2Y = absY,
                                 isMoveTo = false
                             ))
                         } else {
@@ -6948,13 +6996,31 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                                     val x2 = stack.pop()
                                     val y1 = stack.pop()
                                     val x1 = stack.pop()
+                                    
+                                    val absC1X = tx(x1)
+                                    val absC1Y = ty(y1)
+                                    val absC2X = tx(x2)
+                                    val absC2Y = ty(y2)
+                                    val absX = tx(x3)
+                                    val absY = ty(y3)
+                                    
+                                    if (nodes.isNotEmpty()) {
+                                        val lastIdx = nodes.size - 1
+                                        val prevNode = nodes[lastIdx]
+                                        nodes[lastIdx] = prevNode.copy(
+                                            isCurve = true,
+                                            control2X = absC1X,
+                                            control2Y = absC1Y
+                                        )
+                                    }
+                                    
                                     nodes.add(BezierNode(
-                                        anchorX = tx(x3),
-                                        anchorY = ty(y3),
-                                        control1X = tx(x1),
-                                        control1Y = ty(y1),
-                                        control2X = tx(x2),
-                                        control2Y = ty(y2),
+                                        anchorX = absX,
+                                        anchorY = absY,
+                                        control1X = absC2X,
+                                        control1Y = absC2Y,
+                                        control2X = absX,
+                                        control2Y = absY,
                                         isCurve = true,
                                         isMoveTo = false
                                     ))
