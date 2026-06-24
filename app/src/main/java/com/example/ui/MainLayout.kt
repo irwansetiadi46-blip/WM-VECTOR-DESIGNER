@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -1150,9 +1151,12 @@ fun MainLayout(viewModel: VectorViewModel) {
                     }
                 }
             }
-        }
 
-        // HORIZONTAL SLIDERS SECTION (Stroke size and transparent alpha connected directly to selected shapes)
+            // BOTTOM BAR OVERLAYS (Floating on top of canvas)
+            Column(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            ) {
+                // HORIZONTAL SLIDERS SECTION (Stroke size and transparent alpha connected directly to selected shapes)
         if (bottomBarExpandedLevel >= 2) {
             Column(
                 modifier = Modifier
@@ -1694,7 +1698,7 @@ fun MainLayout(viewModel: VectorViewModel) {
         // MULTI-LEVEL DYNAMIC ROTATABLE AND DRAGGABLE BOTTOM DRAWER TOOLBAR
         val currentLevel = bottomBarExpandedLevel
 
-        // Always show the Column so that Drag Handle Pill is available even when currentLevel is 0
+        // Always show the Column so that the Drag Handle Pill is available even when hidden (level 0)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1714,44 +1718,57 @@ fun MainLayout(viewModel: VectorViewModel) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(14.dp)
+                    .height(if (currentLevel == 0) 36.dp else 20.dp) // Slightly taller touch area when hidden
+                    .systemGestureExclusion()
                     .clickable {
-                        // Cycle through levels on tap or simple click between Minimized and Maximized!
-                        bottomBarExpandedLevel = if (bottomBarExpandedLevel >= 2) 0 else bottomBarExpandedLevel + 1
+                        val activity = context as? android.app.Activity
+                        if (activity != null) {
+                            val windowInsetsController = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                            windowInsetsController.hide(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
+                        }
+                        // Click behavior: if hidden (0), expand to main level (2). If visible, cycle or toggle.
+                        bottomBarExpandedLevel = if (currentLevel == 0) 2 else if (bottomBarExpandedLevel >= 2) 1 else bottomBarExpandedLevel + 1
                     }
-                        .pointerInput(Unit) {
-                            var accumulatedDragY = 0f
-                            detectDragGestures(
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    accumulatedDragY += dragAmount.y
-                                    if (accumulatedDragY > 40f) {
-                                        if (bottomBarExpandedLevel > 0) {
-                                            bottomBarExpandedLevel--
-                                        }
-                                        accumulatedDragY = 0f
-                                    } else if (accumulatedDragY < -40f) {
-                                        if (bottomBarExpandedLevel < 2) {
-                                            bottomBarExpandedLevel++
-                                        }
-                                        accumulatedDragY = 0f
+                    .pointerInput(Unit) {
+                        var accumulatedDragY = 0f
+                        detectDragGestures(
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+
+                                val activity = context as? android.app.Activity
+                                if (activity != null) {
+                                    val windowInsetsController = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                                    windowInsetsController.hide(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
+                                }
+
+                                accumulatedDragY += dragAmount.y
+                                if (accumulatedDragY > 30f) {
+                                    if (bottomBarExpandedLevel > 0) {
+                                        bottomBarExpandedLevel--
                                     }
-                                },
-                                onDragEnd = { accumulatedDragY = 0f }
-                            )
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .width(40.dp)
-                                .height(3.dp)
-                                .clip(RoundedCornerShape(1.5.dp))
-                                .background(Color(0xFF64748B))
+                                    accumulatedDragY = 0f
+                                } else if (accumulatedDragY < -30f) {
+                                    if (bottomBarExpandedLevel < 2) {
+                                        bottomBarExpandedLevel++
+                                    }
+                                    accumulatedDragY = 0f
+                                }
+                            },
+                            onDragEnd = { accumulatedDragY = 0f }
                         )
-                    }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .width(40.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color(0xFF64748B))
+                    )
                 }
+            }
 
                 // ROW: GENERAL ARTWORK OPERATIONS AND MANIPULATIONS (Visible in Level >= 2)
                 if (currentLevel >= 2) {
@@ -1890,8 +1907,10 @@ fun MainLayout(viewModel: VectorViewModel) {
                         )
                     }
                 }
-            }
-    }
+            } // Closes Column(1699)
+        } // Closes Bottom Bar wrapper
+        } // Closes Canvas Box
+    } // Closes Main Column
 
     // LAYER VIEW STACKS SIDE DRAWER OVERLAY
     if (showLayersPanel) {
