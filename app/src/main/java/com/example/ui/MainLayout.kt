@@ -1154,7 +1154,10 @@ fun MainLayout(viewModel: VectorViewModel) {
 
             // BOTTOM BAR OVERLAYS (Floating on top of canvas)
             Column(
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .systemGestureExclusion()
             ) {
                 // HORIZONTAL SLIDERS SECTION (Stroke size and transparent alpha connected directly to selected shapes)
         if (bottomBarExpandedLevel >= 2) {
