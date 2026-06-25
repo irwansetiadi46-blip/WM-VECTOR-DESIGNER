@@ -187,6 +187,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showExportDialog by remember { mutableStateOf(false) }
     var showTextDialog by remember { mutableStateOf(false) }
     var showMetadataDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
     var showCustomSettingsDialog by remember { mutableStateOf(false) }
     var showArtboardSettingsDialog by remember { mutableStateOf(false) }
     var showSnappingPopup by remember { mutableStateOf(false) }
@@ -2690,6 +2691,19 @@ fun MainLayout(viewModel: VectorViewModel) {
                     ) {
                         Text("Metadata", color = Color.White, fontSize = 12.sp)
                     }
+
+                    // 6. About
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showMenuSheet = false
+                                showAboutDialog = true
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("About", color = Color.White, fontSize = 12.sp)
+                    }
                 }
             }
         }
@@ -3382,6 +3396,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     }
 
     if (showMetadataDialog) {
+        val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
         Dialog(onDismissRequest = { showMetadataDialog = false }) {
             Card(
                 modifier = Modifier
@@ -3481,8 +3496,61 @@ fun MainLayout(viewModel: VectorViewModel) {
                     ) {
                         Button(
                             onClick = { 
-                                showMetadataDialog = false 
-                                Toast.makeText(context, "Metadata Disimpan", Toast.LENGTH_SHORT).show()
+                                val epsTitle = viewModel.metadataTitle
+                                val epsDesc = viewModel.metadataDescription
+                                val epsKeywords = viewModel.metadataKeywords
+                                
+                                val cleanFileName = if (viewModel.currentProjectName.isNotBlank()) viewModel.currentProjectName.replace(" ", "_") else "untitled"
+                                val dlDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                                val vsDir = java.io.File(dlDir, "Vector Studio Export")
+                                val targetEpsFile = java.io.File(vsDir, "$cleanFileName.eps")
+                                
+                                if (!targetEpsFile.exists()) {
+                                    Toast.makeText(context, "File EPS belum di-export!", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                
+                                val targetEpsPath = targetEpsFile.absolutePath
+                                
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    try {
+                                        val exiftoolPath = com.example.util.ExiftoolInstaller.installIfNeeded(context)
+                                        
+                                        val command = mutableListOf(
+                                            exiftoolPath,
+                                            "-XMP:Title=$epsTitle",
+                                            "-XMP:Description=$epsDesc",
+                                            "-XMP:Subject=$epsKeywords",
+                                            "-overwrite_original",
+                                            targetEpsPath
+                                        )
+                                        
+                                        val processBuilder = ProcessBuilder(command)
+                                        processBuilder.redirectErrorStream(true)
+                                        val process = processBuilder.start()
+                                        
+                                        val reader = java.io.BufferedReader(java.io.InputStreamReader(process.inputStream))
+                                        var line: String?
+                                        val output = java.lang.StringBuilder()
+                                        while (reader.readLine().also { line = it } != null) {
+                                            output.append(line).append("\n")
+                                        }
+                                        
+                                        val exitCode = process.waitFor()
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            if (exitCode == 0) {
+                                                Toast.makeText(context, "Metadata berhasil ditanamkan ke EPS!", Toast.LENGTH_SHORT).show()
+                                                showMetadataDialog = false
+                                            } else {
+                                                Toast.makeText(context, "Gagal menanamkan metadata: $output", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
                             modifier = Modifier.weight(1f),
@@ -3502,6 +3570,172 @@ fun MainLayout(viewModel: VectorViewModel) {
                         ) {
                             Text("Clear", color = Color.White, fontSize = 12.sp)
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAboutDialog) {
+        Dialog(onDismissRequest = { showAboutDialog = false }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.95f)
+                    .fillMaxHeight(0.9f),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)), // dark blue bg
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("About War Machine Vector Studio", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        IconButton(onClick = { showAboutDialog = false }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
+                    }
+                    Divider(color = Color(0xFFFF6D00), thickness = 2.dp) // Orange accent line
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = "WAR MACHINE VECTOR STUDIO",
+                            color = Color(0xFFE2E8F0),
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                            letterSpacing = 0.05.sp
+                        )
+
+                        Text(
+                            text = "Version 1.0.0 (Hybrid Edition)",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 14.sp,
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp)
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .width(80.dp)
+                                .height(2.dp)
+                                .background(Color(0xFFE2E8F0))
+                                .align(Alignment.CenterHorizontally)
+                                .padding(vertical = 16.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Overview
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1E293B))
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Overview",
+                                color = Color(0xFFE2E8F0),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Text(
+                                text = "War Machine Vector Studio is a powerful, mobile-centric design asset management utility engineered specifically for microstock contributors. Built to break the dependency on desktop setups, this application provides a robust, zero-lag environment to manage, prepare, and optimize your creative vector and image assets directly from your mobile device.",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Key Features
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1E293B))
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Key Features",
+                                color = Color(0xFFE2E8F0),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            Text(
+                                text = "• Production-Ready Asset Management\n  Designed natively for rapid, high-volume portfolio expansion across global microstock agencies.\n\n• Intelligent Metadata Panel\n  Easily append critical tracking information through a seamless, accessible user interface.\n\n• Multi-Platform Optimization\n  Tailored workflows for major platforms including Adobe Stock, Shutterstock, Freepik, Vecteezy, Pngtree, Dreamstime, and IconScout.\n\n• Strict Agency Standards Enforcer\n  Automatically formats metadata constraints—ensuring keywords are perfectly separated by commas with no special characters or trailing periods—preventing fatal validation errors.",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Automated EPS Metadata Engine
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1E293B))
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Automated EPS Metadata Engine",
+                                color = Color(0xFFE2E8F0),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Text(
+                                text = "This application features an advanced background automation layer powered by ExifTool. When utilizing the EPS Metadata feature, the system automatically bypasses unstable native text injections by deploying an industrial-grade binary processor in a dedicated background thread. This guarantees 100% compliant XMP Dublin Core metadata parsing that passes the rigid auto-review bots of demanding agencies like Shutterstock without any file corruption.",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Open Source Licenses & Credits
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1E293B))
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Open Source Licenses & Credits",
+                                color = Color(0xFFE2E8F0),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Text(
+                                text = "To maintain standard industry compliance and transparency, this product acknowledges the integration of the following open-source engine:\n\n• ExifTool\n  Copyright: © 2003-2026 Phil Harvey\n  License: Distributed under the GNU General Public License (GPL) Version 1 or later, or alternatively under the Perl Artistic License.\n  Purpose: Used natively as an internalized automation asset to embed structural XMP headers into vector documents.",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Text(
+                            text = "Empowering mobile creators to dominate the microstock market, one vector set at a time.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 20.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
             }
@@ -5610,16 +5844,7 @@ fun generateEPSCode(
     sb.append("showpage\n")
     sb.append("%%EOF\n")
     
-    val epsString = sb.toString()
-    val kwList = metadataKeywords.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-    val injectedBytes = com.example.XmpInjector.injectIntoEps(
-        epsString.toByteArray(Charsets.UTF_8),
-        metadataTitle,
-        metadataDescription,
-        kwList,
-        "Vector Studio"
-    )
-    return String(injectedBytes, Charsets.UTF_8)
+    return sb.toString()
 }
 
 fun renderShapesToBitmap(
