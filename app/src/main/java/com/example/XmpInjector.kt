@@ -429,44 +429,118 @@ object XmpInjector {
         creator: String
     ): ByteArray {
         try {
-            val fileStr = String(originalBytes, StandardCharsets.UTF_8)
-            val xmpXml = generateXmpMeta(title, description, keywords, creator)
-            
-            val xmpStart = fileStr.indexOf("<x:xmpmeta")
-            val xmpEnd = if (xmpStart != -1) fileStr.indexOf("</x:xmpmeta>", xmpStart) else -1
-            
-            if (xmpStart != -1 && xmpEnd != -1) {
-                val beforeXmp = fileStr.substring(0, xmpStart)
-                val afterXmp = fileStr.substring(xmpEnd + "</x:xmpmeta>".length)
-                val newContent = beforeXmp + xmpXml + afterXmp
-                return newContent.toByteArray(StandardCharsets.UTF_8)
+            // FIX Bug 5: Tangani binary EPS header (magic: 0xC5D0D3C6)
+            val epsBytes = if (originalBytes.size >= 4 &&
+                originalBytes[0] == 0xC5.toByte() &&
+                originalBytes[1] == 0xD0.toByte() &&
+                originalBytes[2] == 0xD3.toByte() &&
+                originalBytes[3] == 0xC6.toByte()
+            ) {
+                val psOffset = ByteBuffer.wrap(originalBytes, 4, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN).int
+                val psLength = ByteBuffer.wrap(originalBytes, 8, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN).int
+                originalBytes.copyOfRange(psOffset, psOffset + psLength)
             } else {
-                // Insert after standard postscript header
-                val headerIdx = fileStr.indexOf("\n")
-                if (headerIdx != -1) {
-                    val before = fileStr.substring(0, headerIdx + 1)
-                    val after = fileStr.substring(headerIdx + 1)
-                    val xpacketBlock = """
-                        %XMP_Begin
-                        <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-                        $xmpXml
-                        <?xpacket end="w"?>
-                        %XMP_End
-                    """.trimIndent() + "\n"
-                    val newContent = before + xpacketBlock + after
+                originalBytes
+            }
+
+            val fileStr = String(epsBytes, StandardCharsets.UTF_8)
+            val xmpXml = generateXmpMeta(title, description, keywords, creator)
+
+            // FIX Bug 3: Tambahkan BOM (\uFEFF) di xpacket begin
+            // FIX Bug 4: Bangun string tanpa trimIndent agar tidak ada indent tak terduga
+            val xpacketContent = buildString {
+                append("<?xpacket begin=\"\uFEFF\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n")
+                append(xmpXml)
+                append("\n<?xpacket end=\"w\"?>")
+            }
+
+            // FIX Bug 2: Gunakan %begin_xml_packet / %end_xml_packet (standar Adobe)
+            val contentSize = xpacketContent.toByteArray(StandardCharsets.UTF_8).size
+            val xpacketBlock = buildString {
+                append("%begin_xml_packet: $contentSize\n")
+                append(xpacketContent)
+                append("\n%end_xml_packet\n\n")
+            }
+
+            // Jika sudah ada XMP → replace
+            val xmpStart = fileStr.indexOf("<x:xmpmeta")
+            if (xmpStart != -1) {
+                val xmpEnd = fileStr.indexOf("</x:xmpmeta>", xmpStart)
+                if (xmpEnd != -1) {
+                    val afterXmp = xmpEnd + "</x:xmpmeta>".length
+
+                    // Cari batas xpacket (mundur dan maju)
+                    val packetStartIdx = fileStr.lastIndexOf("<?xpacket begin=", xmpStart)
+                        .takeIf { it != -1 } ?: xmpStart
+                    val packetEndRaw = fileStr.indexOf("<?xpacket end=", afterXmp)
+                    val packetEndIdx = if (packetEndRaw != -1) {
+                        fileStr.indexOf("?>", packetEndRaw) + 2
+                    } else afterXmp
+
+                    // Cari wrapper %begin_xml_packet di baris sebelumnya
+                    val lineBeforeStart = fileStr.lastIndexOf('\n', packetStartIdx - 1)
+                    val lineText = if (lineBeforeStart != -1)
+                        fileStr.substring(lineBeforeStart + 1, packetStartIdx).trim() else ""
+                    val replaceStart = if (lineText.startsWith("%begin_xml_packet") ||
+                        lineText.startsWith("%XMP_Begin")) lineBeforeStart + 1
+                    else packetStartIdx
+
+                    // Cari wrapper %end_xml_packet di baris sesudahnya
+                    val lineAfterEnd = fileStr.indexOf('\n', packetEndIdx)
+                    val lineAfterText = if (lineAfterEnd != -1)
+                        fileStr.substring(packetEndIdx, lineAfterEnd).trim() else ""
+                    val replaceEnd = if (lineAfterText == "%end_xml_packet" ||
+                        lineAfterText == "%XMP_End") lineAfterEnd + 1
+                    else packetEndIdx
+
+                    val newContent = fileStr.substring(0, replaceStart) +
+                                     xpacketBlock +
+                                     fileStr.substring(replaceEnd)
                     return newContent.toByteArray(StandardCharsets.UTF_8)
-                } else {
-                    val xpacketBlock = """
-                        <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-                        $xmpXml
-                        <?xpacket end="w"?>
-                    """.trimIndent() + "\n"
-                    return (xpacketBlock + fileStr).toByteArray(StandardCharsets.UTF_8)
                 }
             }
+
+            // FIX Bug 1: Sisipkan setelah %%EndComments, bukan setelah baris pertama
+            val insertionPoint = findEpsInsertionPoint(fileStr)
+            val newContent = fileStr.substring(0, insertionPoint) +
+                             xpacketBlock +
+                             fileStr.substring(insertionPoint)
+            return newContent.toByteArray(StandardCharsets.UTF_8)
+
         } catch (e: Exception) {
             e.printStackTrace()
             return originalBytes
         }
+    }
+
+    // FIX Bug 1: Helper untuk cari posisi sisip yang benar
+    private fun findEpsInsertionPoint(fileStr: String): Int {
+        // Prioritas 1: setelah %%EndComments
+        val endComments = fileStr.indexOf("%%EndComments")
+        if (endComments != -1) {
+            val nextLine = fileStr.indexOf('\n', endComments)
+            return if (nextLine != -1) nextLine + 1 else endComments + "%%EndComments".length
+        }
+
+        // Prioritas 2: setelah blok komentar DSC terakhir di header
+        var lastDscEnd = -1
+        var pos = 0
+        while (pos < fileStr.length) {
+            val lineEnd = fileStr.indexOf('\n', pos)
+            val line = if (lineEnd != -1) fileStr.substring(pos, lineEnd) else fileStr.substring(pos)
+            if (line.startsWith("%%") || line.startsWith("%!")) {
+                lastDscEnd = if (lineEnd != -1) lineEnd + 1 else fileStr.length
+            } else if (lastDscEnd != -1) {
+                break
+            }
+            pos = if (lineEnd != -1) lineEnd + 1 else fileStr.length
+        }
+        if (lastDscEnd != -1) return lastDscEnd
+
+        // Fallback: setelah baris pertama
+        val firstLine = fileStr.indexOf('\n')
+        return if (firstLine != -1) firstLine + 1 else 0
     }
 }
