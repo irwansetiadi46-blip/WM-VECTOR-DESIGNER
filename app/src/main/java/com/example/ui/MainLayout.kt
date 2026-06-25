@@ -185,6 +185,7 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showColorPickerStroke by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showTextDialog by remember { mutableStateOf(false) }
+    var showMetadataDialog by remember { mutableStateOf(false) }
     var showCustomSettingsDialog by remember { mutableStateOf(false) }
     var showArtboardSettingsDialog by remember { mutableStateOf(false) }
     var showSnappingPopup by remember { mutableStateOf(false) }
@@ -256,44 +257,60 @@ fun MainLayout(viewModel: VectorViewModel) {
     var textInputState by remember { mutableStateOf("") }
 
     if (renameProjectTarget != null) {
-        AlertDialog(
-            onDismissRequest = { renameProjectTarget = null },
-            title = { Text("Ubah Nama Proyek", color = Color.White) },
-            text = {
-                OutlinedTextField(
-                    value = newProjectNameInput,
-                    onValueChange = { newProjectNameInput = it },
-                    label = { Text("Nama Proyek", color = Color.LightGray) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFFFF6D00),
-                        unfocusedBorderColor = Color.Gray,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            containerColor = Color(0xFF1E293B),
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newProjectNameInput.isNotBlank()) {
-                            viewModel.renameProject(renameProjectTarget!!.id, newProjectNameInput)
-                            Toast.makeText(context, "Nama proyek diubah", Toast.LENGTH_SHORT).show()
-                            renameProjectTarget = null
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00))
+        Dialog(onDismissRequest = { renameProjectTarget = null }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .wrapContentHeight(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text("Simpan", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameProjectTarget = null }) {
-                    Text("Batal", color = Color.LightGray)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Ubah Nama Proyek", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        IconButton(
+                            onClick = { renameProjectTarget = null },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    OutlinedTextField(
+                        value = newProjectNameInput,
+                        onValueChange = { newProjectNameInput = it },
+                        label = { Text("Nama Proyek", color = Color.LightGray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFFF6D00),
+                            unfocusedBorderColor = Color.Gray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Button(
+                        onClick = {
+                            if (newProjectNameInput.isNotBlank()) {
+                                viewModel.renameProject(renameProjectTarget!!.id, newProjectNameInput)
+                                Toast.makeText(context, "Nama proyek diubah", Toast.LENGTH_SHORT).show()
+                                renameProjectTarget = null
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Simpan", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-        )
+        }
     }
 
     if (!viewModel.isSetupCompleted) {
@@ -2570,72 +2587,108 @@ fun MainLayout(viewModel: VectorViewModel) {
         ) {
             Card(
                 modifier = Modifier
-                    .width(260.dp)
+                    .width(220.dp)
                     .wrapContentHeight(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
                 shape = RoundedCornerShape(0.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF475569))
             ) {
                 Column(
-                    modifier = Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
-                    Text(
-                        text = "STUDIO MENU",
-                        color = Color.Gray,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "STUDIO MENU",
+                            color = Color.Gray,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showMenuSheet = false },
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray, modifier = Modifier.size(14.dp))
+                        }
+                    }
                     
-                    Divider(color = Color(0xFF334155))
+                    Divider(color = Color(0xFF334155), modifier = Modifier.padding(bottom = 4.dp))
                     
                     // 1. Exit (back to onboarding home page)
-                    DropdownMenuItem(
-                        text = { Text("Exit Studio", color = Color.White, fontWeight = FontWeight.Bold) },
-                        leadingIcon = { Icon(Icons.Default.ExitToApp, contentDescription = "Exit", tint = Color(0xFFEF4444)) },
-                        onClick = {
-                            viewModel.isSetupCompleted = false
-                            showMenuSheet = false
-                            Toast.makeText(context, "Kembali ke Beranda", Toast.LENGTH_SHORT).show()
-                        }
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.isSetupCompleted = false
+                                showMenuSheet = false
+                                Toast.makeText(context, "Kembali ke Beranda", Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("Exit Studio", color = Color.White, fontSize = 12.sp)
+                    }
 
                     // 2. Export
-                    DropdownMenuItem(
-                        text = { Text("Export Graphics...", color = Color.White) },
-                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = "Export icon", tint = Color(0xFFFF6D00)) },
-                        onClick = {
-                            showMenuSheet = false
-                            showExportDialog = true
-                        }
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showMenuSheet = false
+                                showExportDialog = true
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("Export Graphics...", color = Color.White, fontSize = 12.sp)
+                    }
 
                     // 3. Import File
-                    DropdownMenuItem(
-                        text = { Text("Import Image / Path...", color = Color.White) },
-                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = "Import icon", tint = Color(0xFF3B82F6)) },
-                        onClick = {
-                            showMenuSheet = false
-                            try {
-                                importFileLauncher.launch("*/*")
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Tidak dapat membuka berkas: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showMenuSheet = false
+                                try {
+                                    importFileLauncher.launch("*/*")
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Tidak dapat membuka berkas: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
                             }
-                        }
-                    )
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("Import Image / Path...", color = Color.White, fontSize = 12.sp)
+                    }
 
                     // 4. Artboard Settings
-                    DropdownMenuItem(
-                        text = { Text("Artboard Settings", color = Color.White) },
-                        leadingIcon = { Icon(Icons.Default.Settings, contentDescription = "Settings icon", tint = Color(0xFF94A3B8)) },
-                        onClick = {
-                            showMenuSheet = false
-                            artboardWidthInput = viewModel.canvasWidth.toInt().toString()
-                            artboardHeightInput = viewModel.canvasHeight.toInt().toString()
-                            showArtboardSettingsDialog = true
-                        }
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showMenuSheet = false
+                                artboardWidthInput = viewModel.canvasWidth.toInt().toString()
+                                artboardHeightInput = viewModel.canvasHeight.toInt().toString()
+                                showArtboardSettingsDialog = true
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("Artboard Settings", color = Color.White, fontSize = 12.sp)
+                    }
+                    
+                    // 5. Metadata
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showMenuSheet = false
+                                showMetadataDialog = true
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("Metadata Settings", color = Color.White, fontSize = 12.sp)
+                    }
                 }
             }
         }
@@ -2702,13 +2755,13 @@ fun MainLayout(viewModel: VectorViewModel) {
         val exportWidth = remember(minX, maxX) { (maxX - minX).coerceAtLeast(1f) }
         val exportHeight = remember(minY, maxY) { (maxY - minY).coerceAtLeast(1f) }
 
-        val exportCode = remember(sortedShapesToExport, chosenFormat, exportSelectionOnly, minX, minY, exportWidth, exportHeight, viewModel.layers) {
+        val exportCode = remember(sortedShapesToExport, chosenFormat, exportSelectionOnly, minX, minY, exportWidth, exportHeight, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords) {
             if (chosenFormat == "SVG") {
-                generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers)
+                generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
             } else if (chosenFormat == "EPS") {
-                generateEPSCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers)
+                generateEPSCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
             } else {
-                val svgStr = generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers)
+                val svgStr = generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
                 "/* Scalable Vector Binary Header representing $chosenFormat format output */\n" +
                 "formatVersion: 1.0\n" +
                 "targetCanvasSize: ${exportWidth.toInt()}x${exportHeight.toInt()}\n" +
@@ -2738,13 +2791,24 @@ fun MainLayout(viewModel: VectorViewModel) {
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        "Design Export Preview",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.Start)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Design Export Preview",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showExportDialog = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    }
 
                     // EXPORT BASIS SELECTION: DOCUMENT VS SELECTION
                     Row(
@@ -2915,6 +2979,13 @@ fun MainLayout(viewModel: VectorViewModel) {
                                             android.graphics.Bitmap.CompressFormat.PNG
                                         }
                                         bitmap.compress(compressFormat, 100, stream)
+                                        
+                                        // Inject XMP into JPG/PNG by appending after the EOF marker
+                                        val xmpStr = generateXMPString(viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
+                                        if (xmpStr.isNotEmpty()) {
+                                            stream.write(xmpStr.toByteArray(Charsets.UTF_8))
+                                        }
+                                        
                                         val bytes = stream.toByteArray()
                                         println("Saved dynamic image. Format: $currentFormat, Byte size: ${bytes.size} bytes (${bytes.size / 1024f} KB)")
                                         android.util.Log.d("ArtworkStudio", "Saved dynamic image. Format: $currentFormat, Byte size: ${bytes.size} bytes")
@@ -2929,17 +3000,9 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Export Now", color = Color.Black, fontWeight = FontWeight.Bold)
-                        }
-
-                        Button(
-                            onClick = { showExportDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Cancel", color = Color.White)
                         }
                     }
                 }
@@ -2961,12 +3024,24 @@ fun MainLayout(viewModel: VectorViewModel) {
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        "Workspace Settings",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Workspace Settings",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showCustomSettingsDialog = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
 
                     // Grid cell size
                     Row(
@@ -3004,14 +3079,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                             )
                         )
                     }
-
-                    Button(
-                        onClick = { showCustomSettingsDialog = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text("Done", color = Color.Black)
-                    }
                 }
             }
         }
@@ -3031,12 +3098,33 @@ fun MainLayout(viewModel: VectorViewModel) {
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Artboard Settings",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Artboard Settings",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { 
+                                val newWidth = artboardWidthInput.toFloatOrNull() ?: viewModel.canvasWidth
+                                val newHeight = artboardHeightInput.toFloatOrNull() ?: viewModel.canvasHeight
+                                if (newWidth > 0 && newHeight > 0) {
+                                    viewModel.canvasWidth = newWidth
+                                    viewModel.canvasHeight = newHeight
+                                    viewModel.saveCurrentProject()
+                                }
+                                showArtboardSettingsDialog = false 
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
 
                     // 1. Color Selection Panel
                     Text(
@@ -3173,23 +3261,131 @@ fun MainLayout(viewModel: VectorViewModel) {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
 
-                    Box(modifier = Modifier.fillMaxWidth()) {
+    if (showMetadataDialog) {
+        Dialog(onDismissRequest = { showMetadataDialog = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .wrapContentHeight(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(0.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Metadata Settings",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showMetadataDialog = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+
+                    // Title
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Title", color = Color.LightGray, fontSize = 12.sp)
+                        OutlinedTextField(
+                            value = viewModel.metadataTitle,
+                            onValueChange = { viewModel.metadataTitle = it },
+                            modifier = Modifier.fillMaxWidth().height(80.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF334155),
+                                unfocusedBorderColor = Color(0xFF334155)
+                            ),
+                            trailingIcon = {
+                                IconButton(onClick = { viewModel.metadataTitle = "" }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        )
+                    }
+
+                    // Description
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Description", color = Color.LightGray, fontSize = 12.sp)
+                        OutlinedTextField(
+                            value = viewModel.metadataDescription,
+                            onValueChange = { viewModel.metadataDescription = it },
+                            modifier = Modifier.fillMaxWidth().height(80.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF334155),
+                                unfocusedBorderColor = Color(0xFF334155)
+                            ),
+                            trailingIcon = {
+                                IconButton(onClick = { viewModel.metadataDescription = "" }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        )
+                    }
+
+                    // Keywords
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Keywords", color = Color.LightGray, fontSize = 12.sp)
+                        OutlinedTextField(
+                            value = viewModel.metadataKeywords,
+                            onValueChange = { viewModel.metadataKeywords = it },
+                            modifier = Modifier.fillMaxWidth().height(80.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF334155),
+                                unfocusedBorderColor = Color(0xFF334155)
+                            ),
+                            trailingIcon = {
+                                IconButton(onClick = { viewModel.metadataKeywords = "" }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        )
+                    }
+
+                    // Buttons: Embed & Clear
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Button(
                             onClick = { 
-                                val newWidth = artboardWidthInput.toFloatOrNull() ?: viewModel.canvasWidth
-                                val newHeight = artboardHeightInput.toFloatOrNull() ?: viewModel.canvasHeight
-                                if (newWidth > 0 && newHeight > 0) {
-                                    viewModel.canvasWidth = newWidth
-                                    viewModel.canvasHeight = newHeight
-                                    viewModel.saveCurrentProject()
-                                }
-                                showArtboardSettingsDialog = false 
+                                showMetadataDialog = false 
+                                Toast.makeText(context, "Metadata Disimpan", Toast.LENGTH_SHORT).show()
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                            modifier = Modifier.align(Alignment.CenterEnd)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(4.dp)
                         ) {
-                            Text("Selesai", color = Color.Black, fontWeight = FontWeight.Bold)
+                            Text("Embed", color = Color.White, fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = { 
+                                viewModel.metadataTitle = ""
+                                viewModel.metadataDescription = ""
+                                viewModel.metadataKeywords = ""
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text("Clear", color = Color.White, fontSize = 12.sp)
                         }
                     }
                 }
@@ -3198,26 +3394,40 @@ fun MainLayout(viewModel: VectorViewModel) {
     }
 
     if (showLayerSettingsPopupForId != null) {
-        AlertDialog(
-            onDismissRequest = { showLayerSettingsPopupForId = null },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Gear Settings",
-                        tint = Color(0xFFFF6D00)
-                    )
-                    Text("Pengaturan Layer", color = Color.White)
-                }
-            },
-            text = {
+        Dialog(onDismissRequest = { showLayerSettingsPopupForId = null }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .wrapContentHeight(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+            ) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Gear Settings",
+                                tint = Color(0xFFFF6D00)
+                            )
+                            Text("Pengaturan Layer", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        }
+                        IconButton(
+                            onClick = { showLayerSettingsPopupForId = null },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+
                     OutlinedTextField(
                         value = tempLayerNameInput,
                         onValueChange = { tempLayerNameInput = it },
@@ -3275,35 +3485,29 @@ fun MainLayout(viewModel: VectorViewModel) {
                             )
                         }
                     }
-                }
-            },
-            containerColor = Color(0xFF1E293B),
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val targetId = showLayerSettingsPopupForId
-                        if (targetId != null) {
-                            viewModel.layers = viewModel.layers.map {
-                                if (it.id == targetId) {
-                                    it.copy(name = tempLayerNameInput, opacity = tempLayerOpacityInput, optimizeTracing = tempLayerOptimizeTracingInput)
-                                } else {
-                                    it
+
+                    Button(
+                        onClick = {
+                            val targetId = showLayerSettingsPopupForId
+                            if (targetId != null) {
+                                viewModel.layers = viewModel.layers.map {
+                                    if (it.id == targetId) {
+                                        it.copy(name = tempLayerNameInput, opacity = tempLayerOpacityInput, optimizeTracing = tempLayerOptimizeTracingInput)
+                                    } else {
+                                        it
+                                    }
                                 }
                             }
-                        }
-                        showLayerSettingsPopupForId = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00))
-                ) {
-                    Text("Simpan", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLayerSettingsPopupForId = null }) {
-                    Text("Batal", color = Color.LightGray)
+                            showLayerSettingsPopupForId = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Simpan", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-        )
+        }
     }
 
     if (showArtboardColorPicker) {
@@ -3339,18 +3543,51 @@ fun MainLayout(viewModel: VectorViewModel) {
 
     // TEXT VECTOR INPUT DEFINITIONS MODAL (Row 2, Button 5)
     if (showTextDialog) {
-        AlertDialog(
-            onDismissRequest = { showTextDialog = false },
-            title = { Text("Insert Vector Text") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Dialog(onDismissRequest = { showTextDialog = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .wrapContentHeight(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Insert Vector Text",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showTextDialog = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+
                     OutlinedTextField(
                         value = textInputState,
                         onValueChange = { textInputState = it },
-                        label = { Text("Desain Text") },
+                        label = { Text("Desain Text", color = Color.LightGray) },
                         singleLine = true,
-                        placeholder = { Text("Tulis kata...") },
-                        modifier = Modifier.fillMaxWidth()
+                        placeholder = { Text("Tulis kata...", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFFF6D00),
+                            unfocusedBorderColor = Color(0xFF334155),
+                            cursorColor = Color(0xFFFF6D00)
+                        )
                     )
 
                     Button(
@@ -3368,26 +3605,22 @@ fun MainLayout(viewModel: VectorViewModel) {
                             fontSize = 11.sp
                         )
                     }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (textInputState.isNotBlank()) {
-                            viewModel.addTextShape(textInputState)
-                        }
-                        showTextDialog = false
+
+                    Button(
+                        onClick = {
+                            if (textInputState.isNotBlank()) {
+                                viewModel.addTextShape(textInputState)
+                            }
+                            showTextDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Add Vector", color = Color.Black, fontWeight = FontWeight.Bold)
                     }
-                ) {
-                    Text("Add Vector", color = Color(0xFFFF6D00))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTextDialog = false }) {
-                    Text("Back")
                 }
             }
-        )
+        }
     }
 
     // COLOR PANEL PICKERS
@@ -3598,7 +3831,7 @@ fun HomeScreenContent(
         }
 
         Text(
-            text = "Vector Studio v3.0.2 • Studio vektor profesional dengan layout presisi, layer canggih, & " +
+            text = "Vector Studio v3.0.3 • Studio vektor profesional dengan layout presisi, layer canggih, & " +
                     "sketsa dinamis.",
             color = Color.Gray,
             fontSize = 11.sp,
@@ -3890,7 +4123,7 @@ fun HomeScreenContent(
         }
 
         Text(
-            text = "Designed by Irwan Setiadi • War Machine Vector Studio v3.0.2",
+            text = "Designed by Irwan Setiadi • War Machine Vector Studio v3.0.3",
             color = Color(0xFF64748B),
             fontSize = 8.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -4796,11 +5029,56 @@ fun AlignButton(
     }
 }
 
+fun generateXMPString(title: String, description: String, keywords: String): String {
+    if (title.isBlank() && description.isBlank() && keywords.isBlank()) return ""
+    return """
+<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 5.6-c140">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:dc="http://purl.org/dc/elements/1.1/">
+   <dc:title>
+    <rdf:Alt>
+     <rdf:li xml:lang="x-default">${title.replace("<", "&lt;").replace(">", "&gt;")}</rdf:li>
+    </rdf:Alt>
+   </dc:title>
+   <dc:description>
+    <rdf:Alt>
+     <rdf:li xml:lang="x-default">${description.replace("<", "&lt;").replace(">", "&gt;")}</rdf:li>
+    </rdf:Alt>
+   </dc:description>
+   <dc:subject>
+    <rdf:Bag>
+     ${keywords.split(",").filter { it.isNotBlank() }.joinToString("\n     ") { "<rdf:li>${it.trim().replace("<", "&lt;").replace(">", "&gt;")}</rdf:li>" }}
+    </rdf:Bag>
+   </dc:subject>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>
+"""
+}
+
 // Dynamic real-time compliant SVG raw vector text content generator for the export modal
-fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX: Float = 0f, minY: Float = 0f, layers: List<com.example.model.VectorLayer> = emptyList()): String {
+fun generateSVGCode(
+    shapes: List<VectorShape>, 
+    width: Float, 
+    height: Float, 
+    minX: Float = 0f, 
+    minY: Float = 0f, 
+    layers: List<com.example.model.VectorLayer> = emptyList(),
+    metadataTitle: String = "",
+    metadataDescription: String = "",
+    metadataKeywords: String = ""
+): String {
     val sb = StringBuilder()
     sb.append("<!-- Generated by Vector Design Pro Android Compose -->\n")
     sb.append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 $width $height\" width=\"${width}px\" height=\"${height}px\" style=\"background-color: #ffffff;\">\n")
+    
+    val xmpStr = generateXMPString(metadataTitle, metadataDescription, metadataKeywords)
+    if (xmpStr.isNotEmpty()) {
+        sb.append("<metadata>\n").append(xmpStr).append("</metadata>\n")
+    }
     
     val layerMap = layers.associateBy { it.id }
     val finalShapes = if (layers.isNotEmpty()) {
@@ -4961,7 +5239,17 @@ fun generateSVGCode(shapes: List<VectorShape>, width: Float, height: Float, minX
     return sb.toString()
 }
 
-fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX: Float = 0f, minY: Float = 0f, layers: List<com.example.model.VectorLayer> = emptyList()): String {
+fun generateEPSCode(
+    shapes: List<VectorShape>, 
+    width: Float, 
+    height: Float, 
+    minX: Float = 0f, 
+    minY: Float = 0f, 
+    layers: List<com.example.model.VectorLayer> = emptyList(),
+    metadataTitle: String = "",
+    metadataDescription: String = "",
+    metadataKeywords: String = ""
+): String {
     val sb = java.lang.StringBuilder()
     val roundedW = kotlin.math.ceil(width).toInt()
     val roundedH = kotlin.math.ceil(height).toInt()
@@ -4975,6 +5263,17 @@ fun generateEPSCode(shapes: List<VectorShape>, width: Float, height: Float, minX
     sb.append("%%Pages: 1\n")
     sb.append("%%DocumentData: Clean7Bit\n")
     sb.append("%%LanguageLevel: 2\n")
+    
+    val xmpStr = generateXMPString(metadataTitle, metadataDescription, metadataKeywords)
+    if (xmpStr.isNotEmpty()) {
+        sb.append("%XMLPacketBegin\n")
+        val lines = xmpStr.trim().split("\n")
+        lines.forEach { line ->
+            sb.append(line).append("\n")
+        }
+        sb.append("%XMLPacketEnd\n")
+    }
+    
     sb.append("%%EndComments\n")
     sb.append("%%BeginProlog\n")
     sb.append("%%EndProlog\n")
