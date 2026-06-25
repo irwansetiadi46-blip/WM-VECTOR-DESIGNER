@@ -2687,7 +2687,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text("Metadata Settings", color = Color.White, fontSize = 12.sp)
+                        Text("EPS Metadata", color = Color.White, fontSize = 12.sp)
                     }
                 }
             }
@@ -2979,12 +2979,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                                             android.graphics.Bitmap.CompressFormat.PNG
                                         }
                                         bitmap.compress(compressFormat, 100, stream)
-                                        
-                                        // Inject XMP into JPG/PNG by appending after the EOF marker
-                                        val xmpStr = generateXMPString(viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
-                                        if (xmpStr.isNotEmpty()) {
-                                            stream.write(xmpStr.toByteArray(Charsets.UTF_8))
-                                        }
                                         
                                         val bytes = stream.toByteArray()
                                         println("Saved dynamic image. Format: $currentFormat, Byte size: ${bytes.size} bytes (${bytes.size / 1024f} KB)")
@@ -3286,7 +3280,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Metadata Settings",
+                            text = "EPS Metadata",
                             color = Color.White,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
@@ -5257,23 +5251,16 @@ fun generateEPSCode(
     // EPS / PostScript Header compliant with Adobe EPS levels and Shutterstock ingestion engine
     sb.append("%!PS-Adobe-3.0 EPSF-3.0\n")
     sb.append("%%Creator: Vector Design Pro\n")
-    sb.append("%%Title: Vector Artwork Studio Export\n")
+    if (metadataTitle.isNotBlank()) {
+        sb.append("%%Title: ${metadataTitle.replace("\n", " ")}\n")
+    } else {
+        sb.append("%%Title: Vector Artwork Studio Export\n")
+    }
     sb.append("%%BoundingBox: 0 0 $roundedW $roundedH\n")
     sb.append(String.format(java.util.Locale.US, "%%%%HiResBoundingBox: 0.000000 0.000000 %.6f %.6f\n", width, height))
     sb.append("%%Pages: 1\n")
     sb.append("%%DocumentData: Clean7Bit\n")
     sb.append("%%LanguageLevel: 2\n")
-    
-    val xmpStr = generateXMPString(metadataTitle, metadataDescription, metadataKeywords)
-    if (xmpStr.isNotEmpty()) {
-        sb.append("%XMLPacketBegin\n")
-        val lines = xmpStr.trim().split("\n")
-        lines.forEach { line ->
-            sb.append(line).append("\n")
-        }
-        sb.append("%XMLPacketEnd\n")
-    }
-    
     sb.append("%%EndComments\n")
     sb.append("%%BeginProlog\n")
     sb.append("%%EndProlog\n")
@@ -5535,6 +5522,14 @@ fun generateEPSCode(
     
     sb.append("showpage\n")
     sb.append("%%EOF\n")
+    
+    // Inject XMP Metadata after EOF so it is safely ignored by PostScript interpreters 
+    // but can be easily extracted by Shutterstock/microstock metadata parsers (like ExifTool).
+    val xmpStr = generateXMPString(metadataTitle, metadataDescription, metadataKeywords)
+    if (xmpStr.isNotEmpty()) {
+        sb.append(xmpStr)
+    }
+    
     return sb.toString()
 }
 
