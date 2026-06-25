@@ -543,4 +543,52 @@ object XmpInjector {
         val firstLine = fileStr.indexOf('\n')
         return if (firstLine != -1) firstLine + 1 else 0
     }
+        // Taruh kode ini di dalam object XmpInjector paling bawah, Mandor!
+    fun injectMetadataSmart(
+        context: android.content.Context,
+        targetFilePath: String,
+        title: String,
+        description: String,
+        keywords: List<String>,
+        creator: String
+    ): Boolean {
+        return try {
+            if (targetFilePath.endsWith(".eps", ignoreCase = true)) {
+                // 1. JIKA FORMAT EPS: Lempar ke biner ExifTool (Anti-Gagal di Shutterstock)
+                val binaryPath = com.example.util.ExiftoolInstaller.installIfNeeded(context)
+                if (binaryPath != null) {
+                    val command = listOf(
+                        binaryPath,
+                        "-XMP:Title=$title",
+                        "-XMP:Description=$description",
+                        "-XMP:Subject=${keywords.joinToString(", ")}",
+                        "-overwrite_original",
+                        targetFilePath
+                    )
+                    val process = ProcessBuilder(command).start()
+                    val exitCode = process.waitFor()
+                    exitCode == 0
+                } else {
+                    false
+                }
+            } else {
+                // 2. JIKA FORMAT RASTER (JPEG/PNG): Gunakan file injection native lu yang sudah rapi
+                val file = java.io.File(targetFilePath)
+                val originalBytes = file.readBytes()
+                
+                val newBytes = if (targetFilePath.endsWith(".png", ignoreCase = true)) {
+                    injectIntoPng(originalBytes, title, description, keywords, creator)
+                } else {
+                    injectIntoJpeg(originalBytes, title, description, keywords, creator)
+                }
+                
+                file.writeBytes(newBytes)
+                true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
 }
