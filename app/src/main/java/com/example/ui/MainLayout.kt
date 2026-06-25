@@ -28,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -2687,7 +2688,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text("EPS Metadata", color = Color.White, fontSize = 12.sp)
+                        Text("Metadata", color = Color.White, fontSize = 12.sp)
                     }
                 }
             }
@@ -2701,10 +2702,13 @@ fun MainLayout(viewModel: VectorViewModel) {
     // REVAMPED EXPORT PREVIEW DIALOG
     if (showExportDialog) {
         var exportSelectionOnly by remember { mutableStateOf(false) }
-        var chosenFormat by remember { mutableStateOf("SVG") } // "EPS", "SVG", "JPG", "PNG", "PNG transparent"
+        var chosenFormats by remember { mutableStateOf(setOf("SVG")) }
+        var showSaveAs by remember { mutableStateOf(false) }
+        var showRenameDialog by remember { mutableStateOf(false) }
+        var fileNameInput by remember { mutableStateOf(if (viewModel.currentProjectName.isNotBlank()) viewModel.currentProjectName else "Untitled Project") }
 
-        val shapesToExport = if (exportSelectionOnly && (viewModel.selectedShapeId != null || viewModel.selectedShapeIds.isNotEmpty())) {
-            val activeIds = if (viewModel.selectedShapeIds.isNotEmpty()) viewModel.selectedShapeIds else setOfNotNull(viewModel.selectedShapeId)
+        val activeIds = if (viewModel.selectedShapeIds.isNotEmpty()) viewModel.selectedShapeIds else setOfNotNull(viewModel.selectedShapeId)
+        val shapesToExport = if (exportSelectionOnly && activeIds.isNotEmpty()) {
             viewModel.shapes.filter { activeIds.contains(it.id) }
         } else {
             viewModel.shapes
@@ -2755,248 +2759,365 @@ fun MainLayout(viewModel: VectorViewModel) {
         val exportWidth = remember(minX, maxX) { (maxX - minX).coerceAtLeast(1f) }
         val exportHeight = remember(minY, maxY) { (maxY - minY).coerceAtLeast(1f) }
 
-        val exportCode = remember(sortedShapesToExport, chosenFormat, exportSelectionOnly, minX, minY, exportWidth, exportHeight, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords) {
-            if (chosenFormat == "SVG") {
-                generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
-            } else if (chosenFormat == "EPS") {
-                generateEPSCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
-            } else {
-                val svgStr = generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
-                "/* Scalable Vector Binary Header representing $chosenFormat format output */\n" +
-                "formatVersion: 1.0\n" +
-                "targetCanvasSize: ${exportWidth.toInt()}x${exportHeight.toInt()}\n" +
-                "elementsCount: ${sortedShapesToExport.size}\n" +
-                "checksum: ${sortedShapesToExport.hashCode()}\n" +
-                "svgSourceDataBlock: \n" + svgStr
-            }
-        }
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val statusBarHeightPx = androidx.compose.foundation.layout.WindowInsets.statusBars.getTop(density)
+        val topBarHeightPx = with(density) { 42.dp.roundToPx() }
+        val popupOffsetY = statusBarHeightPx + topBarHeightPx
 
         androidx.compose.ui.window.Popup(
-            alignment = androidx.compose.ui.Alignment.TopCenter,
+            alignment = Alignment.TopEnd,
+            offset = androidx.compose.ui.unit.IntOffset(-12, popupOffsetY),
             onDismissRequest = { showExportDialog = false },
             properties = androidx.compose.ui.window.PopupProperties(focusable = true)
         ) {
             Card(
                 modifier = Modifier
-                    .fillMaxWidth(0.95f)
-                    .fillMaxHeight(0.85f),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                shape = RoundedCornerShape(0.dp),
-                border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF475569))
+                    .width(300.dp)
+                    .wrapContentHeight(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)), // Match Hamburger Menu
+                shape = RoundedCornerShape(4.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF475569))
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Design Export Preview",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        IconButton(
-                            onClick = { showExportDialog = false },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))
-                        }
-                    }
-
-                    // EXPORT BASIS SELECTION: DOCUMENT VS SELECTION
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        FilterChip(
-                            selected = !exportSelectionOnly,
-                            onClick = { exportSelectionOnly = false },
-                            label = { Text("Export Document", fontSize = 9.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFFFF6D00),
-                                selectedLabelColor = Color.Black,
-                                labelColor = Color.White
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = exportSelectionOnly,
-                            onClick = { 
-                                if (viewModel.selectedShapeId == null && viewModel.selectedShapeIds.isEmpty()) {
-                                    Toast.makeText(context, "Pilih objek terlebih dahulu menggunakan selection tool.", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    exportSelectionOnly = true
-                                }
-                            },
-                            label = { Text("Export Selection Object", fontSize = 9.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFFFF6D00),
-                                selectedLabelColor = Color.Black,
-                                labelColor = Color.White
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // FILE FORMAT CHIPS
-                    Text("Select Export Format:", color = Color.White, fontSize = 9.sp, modifier = Modifier.align(Alignment.Start))
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val fs = listOf("EPS", "SVG", "JPG", "PNG", "PNG transparent")
-                        fs.forEach { format ->
-                            val isSel = chosenFormat == format
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSel) Color(0xFFFF6D00) else Color(0xFF0F172A))
-                                    .clickable { chosenFormat = format }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = format,
-                                    color = if (isSel) Color.Black else Color.LightGray,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        Text("EXPORT DESIGN", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        IconButton(onClick = { showExportDialog = false }, modifier = Modifier.size(20.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray, modifier = Modifier.size(14.dp))
                         }
                     }
+                    
+                    Divider(color = Color(0xFF334155), modifier = Modifier.padding(bottom = 0.dp))
 
-                    // LIVE DESIGN PREVIEW RENDERING CANVAS Box
-                    Text("Design Live Preview:", color = Color.White, fontSize = 9.sp, modifier = Modifier.align(Alignment.Start))
-                    Box(
+                    // Body
+                    Column(
                         modifier = Modifier
-                            .size(200.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White)
-                            .border(1.5.dp, Color(0xFF475569), RoundedCornerShape(10.dp)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize().padding(10.dp)) {
-                            // Find bounds to center selection or full artboard
-                            val scaleX = size.width / exportWidth
-                            val scaleY = size.height / exportHeight
-                            val scale = scaleX.coerceAtMost(scaleY)
+                        // Live Preview
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .background(Color.White)
+                                .border(1.dp, Color(0xFF475569)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+                                val scaleX = size.width / exportWidth
+                                val scaleY = size.height / exportHeight
+                                val scale = scaleX.coerceAtMost(scaleY)
 
-                            drawIntoCanvas { canvas ->
-                                canvas.save()
-                                canvas.scale(scale, scale)
-                                val offsetX = -minX + (size.width / scale - exportWidth) / 2f
-                                val offsetY = -minY + (size.height / scale - exportHeight) / 2f
-                                canvas.translate(offsetX, offsetY)
+                                drawIntoCanvas { canvas ->
+                                    canvas.save()
+                                    canvas.scale(scale, scale)
+                                    val offsetX = -minX + (size.width / scale - exportWidth) / 2f
+                                    val offsetY = -minY + (size.height / scale - exportHeight) / 2f
+                                    canvas.translate(offsetX, offsetY)
 
-                                sortedShapesToExport.forEach { shape ->
-                                    val layer = viewModel.layers.find { it.id == shape.layerId }
-                                    val layerOpacity = layer?.opacity ?: 1f
+                                    sortedShapesToExport.forEach { shape ->
+                                        val layer = viewModel.layers.find { it.id == shape.layerId }
+                                        val layerOpacity = layer?.opacity ?: 1f
 
-                                    val strokeColor = try {
-                                        Color(android.graphics.Color.parseColor(shape.strokeColorHex))
-                                    } catch (_: Exception) {
-                                        Color.Black
-                                    }.copy(alpha = shape.strokeAlpha * layerOpacity)
+                                        val strokeColor = try {
+                                            Color(android.graphics.Color.parseColor(shape.strokeColorHex))
+                                        } catch (_: Exception) {
+                                            Color.Black
+                                        }.copy(alpha = shape.strokeAlpha * layerOpacity)
 
-                                    val fillColor = try {
-                                        Color(android.graphics.Color.parseColor(shape.fillColorHex))
-                                    } catch (_: Exception) {
-                                        Color.LightGray
-                                    }.copy(alpha = shape.fillAlpha * layerOpacity)
+                                        val fillColor = try {
+                                            Color(android.graphics.Color.parseColor(shape.fillColorHex))
+                                        } catch (_: Exception) {
+                                            Color.LightGray
+                                        }.copy(alpha = shape.fillAlpha * layerOpacity)
 
-                                    if (shape.type == ShapeType.TEXT) {
-                                        val paintText = android.graphics.Paint().apply {
-                                            color = try {
-                                                android.graphics.Color.parseColor(shape.strokeColorHex)
-                                            } catch (_: Exception) {
-                                                android.graphics.Color.BLACK
+                                        if (shape.type == ShapeType.TEXT) {
+                                            val paintText = android.graphics.Paint().apply {
+                                                color = try {
+                                                    android.graphics.Color.parseColor(shape.strokeColorHex)
+                                                } catch (_: Exception) {
+                                                    android.graphics.Color.BLACK
+                                                }
+                                                alpha = (shape.strokeAlpha * layerOpacity * 255f).toInt().coerceIn(0, 255)
+                                                textSize = shape.fontSize
+                                                typeface = viewModel.importedTypeface ?: android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                                                isAntiAlias = true
                                             }
-                                            alpha = (shape.strokeAlpha * layerOpacity * 255f).toInt().coerceIn(0, 255)
-                                            textSize = shape.fontSize
-                                            typeface = viewModel.importedTypeface ?: android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-                                            isAntiAlias = true
+                                            canvas.nativeCanvas.drawText(
+                                                shape.textContent,
+                                                shape.x,
+                                                shape.y,
+                                                paintText
+                                            )
+                                        } else {
+                                            val path = shape.asComposePath()
+                                            if (shape.hasFill && shape.type != ShapeType.LINE) {
+                                                drawPath(path = path, color = fillColor)
+                                            }
+                                            if (shape.hasStroke && shape.strokeWidth > 0f) {
+                                                drawPath(path = path, color = strokeColor, style = Stroke(width = shape.strokeWidth))
+                                            }
                                         }
-                                        canvas.nativeCanvas.drawText(
-                                            shape.textContent,
-                                            shape.x,
-                                            shape.y,
-                                            paintText
-                                        )
-                                    } else {
-                                        val path = shape.asComposePath()
-                                        if (shape.hasFill && shape.type != ShapeType.LINE) {
-                                            drawPath(path = path, color = fillColor)
+                                    }
+                                    canvas.restore()
+                                }
+                            }
+                        }
+
+                        // Radio Buttons
+                        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { exportSelectionOnly = false }) {
+                                RadioButton(
+                                    selected = !exportSelectionOnly,
+                                    onClick = { exportSelectionOnly = false },
+                                    colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFFF6D00), unselectedColor = Color.LightGray),
+                                    modifier = Modifier.scale(0.8f)
+                                )
+                                Text("Export With Artboard", color = Color.White, fontSize = 11.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable {
+                                if (activeIds.isEmpty()) {
+                                    Toast.makeText(context, "Pilih objek terlebih dahulu.", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    exportSelectionOnly = true
+                                }
+                            }) {
+                                RadioButton(
+                                    selected = exportSelectionOnly,
+                                    onClick = {
+                                        if (activeIds.isEmpty()) {
+                                            Toast.makeText(context, "Pilih objek terlebih dahulu.", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            exportSelectionOnly = true
                                         }
-                                        if (shape.hasStroke && shape.strokeWidth > 0f) {
-                                            drawPath(path = path, color = strokeColor, style = Stroke(width = shape.strokeWidth))
+                                    },
+                                    colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFFF6D00), unselectedColor = Color.LightGray),
+                                    modifier = Modifier.scale(0.8f)
+                                )
+                                Text("Export Selected Object", color = Color.White, fontSize = 11.sp)
+                            }
+                        }
+
+                        Divider(color = Color(0xFF334155))
+
+                        // Metadata Menu
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showExportDialog = false
+                                    showMetadataDialog = true
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Info, contentDescription = "Metadata", tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Metadata", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Divider(color = Color(0xFF334155))
+
+                        // Save As Menu
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showSaveAs = !showSaveAs }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Save, contentDescription = "Save As", tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Save As", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Icon(if (showSaveAs) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = "Expand", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+
+                        if (showSaveAs) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF0F172A))
+                                    .border(1.dp, Color(0xFF334155))
+                                    .padding(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                val formats1 = listOf("SVG", "JPG")
+                                val formats2 = listOf("EPS", "PNG")
+                                
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        formats1.forEach { fmt ->
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.fillMaxWidth().clickable {
+                                                    val newSet = chosenFormats.toMutableSet()
+                                                    if (newSet.contains(fmt)) newSet.remove(fmt) else newSet.add(fmt)
+                                                    if (newSet.isEmpty()) newSet.add(fmt)
+                                                    chosenFormats = newSet
+                                                }
+                                            ) {
+                                                Checkbox(
+                                                    checked = chosenFormats.contains(fmt),
+                                                    onCheckedChange = {
+                                                        val newSet = chosenFormats.toMutableSet()
+                                                        if (it) newSet.add(fmt) else newSet.remove(fmt)
+                                                        if (newSet.isEmpty()) newSet.add(fmt)
+                                                        chosenFormats = newSet
+                                                    },
+                                                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFFFF6D00), uncheckedColor = Color.LightGray),
+                                                    modifier = Modifier.scale(0.8f).padding(end = 4.dp)
+                                                )
+                                                Text(fmt, color = Color.White, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        formats2.forEach { fmt ->
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.fillMaxWidth().clickable {
+                                                    val newSet = chosenFormats.toMutableSet()
+                                                    if (newSet.contains(fmt)) newSet.remove(fmt) else newSet.add(fmt)
+                                                    if (newSet.isEmpty()) newSet.add(fmt)
+                                                    chosenFormats = newSet
+                                                }
+                                            ) {
+                                                Checkbox(
+                                                    checked = chosenFormats.contains(fmt),
+                                                    onCheckedChange = {
+                                                        val newSet = chosenFormats.toMutableSet()
+                                                        if (it) newSet.add(fmt) else newSet.remove(fmt)
+                                                        if (newSet.isEmpty()) newSet.add(fmt)
+                                                        chosenFormats = newSet
+                                                    },
+                                                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFFFF6D00), uncheckedColor = Color.LightGray),
+                                                    modifier = Modifier.scale(0.8f).padding(end = 4.dp)
+                                                )
+                                                Text(fmt, color = Color.White, fontSize = 10.sp)
+                                            }
                                         }
                                     }
                                 }
-                                canvas.restore()
+
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Button(
+                                    onClick = {
+                                        if (chosenFormats.isEmpty()) {
+                                            Toast.makeText(context, "Pilih minimal satu format!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            showRenameDialog = true
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00), contentColor = Color.Black),
+                                    shape = RoundedCornerShape(4.dp),
+                                    modifier = Modifier.fillMaxWidth().height(32.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                                ) {
+                                    Text("Next...", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
+                }
+            }
+        }
 
-                    // TRIGGER LOGICAL LOCAL SAVE EXPORTER FILE TO DOWNLOADS
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                val currentFormat = chosenFormat
-                                val cleanFileName = "artwork_studio_${System.currentTimeMillis()}.${currentFormat.lowercase().replace(" ", "_")}"
-                                try {
-                                    val dlDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-                                    if (!dlDir.exists()) {
-                                        dlDir.mkdirs()
-                                    }
-                                    val out = java.io.File(dlDir, cleanFileName)
-                                    if (currentFormat == "JPG" || currentFormat == "PNG" || currentFormat == "PNG transparent") {
-                                        val isTransparent = currentFormat == "PNG transparent"
-                                        val bitmap = renderShapesToBitmap(
-                                            shapes = sortedShapesToExport,
-                                            width = exportWidth,
-                                            height = exportHeight,
-                                            transparent = isTransparent,
-                                            importedTypeface = viewModel.importedTypeface,
-                                            minX = minX,
-                                            minY = minY,
-                                            layers = viewModel.layers
-                                        )
-                                        val stream = java.io.ByteArrayOutputStream()
-                                        val compressFormat = if (currentFormat == "JPG") {
-                                            android.graphics.Bitmap.CompressFormat.JPEG
-                                        } else {
-                                            android.graphics.Bitmap.CompressFormat.PNG
+        // RENAME AND EXPORT DIALOG
+        if (showRenameDialog) {
+            Dialog(onDismissRequest = { showRenameDialog = false }) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(0.9f),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F0F0)),
+                    shape = RoundedCornerShape(2.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Rename File", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        
+                        OutlinedTextField(
+                            value = fileNameInput,
+                            onValueChange = { fileNameInput = it },
+                            label = { Text("File Name", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Color.Black),
+                            singleLine = true
+                        )
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { showRenameDialog = false }) {
+                                Text("Cancel", color = Color.DarkGray, fontSize = 12.sp)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val cleanFileName = if (fileNameInput.isNotBlank()) fileNameInput.replace(" ", "_") else "untitled"
+                                    
+                                    try {
+                                        val dlDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                                        val vsDir = java.io.File(dlDir, "Vector Studio Export")
+                                        if (!vsDir.exists()) {
+                                            vsDir.mkdirs()
                                         }
-                                        bitmap.compress(compressFormat, 100, stream)
-                                        
-                                        val bytes = stream.toByteArray()
-                                        println("Saved dynamic image. Format: $currentFormat, Byte size: ${bytes.size} bytes (${bytes.size / 1024f} KB)")
-                                        android.util.Log.d("ArtworkStudio", "Saved dynamic image. Format: $currentFormat, Byte size: ${bytes.size} bytes")
-                                        out.writeBytes(bytes)
-                                    } else {
-                                        out.writeText(exportCode)
+
+                                        for (fmt in chosenFormats) {
+                                            val extension = fmt.lowercase()
+                                            val out = java.io.File(vsDir, "$cleanFileName.$extension")
+                                            
+                                            if (fmt == "JPG" || fmt == "PNG") {
+                                                val bitmap = renderShapesToBitmap(
+                                                    shapes = sortedShapesToExport,
+                                                    width = exportWidth,
+                                                    height = exportHeight,
+                                                    transparent = (fmt == "PNG"),
+                                                    importedTypeface = viewModel.importedTypeface,
+                                                    minX = minX,
+                                                    minY = minY,
+                                                    layers = viewModel.layers
+                                                )
+                                                val stream = java.io.ByteArrayOutputStream()
+                                                val compressFormat = if (fmt == "JPG") android.graphics.Bitmap.CompressFormat.JPEG else android.graphics.Bitmap.CompressFormat.PNG
+                                                bitmap.compress(compressFormat, 100, stream)
+                                                
+                                                var bytes = stream.toByteArray()
+                                                val kwList = viewModel.metadataKeywords.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                                                if (fmt == "JPG") {
+                                                    bytes = com.example.XmpInjector.injectIntoJpeg(bytes, viewModel.metadataTitle, viewModel.metadataDescription, kwList, "Vector Studio")
+                                                } else if (fmt == "PNG") {
+                                                    bytes = com.example.XmpInjector.injectIntoPng(bytes, viewModel.metadataTitle, viewModel.metadataDescription, kwList, "Vector Studio")
+                                                }
+                                                out.writeBytes(bytes)
+                                            } else {
+                                                val code = if (fmt == "SVG") {
+                                                    generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
+                                                } else {
+                                                    generateEPSCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
+                                                }
+                                                out.writeText(code)
+                                            }
+                                        }
+                                        Toast.makeText(context, "Export Sukses!\nTersimpan di: Download/Vector Studio Export", Toast.LENGTH_LONG).show()
+                                        showRenameDialog = false
+                                        showExportDialog = false
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Gagal export: ${e.message}", Toast.LENGTH_SHORT).show()
                                     }
-                                    Toast.makeText(context, "Export Sukses!\nTersimpan di Folder Downloads:\n${out.absolutePath}", Toast.LENGTH_LONG).show()
-                                    showExportDialog = false
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Gagal export: ${e.message}", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6D00)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Export Now", color = Color.Black, fontWeight = FontWeight.Bold)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
+                                shape = RoundedCornerShape(2.dp)
+                            ) {
+                                Text("Export", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -3280,7 +3401,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "EPS Metadata",
+                            text = "Document Metadata",
                             color = Color.White,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
@@ -5023,35 +5144,6 @@ fun AlignButton(
     }
 }
 
-fun generateXMPString(title: String, description: String, keywords: String): String {
-    if (title.isBlank() && description.isBlank() && keywords.isBlank()) return ""
-    return """
-<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 5.6-c140">
- <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-  <rdf:Description rdf:about=""
-    xmlns:dc="http://purl.org/dc/elements/1.1/">
-   <dc:title>
-    <rdf:Alt>
-     <rdf:li xml:lang="x-default">${title.replace("<", "&lt;").replace(">", "&gt;")}</rdf:li>
-    </rdf:Alt>
-   </dc:title>
-   <dc:description>
-    <rdf:Alt>
-     <rdf:li xml:lang="x-default">${description.replace("<", "&lt;").replace(">", "&gt;")}</rdf:li>
-    </rdf:Alt>
-   </dc:description>
-   <dc:subject>
-    <rdf:Bag>
-     ${keywords.split(",").filter { it.isNotBlank() }.joinToString("\n     ") { "<rdf:li>${it.trim().replace("<", "&lt;").replace(">", "&gt;")}</rdf:li>" }}
-    </rdf:Bag>
-   </dc:subject>
-  </rdf:Description>
- </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>
-"""
-}
 
 // Dynamic real-time compliant SVG raw vector text content generator for the export modal
 fun generateSVGCode(
@@ -5068,11 +5160,6 @@ fun generateSVGCode(
     val sb = StringBuilder()
     sb.append("<!-- Generated by Vector Design Pro Android Compose -->\n")
     sb.append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 $width $height\" width=\"${width}px\" height=\"${height}px\" style=\"background-color: #ffffff;\">\n")
-    
-    val xmpStr = generateXMPString(metadataTitle, metadataDescription, metadataKeywords)
-    if (xmpStr.isNotEmpty()) {
-        sb.append("<metadata>\n").append(xmpStr).append("</metadata>\n")
-    }
     
     val layerMap = layers.associateBy { it.id }
     val finalShapes = if (layers.isNotEmpty()) {
@@ -5523,14 +5610,16 @@ fun generateEPSCode(
     sb.append("showpage\n")
     sb.append("%%EOF\n")
     
-    // Inject XMP Metadata after EOF so it is safely ignored by PostScript interpreters 
-    // but can be easily extracted by Shutterstock/microstock metadata parsers (like ExifTool).
-    val xmpStr = generateXMPString(metadataTitle, metadataDescription, metadataKeywords)
-    if (xmpStr.isNotEmpty()) {
-        sb.append(xmpStr)
-    }
-    
-    return sb.toString()
+    val epsString = sb.toString()
+    val kwList = metadataKeywords.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    val injectedBytes = com.example.XmpInjector.injectIntoEps(
+        epsString.toByteArray(Charsets.UTF_8),
+        metadataTitle,
+        metadataDescription,
+        kwList,
+        "Vector Studio"
+    )
+    return String(injectedBytes, Charsets.UTF_8)
 }
 
 fun renderShapesToBitmap(
