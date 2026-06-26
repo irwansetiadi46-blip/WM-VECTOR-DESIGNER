@@ -2869,12 +2869,14 @@ fun MainLayout(viewModel: VectorViewModel) {
                                             }
                                         }
                                     }
-                                    drawRect(
-                                        color = Color(0xFF64748B),
-                                        topLeft = Offset.Zero,
-                                        size = androidx.compose.ui.geometry.Size(exportWidth, exportHeight),
-                                        style = Stroke(width = 1.5f / scale)
-                                    )
+                                    if (!exportSelectionOnly) {
+                                        drawRect(
+                                            color = Color(0xFF64748B),
+                                            topLeft = Offset.Zero,
+                                            size = androidx.compose.ui.geometry.Size(exportWidth, exportHeight),
+                                            style = Stroke(width = 1.5f / scale)
+                                        )
+                                    }
                                     canvas.restore()
                                 }
                             }

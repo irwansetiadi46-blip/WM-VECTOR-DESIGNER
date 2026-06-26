@@ -3361,16 +3361,15 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
     fun rotateSelectedShapesToAngle(angleDegrees: Float) {
         if (selectedShapeIds.isEmpty()) return
-        pushToUndoStack()
         
-        shapes = shapes.map { shape ->
-            if (selectedShapeIds.contains(shape.id)) {
-                var targetAngle = angleDegrees % 360f
-                if (targetAngle < 0f) targetAngle += 360f
-                shape.copy(rotationAngle = targetAngle)
-            } else {
-                shape
-            }
+        val activeShapes = shapes.filter { selectedShapeIds.contains(it.id) }
+        val firstAngle = activeShapes.firstOrNull()?.rotationAngle ?: 0f
+        var targetAngle = angleDegrees % 360f
+        if (targetAngle < 0f) targetAngle += 360f
+        
+        val delta = targetAngle - firstAngle
+        if (kotlin.math.abs(delta) > 0.01f) {
+            rotateSelectedShapes(delta)
         }
     }
 
