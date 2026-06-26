@@ -186,7 +186,6 @@ fun MainLayout(viewModel: VectorViewModel) {
     var showColorPickerStroke by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showTextDialog by remember { mutableStateOf(false) }
-    var showMetadataDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showCustomSettingsDialog by remember { mutableStateOf(false) }
     var showArtboardSettingsDialog by remember { mutableStateOf(false) }
@@ -2679,20 +2678,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         Text("Artboard Settings", color = Color.White, fontSize = 12.sp)
                     }
                     
-                    // 5. Metadata
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showMenuSheet = false
-                                showMetadataDialog = true
-                            }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text("Metadata", color = Color.White, fontSize = 12.sp)
-                    }
-
-                    // 6. About
+                    // 5. About
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2821,6 +2807,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(160.dp)
+                                .clipToBounds()
                                 .background(Color.White)
                                 .border(1.dp, Color(0xFF475569)),
                             contentAlignment = Alignment.Center
@@ -2836,6 +2823,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     val offsetX = -minX + (size.width / scale - exportWidth) / 2f
                                     val offsetY = -minY + (size.height / scale - exportHeight) / 2f
                                     canvas.translate(offsetX, offsetY)
+                                    canvas.nativeCanvas.clipRect(0f, 0f, exportWidth, exportHeight)
 
                                     sortedShapesToExport.forEach { shape ->
                                         val layer = viewModel.layers.find { it.id == shape.layerId }
@@ -2881,6 +2869,12 @@ fun MainLayout(viewModel: VectorViewModel) {
                                             }
                                         }
                                     }
+                                    drawRect(
+                                        color = Color(0xFF64748B),
+                                        topLeft = Offset.Zero,
+                                        size = androidx.compose.ui.geometry.Size(exportWidth, exportHeight),
+                                        style = Stroke(width = 1.5f / scale)
+                                    )
                                     canvas.restore()
                                 }
                             }
@@ -2918,24 +2912,6 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 )
                                 Text("Export Selected Object", color = Color.White, fontSize = 11.sp)
                             }
-                        }
-
-                        Divider(color = Color(0xFF334155))
-
-                        // Metadata Menu
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showExportDialog = false
-                                    showMetadataDialog = true
-                                }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Info, contentDescription = "Metadata", tint = Color.White, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Metadata", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Divider(color = Color(0xFF334155))
@@ -3103,19 +3079,13 @@ fun MainLayout(viewModel: VectorViewModel) {
                                                 val compressFormat = if (fmt == "JPG") android.graphics.Bitmap.CompressFormat.JPEG else android.graphics.Bitmap.CompressFormat.PNG
                                                 bitmap.compress(compressFormat, 100, stream)
                                                 
-                                                var bytes = stream.toByteArray()
-                                                val kwList = viewModel.metadataKeywords.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                                                if (fmt == "JPG") {
-                                                    bytes = com.example.XmpInjector.injectIntoJpeg(bytes, viewModel.metadataTitle, viewModel.metadataDescription, kwList, "Vector Studio")
-                                                } else if (fmt == "PNG") {
-                                                    bytes = com.example.XmpInjector.injectIntoPng(bytes, viewModel.metadataTitle, viewModel.metadataDescription, kwList, "Vector Studio")
-                                                }
+                                                val bytes = stream.toByteArray()
                                                 out.writeBytes(bytes)
                                             } else {
                                                 val code = if (fmt == "SVG") {
-                                                    generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
+                                                    generateSVGCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers)
                                                 } else {
-                                                    generateEPSCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers, viewModel.metadataTitle, viewModel.metadataDescription, viewModel.metadataKeywords)
+                                                    generateEPSCode(sortedShapesToExport, exportWidth, exportHeight, minX, minY, viewModel.layers)
                                                 }
                                                 out.writeText(code)
                                             }
@@ -3395,187 +3365,6 @@ fun MainLayout(viewModel: VectorViewModel) {
         }
     }
 
-    if (showMetadataDialog) {
-        val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
-        Dialog(onDismissRequest = { showMetadataDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .wrapContentHeight(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                shape = RoundedCornerShape(0.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Document Metadata",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        IconButton(
-                            onClick = { showMetadataDialog = false },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                    }
-
-                    // Title
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Title", color = Color.LightGray, fontSize = 12.sp)
-                        OutlinedTextField(
-                            value = viewModel.metadataTitle,
-                            onValueChange = { viewModel.metadataTitle = it },
-                            modifier = Modifier.fillMaxWidth().height(80.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF334155),
-                                unfocusedBorderColor = Color(0xFF334155)
-                            ),
-                            trailingIcon = {
-                                IconButton(onClick = { viewModel.metadataTitle = "" }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        )
-                    }
-
-                    // Description
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Description", color = Color.LightGray, fontSize = 12.sp)
-                        OutlinedTextField(
-                            value = viewModel.metadataDescription,
-                            onValueChange = { viewModel.metadataDescription = it },
-                            modifier = Modifier.fillMaxWidth().height(80.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF334155),
-                                unfocusedBorderColor = Color(0xFF334155)
-                            ),
-                            trailingIcon = {
-                                IconButton(onClick = { viewModel.metadataDescription = "" }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        )
-                    }
-
-                    // Keywords
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Keywords", color = Color.LightGray, fontSize = 12.sp)
-                        OutlinedTextField(
-                            value = viewModel.metadataKeywords,
-                            onValueChange = { viewModel.metadataKeywords = it },
-                            modifier = Modifier.fillMaxWidth().height(80.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF334155),
-                                unfocusedBorderColor = Color(0xFF334155)
-                            ),
-                            trailingIcon = {
-                                IconButton(onClick = { viewModel.metadataKeywords = "" }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        )
-                    }
-
-                    // Buttons: Embed & Clear
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = { 
-                                val epsTitle = viewModel.metadataTitle
-                                val epsDesc = viewModel.metadataDescription
-                                val epsKeywords = viewModel.metadataKeywords
-                                
-                                val cleanFileName = if (viewModel.currentProjectName.isNotBlank()) viewModel.currentProjectName.replace(" ", "_") else "untitled"
-                                val dlDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-                                val vsDir = java.io.File(dlDir, "Vector Studio Export")
-                                val targetEpsFile = java.io.File(vsDir, "$cleanFileName.eps")
-                                
-                                if (!targetEpsFile.exists()) {
-                                    Toast.makeText(context, "File EPS belum di-export!", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                
-                                val targetEpsPath = targetEpsFile.absolutePath
-                                
-                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    try {
-                                        val exiftoolPath = com.example.util.ExiftoolInstaller.installIfNeeded(context)
-                                        
-                                        val command = mutableListOf(
-                                            exiftoolPath,
-                                            "-XMP:Title=$epsTitle",
-                                            "-XMP:Description=$epsDesc",
-                                            "-XMP:Subject=$epsKeywords",
-                                            "-overwrite_original",
-                                            targetEpsPath
-                                        )
-                                        
-                                        val processBuilder = ProcessBuilder(command)
-                                        processBuilder.redirectErrorStream(true)
-                                        val process = processBuilder.start()
-                                        
-                                        val reader = java.io.BufferedReader(java.io.InputStreamReader(process.inputStream))
-                                        var line: String?
-                                        val output = java.lang.StringBuilder()
-                                        while (reader.readLine().also { line = it } != null) {
-                                            output.append(line).append("\n")
-                                        }
-                                        
-                                        val exitCode = process.waitFor()
-                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                            if (exitCode == 0) {
-                                                Toast.makeText(context, "Metadata berhasil ditanamkan ke EPS!", Toast.LENGTH_SHORT).show()
-                                                showMetadataDialog = false
-                                            } else {
-                                                Toast.makeText(context, "Gagal menanamkan metadata: $output", Toast.LENGTH_LONG).show()
-                                            }
-                                        }
-                                    } catch (e: Exception) {
-                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
-                                        }
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text("Embed", color = Color.White, fontSize = 12.sp)
-                        }
-                        Button(
-                            onClick = { 
-                                viewModel.metadataTitle = ""
-                                viewModel.metadataDescription = ""
-                                viewModel.metadataKeywords = ""
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text("Clear", color = Color.White, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     if (showAboutDialog) {
         Dialog(onDismissRequest = { showAboutDialog = false }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
             Card(
@@ -3611,7 +3400,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                             .verticalScroll(rememberScrollState())
                     ) {
                         Text(
-                            text = "WAR MACHINE VECTOR STUDIO",
+                            text = "War Machine Vector Studio",
                             color = Color(0xFFE2E8F0),
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
@@ -3620,7 +3409,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         )
 
                         Text(
-                            text = "Version 1.0.0 (Hybrid Edition)",
+                            text = "Engineered for High-Speed Microstock Vector Production.",
                             color = Color(0xFF94A3B8),
                             fontSize = 14.sp,
                             modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp)
@@ -3651,7 +3440,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
                             Text(
-                                text = "War Machine Vector Studio is a powerful, mobile-centric design asset management utility engineered specifically for microstock contributors. Built to break the dependency on desktop setups, this application provides a robust, zero-lag environment to manage, prepare, and optimize your creative vector and image assets directly from your mobile device.",
+                                text = "War Machine Vector Studio is an ultra-fast, mobile-centric vector design and asset management utility purpose-built for high-volume microstock contributors. This application strips away unnecessary overhead to deliver a zero-lag, raw-performance creative environment, allowing you to design, organize, and prepare assets rapidly directly from your mobile device.",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 lineHeight = 20.sp
@@ -3659,7 +3448,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         }
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Key Features
+                        // Core Focus
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -3667,14 +3456,14 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = "Key Features",
+                                text = "Core Focus: Production Speed & Performance",
                                 color = Color(0xFFE2E8F0),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(bottom = 12.dp)
                             )
                             Text(
-                                text = "• Production-Ready Asset Management\n  Designed natively for rapid, high-volume portfolio expansion across global microstock agencies.\n\n• Intelligent Metadata Panel\n  Easily append critical tracking information through a seamless, accessible user interface.\n\n• Multi-Platform Optimization\n  Tailored workflows for major platforms including Adobe Stock, Shutterstock, Freepik, Vecteezy, Pngtree, Dreamstime, and IconScout.\n\n• Strict Agency Standards Enforcer\n  Automatically formats metadata constraints—ensuring keywords are perfectly separated by commas with no special characters or trailing periods—preventing fatal validation errors.",
+                                text = "• Zero-Lag Vector Canvas: Optimized for fluid path rendering, soft geometric alignments, and ultra-rounded squircle creation without breaking your drawing workflow.\n\n• High-Volume Portfolio Expansion: Built from the ground up to support rapid asset generation, ensuring smooth handling of massive multi-set design projects like commercial e-commerce, shopping, and payment vector icons.\n\n• Hardware-Accelerated Engine: Maximizes your device's GPU and multi-core processor to maintain seamless navigation and editing, even when working with intricate vector nodes.\n\n• Clean Export Utility: Provides lightning-fast processing to compile and export your production-ready design elements into industry-standard clean vector formats.",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 lineHeight = 20.sp
@@ -3682,7 +3471,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                         }
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Automated EPS Metadata Engine
+                        // Multi-Platform Blueprint
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -3690,48 +3479,25 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = "Automated EPS Metadata Engine",
+                                text = "Multi-Platform Blueprint",
                                 color = Color(0xFFE2E8F0),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
                             Text(
-                                text = "This application features an advanced background automation layer powered by ExifTool. When utilizing the EPS Metadata feature, the system automatically bypasses unstable native text injections by deploying an industrial-grade binary processor in a dedicated background thread. This guarantees 100% compliant XMP Dublin Core metadata parsing that passes the rigid auto-review bots of demanding agencies like Shutterstock without any file corruption.",
+                                text = "Every tool inside the studio is fine-tuned to streamline your workflow for major global microstock ecosystems:\n\n• Adobe Stock\n• Shutterstock\n• Freepik\n• Vecteezy\n• Pngtree\n• Dreamstime\n• IconScout",
                                 color = Color.White,
                                 fontSize = 14.sp,
-                                lineHeight = 20.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Open Source Licenses & Credits
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF1E293B))
-                                .padding(16.dp)
-                        ) {
-                            Text(
-                                text = "Open Source Licenses & Credits",
-                                color = Color(0xFFE2E8F0),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            Text(
-                                text = "To maintain standard industry compliance and transparency, this product acknowledges the integration of the following open-source engine:\n\n• ExifTool\n  Copyright: © 2003-2026 Phil Harvey\n  License: Distributed under the GNU General Public License (GPL) Version 1 or later, or alternatively under the Perl Artistic License.\n  Purpose: Used natively as an internalized automation asset to embed structural XMP headers into vector documents.",
-                                color = Color.White,
-                                fontSize = 13.sp,
                                 lineHeight = 20.sp
                             )
                         }
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                            text = "Empowering mobile creators to dominate the microstock market, one vector set at a time.",
+                            text = "Empowering mobile creators to dominate the microstock market with maximum speed and pure volume.",
                             color = Color(0xFF94A3B8),
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                             modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 20.dp),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -5386,10 +5152,7 @@ fun generateSVGCode(
     height: Float, 
     minX: Float = 0f, 
     minY: Float = 0f, 
-    layers: List<com.example.model.VectorLayer> = emptyList(),
-    metadataTitle: String = "",
-    metadataDescription: String = "",
-    metadataKeywords: String = ""
+    layers: List<com.example.model.VectorLayer> = emptyList()
 ): String {
     val sb = StringBuilder()
     sb.append("<!-- Generated by Vector Design Pro Android Compose -->\n")
@@ -5560,10 +5323,7 @@ fun generateEPSCode(
     height: Float, 
     minX: Float = 0f, 
     minY: Float = 0f, 
-    layers: List<com.example.model.VectorLayer> = emptyList(),
-    metadataTitle: String = "",
-    metadataDescription: String = "",
-    metadataKeywords: String = ""
+    layers: List<com.example.model.VectorLayer> = emptyList()
 ): String {
     val sb = java.lang.StringBuilder()
     val roundedW = kotlin.math.ceil(width).toInt()
@@ -5572,11 +5332,7 @@ fun generateEPSCode(
     // EPS / PostScript Header compliant with Adobe EPS levels and Shutterstock ingestion engine
     sb.append("%!PS-Adobe-3.0 EPSF-3.0\n")
     sb.append("%%Creator: Vector Design Pro\n")
-    if (metadataTitle.isNotBlank()) {
-        sb.append("%%Title: ${metadataTitle.replace("\n", " ")}\n")
-    } else {
-        sb.append("%%Title: Vector Artwork Studio Export\n")
-    }
+    sb.append("%%Title: Vector Artwork Studio Export\n")
     sb.append("%%BoundingBox: 0 0 $roundedW $roundedH\n")
     sb.append(String.format(java.util.Locale.US, "%%%%HiResBoundingBox: 0.000000 0.000000 %.6f %.6f\n", width, height))
     sb.append("%%Pages: 1\n")

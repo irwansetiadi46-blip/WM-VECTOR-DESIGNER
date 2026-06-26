@@ -1331,11 +1331,6 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     // Document / Canvas size
     var canvasWidth by mutableStateOf(2000f)
     var canvasHeight by mutableStateOf(2000f)
-    
-    // Metadata
-    var metadataTitle by mutableStateOf("")
-    var metadataDescription by mutableStateOf("")
-    var metadataKeywords by mutableStateOf("")
 
     // Sample tracer reference image toggle
     var activeTracerImageIndex by mutableStateOf<Int?>(null)

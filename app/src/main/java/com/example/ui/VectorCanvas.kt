@@ -2483,10 +2483,10 @@ fun VectorCanvas(
                 }
 
                 drawRect(
-                    color = Color.LightGray,
+                    color = Color(0xFF64748B),
                     topLeft = Offset.Zero,
                     size = Size(canvasWidthVal, canvasHeightVal),
-                    style = Stroke(width = 1f)
+                    style = Stroke(width = 1.5f / viewModel.zoomScale)
                 )
 
                 if (viewModel.isEyedropperActive) {
