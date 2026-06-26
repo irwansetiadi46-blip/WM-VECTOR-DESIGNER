@@ -1339,7 +1339,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var isSmartGuideEnabled by mutableStateOf(false)
     var isSnapToObjectEnabled by mutableStateOf(false)
     var isSnapToPointEnabled by mutableStateOf(false)
-    val isSnapToAngleEnabled get() = false
+    val isSnapToAngleEnabled get() = isSmartGuideEnabled
     val isSnapToPathEnabled get() = false
     var activeSmartGuideHorizontal by mutableStateOf<Float?>(null)
     var activeSmartGuideVertical by mutableStateOf<Float?>(null)
@@ -1924,7 +1924,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         return closestPt
     }
 
-    fun snapOffsetComprehensive(pos: Offset, ignoreId: String? = null): Offset {
+    fun snapOffsetComprehensive(pos: Offset, ignoreIds: Set<String> = emptySet()): Offset {
         var snappedX = pos.x
         var snappedY = pos.y
         activeSmartGuideHorizontal = null
@@ -1962,7 +1962,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
 
         // Path Snapping
         if (isSnapToPathEnabled) {
-            val pathPt = findClosestPointOnAnyPath(pos, ignoreId, tolerance = tolerance)
+            val pathPt = findClosestPointOnAnyPath(pos, ignoredIds = ignoreIds, tolerance = tolerance)
             if (pathPt != null) {
                 if (isSmartGuideEnabled) {
                     activeSmartGuideVertical = pathPt.x
@@ -1979,7 +1979,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             var minDistance = tolerance
 
             for (shape in shapes) {
-                if (shape.id == ignoreId || !shape.isVisible) continue
+                if (ignoreIds.contains(shape.id) || !shape.isVisible) continue
                 val pointsToTry = mutableListOf<Offset>()
                 val bounds = shape.getBoundingBox()
                 pointsToTry.add(Offset(bounds.left, bounds.top))
@@ -2022,7 +2022,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             var snappedSomeY = false
 
             for (shape in shapes) {
-                if (shape.id == ignoreId || !shape.isVisible) continue
+                if (ignoreIds.contains(shape.id) || !shape.isVisible) continue
                 val bounds = shape.getBoundingBox()
                 val xCandidates = listOf(bounds.left, bounds.left + bounds.width / 2f, bounds.right)
                 for (cx in xCandidates) {
@@ -3518,7 +3518,17 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             if (firstStartShape != null) {
                 val targetAngleUnsnapped = (firstStartShape.rotationAngle + angleOffset) % 360f
                 val targetAnglePos = if (targetAngleUnsnapped < 0f) targetAngleUnsnapped + 360f else targetAngleUnsnapped
-                val snappedTarget = (kotlin.math.round(targetAnglePos / 45.0) * 45.0).toFloat() % 360f
+                val snapAngles = listOf(0f, 25f, 45f, 90f, 115f, 135f, 180f, 205f, 225f, 270f, 295f, 315f, 360f)
+                var closestAngle = snapAngles[0]
+                var minDiff = kotlin.math.abs(targetAnglePos - snapAngles[0])
+                for (a in snapAngles) {
+                    val d = kotlin.math.abs(targetAnglePos - a)
+                    if (d < minDiff) {
+                        minDiff = d
+                        closestAngle = a
+                    }
+                }
+                val snappedTarget = closestAngle % 360f
                 var diff = snappedTarget - firstStartShape.rotationAngle
                 while (diff < -180f) diff += 360f
                 while (diff > 180f) diff -= 360f

@@ -4730,41 +4730,54 @@ fun TransformPanelContent(
                         // Presets
                         Button(
                             onClick = {
-                                viewModel.rotateSelectedShapes(-90f)
-                                Toast.makeText(context, "Putar -90°", Toast.LENGTH_SHORT).show()
+                                viewModel.rotateSelectedShapes(25f)
+                                Toast.makeText(context, "Putar 25°", Toast.LENGTH_SHORT).show()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
                             shape = RoundedCornerShape(4.dp),
                             modifier = Modifier.height(28.dp),
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text("-90°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text("25°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
                             onClick = {
-                                viewModel.rotateSelectedShapes(90f)
-                                Toast.makeText(context, "Putar +90°", Toast.LENGTH_SHORT).show()
+                                viewModel.rotateSelectedShapes(45f)
+                                Toast.makeText(context, "Putar 45°", Toast.LENGTH_SHORT).show()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
                             shape = RoundedCornerShape(4.dp),
                             modifier = Modifier.height(28.dp),
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text("+90°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text("45°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
                         
                         Button(
                             onClick = {
-                                viewModel.rotateSelectedShapes(180f)
-                                Toast.makeText(context, "Putar 180°", Toast.LENGTH_SHORT).show()
+                                viewModel.rotateSelectedShapes(90f)
+                                Toast.makeText(context, "Putar 90°", Toast.LENGTH_SHORT).show()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
                             shape = RoundedCornerShape(4.dp),
                             modifier = Modifier.height(28.dp),
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text("180°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text("90°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.rotateSelectedShapes(135f)
+                                Toast.makeText(context, "Putar 135°", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("135°", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

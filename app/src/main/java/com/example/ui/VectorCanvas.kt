@@ -347,7 +347,7 @@ fun VectorCanvas(
                                     val change = changes[0]
                                     val screenPos = change.position
                                     val rawCanvasPos = screenToCanvas(screenPos)
-                                    val canvasPos = viewModel.snapOffsetComprehensive(rawCanvasPos, viewModel.selectedShapeId)
+                                    val canvasPos = viewModel.snapOffsetComprehensive(rawCanvasPos, viewModel.selectedShapeId?.let { setOf(it) } ?: emptySet())
 
                                     if (!isDragging) {
                                         savedSelectedShapeIds = viewModel.selectedShapeIds
@@ -835,7 +835,7 @@ fun VectorCanvas(
                                                                     val originalAnchor = getPrimaryAnchor(primaryShape)
                                                                     val targetUnsnappedX = originalAnchor.x + totalDX
                                                                     val targetUnsnappedY = originalAnchor.y + totalDY
-                                                                    val targetSnapped = viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = primaryId)
+                                                                    val targetSnapped = viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreIds = activeIds)
                                                                     finalDX = targetSnapped.x - originalAnchor.x
                                                                     finalDY = targetSnapped.y - originalAnchor.y
                                                                 }
@@ -897,26 +897,22 @@ fun VectorCanvas(
                                                                 val newHandleUnsnappedY = startHandlePos.y + localTotalDY
                                                                 val finalTotalDX: Float
                                                                 val finalTotalDY: Float
-                                                                if (viewModel.isSnapToGrid) {
-                                                                    val activeStartShapes = dragStartShapes?.filter { activeIds.contains(it.id) }
-                                                                    val maxStrokeWidth = activeStartShapes?.maxOfOrNull { if (it.hasStroke) it.strokeWidth else 0f } ?: 0f
-                                                                    val padding = (maxStrokeWidth / 2f) + 12f
-                                                                    
-                                                                    val actualEdgeX = if (handle.contains("L")) newHandleUnsnappedX + padding else if (handle.contains("R")) newHandleUnsnappedX - padding else newHandleUnsnappedX
-                                                                    val actualEdgeY = if (handle.contains("T")) newHandleUnsnappedY + padding else if (handle.contains("B")) newHandleUnsnappedY - padding else newHandleUnsnappedY
-                                                                    
-                                                                    val snappedActualEdgeX = kotlin.math.round(actualEdgeX / viewModel.gridSize) * viewModel.gridSize
-                                                                    val snappedActualEdgeY = kotlin.math.round(actualEdgeY / viewModel.gridSize) * viewModel.gridSize
-                                                                    
-                                                                    val snappedHandleX = if (handle.contains("L")) snappedActualEdgeX - padding else if (handle.contains("R")) snappedActualEdgeX + padding else newHandleUnsnappedX
-                                                                    val snappedHandleY = if (handle.contains("T")) snappedActualEdgeY - padding else if (handle.contains("B")) snappedActualEdgeY + padding else newHandleUnsnappedY
-                                                                    
-                                                                    finalTotalDX = snappedHandleX - startHandlePos.x
-                                                                    finalTotalDY = snappedHandleY - startHandlePos.y
-                                                                } else {
-                                                                    finalTotalDX = localTotalDX
-                                                                    finalTotalDY = localTotalDY
-                                                                }
+                                                                val activeStartShapes = dragStartShapes?.filter { activeIds.contains(it.id) }
+                                                                val maxStrokeWidth = activeStartShapes?.maxOfOrNull { if (it.hasStroke) it.strokeWidth else 0f } ?: 0f
+                                                                val padding = (maxStrokeWidth / 2f) + 12f
+                                                                
+                                                                val actualEdgeX = if (handle.contains("L")) newHandleUnsnappedX + padding else if (handle.contains("R")) newHandleUnsnappedX - padding else newHandleUnsnappedX
+                                                                val actualEdgeY = if (handle.contains("T")) newHandleUnsnappedY + padding else if (handle.contains("B")) newHandleUnsnappedY - padding else newHandleUnsnappedY
+                                                                
+                                                                val snappedPt = viewModel.snapOffsetComprehensive(Offset(actualEdgeX, actualEdgeY), ignoreIds = activeIds)
+                                                                val snappedActualEdgeX = snappedPt.x
+                                                                val snappedActualEdgeY = snappedPt.y
+                                                                
+                                                                val snappedHandleX = if (handle.contains("L")) snappedActualEdgeX - padding else if (handle.contains("R")) snappedActualEdgeX + padding else newHandleUnsnappedX
+                                                                val snappedHandleY = if (handle.contains("T")) snappedActualEdgeY - padding else if (handle.contains("B")) snappedActualEdgeY + padding else newHandleUnsnappedY
+                                                                
+                                                                finalTotalDX = snappedHandleX - startHandlePos.x
+                                                                finalTotalDY = snappedHandleY - startHandlePos.y
                                                                 viewModel.resizeShapeAbsolute(startShapes, id, handle, Offset(finalTotalDX, finalTotalDY))
                                                             }
                                                         }
@@ -1033,7 +1029,7 @@ fun VectorCanvas(
                                                                     finalDX = snappedDisplacement.x
                                                                     finalDY = snappedDisplacement.y
                                                                 } else {
-                                                                    val targetSnapped = viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreId = id)
+                                                                    val targetSnapped = viewModel.snapOffsetComprehensive(Offset(targetUnsnappedX, targetUnsnappedY), ignoreIds = activeIds)
                                                                     finalDX = targetSnapped.x - originalAnchor.x
                                                                     finalDY = targetSnapped.y - originalAnchor.y
                                                                 }
