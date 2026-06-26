@@ -828,7 +828,7 @@ fun VectorCanvas(
                                                                 val finalDX: Float
                                                                 val finalDY: Float
                                                                 if (selBounds != null) {
-                                                                    val snappedDisplacement = viewModel.snapSelectionComprehensive(selBounds, totalDX, totalDY, activeIds)
+                                                                    val snappedDisplacement = viewModel.snapSelectionComprehensive(selBounds, totalDX, totalDY, activeIds, startShapes)
                                                                     finalDX = snappedDisplacement.x
                                                                     finalDY = snappedDisplacement.y
                                                                 } else {
@@ -1025,7 +1025,7 @@ fun VectorCanvas(
                                                                 val finalDX: Float
                                                                 val finalDY: Float
                                                                 if (selBounds != null) {
-                                                                    val snappedDisplacement = viewModel.snapSelectionComprehensive(selBounds, totalDX, totalDY, activeIds)
+                                                                    val snappedDisplacement = viewModel.snapSelectionComprehensive(selBounds, totalDX, totalDY, activeIds, dragStartShapes!!)
                                                                     finalDX = snappedDisplacement.x
                                                                     finalDY = snappedDisplacement.y
                                                                 } else {

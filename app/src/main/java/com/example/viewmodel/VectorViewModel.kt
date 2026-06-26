@@ -1449,7 +1449,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         originalCombinedBounds: Rect,
         totalDX: Float,
         totalDY: Float,
-        ignoredIds: Set<String>
+        ignoredIds: Set<String>,
+        startShapes: List<VectorShape>? = null
     ): Offset {
         var finalDX = totalDX
         var finalDY = totalDY
@@ -1461,7 +1462,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         val tolerance = 15f // Snapping distance threshold in pixels
         val canvasTolerance = tolerance / zoomScale
 
-        if (!isSnapToObjectEnabled && !isSmartGuideEnabled && !isSnapToPathEnabled && !isSnapToGrid) {
+        if (!isSnapToObjectEnabled && !isSmartGuideEnabled && !isSnapToPathEnabled && !isSnapToGrid && !isSnapToPointEnabled) {
             return Offset(totalDX, totalDY)
         }
 
@@ -1481,7 +1482,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         val gridSourceXCandidates = mutableListOf(cx1)
         val gridSourceYCandidates = mutableListOf(cy1)
         
-        val activeSelected = shapes.filter { ignoredIds.contains(it.id) && it.isVisible }
+        val activeSelected = (startShapes ?: shapes).filter { ignoredIds.contains(it.id) && it.isVisible }
         for (selShape in activeSelected) {
             val pivot = selShape.getPivotCenter()
             sourceXCandidates.add(pivot.x + totalDX)
@@ -1744,6 +1745,63 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
                     activeSmartGuideHorizontal = bestPathPt.y
                     val currentGuides = guides.toMutableList()
                     currentGuides.add(SmartGuideInfo(bestCandPt.x, bestCandPt.y, bestPathPt.x, bestPathPt.y, "ALIGN_LINE"))
+                    guides.clear()
+                    guides.addAll(currentGuides)
+                }
+            }
+        }
+
+        if (isSnapToPointEnabled) {
+            var bestPointDist = canvasTolerance
+            var bestPointShiftX = 0f
+            var bestPointShiftY = 0f
+            var snappedPt: Offset? = null
+            var sourceCandPt: Offset? = null
+            
+            val sourcePoints = mutableListOf<Offset>()
+            for (selShape in activeSelected) {
+                val pivot = selShape.getPivotCenter()
+                sourcePoints.add(Offset(pivot.x + totalDX, pivot.y + totalDY))
+                selShape.getNodePoints().forEach { pt ->
+                    val rotCenter = pivot
+                    val rotated = if (selShape.rotationAngle != 0f) rotatePoint(pt, rotCenter, selShape.rotationAngle) else pt
+                    sourcePoints.add(Offset(rotated.x + totalDX, rotated.y + totalDY))
+                }
+            }
+            
+            val targetPoints = mutableListOf<Offset>()
+            for (shape in otherShapes) {
+                val pivotCenter = shape.getPivotCenter()
+                targetPoints.add(pivotCenter)
+                shape.getNodePoints().forEach { pt ->
+                    val rotated = if (shape.rotationAngle != 0f) rotatePoint(pt, pivotCenter, shape.rotationAngle) else pt
+                    targetPoints.add(rotated)
+                }
+            }
+            
+            for (tgtPt in targetPoints) {
+                for (srcPt in sourcePoints) {
+                    val displacedSrcX = srcPt.x - totalDX + finalDX
+                    val displacedSrcY = srcPt.y - totalDY + finalDY
+                    val dist = hypot(displacedSrcX - tgtPt.x, displacedSrcY - tgtPt.y)
+                    if (dist < bestPointDist) {
+                        bestPointDist = dist
+                        bestPointShiftX = tgtPt.x - displacedSrcX
+                        bestPointShiftY = tgtPt.y - displacedSrcY
+                        snappedPt = tgtPt
+                        sourceCandPt = Offset(displacedSrcX, displacedSrcY)
+                    }
+                }
+            }
+            
+            if (snappedPt != null && sourceCandPt != null) {
+                finalDX += bestPointShiftX
+                finalDY += bestPointShiftY
+                if (isSmartGuideEnabled) {
+                    activeSmartGuideVertical = snappedPt.x
+                    activeSmartGuideHorizontal = snappedPt.y
+                    val currentGuides = guides.toMutableList()
+                    currentGuides.add(SmartGuideInfo(sourceCandPt.x, sourceCandPt.y, snappedPt.x, snappedPt.y, "ALIGN_LINE"))
                     guides.clear()
                     guides.addAll(currentGuides)
                 }
