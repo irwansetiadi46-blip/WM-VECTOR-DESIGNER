@@ -2823,7 +2823,7 @@ fun MainLayout(viewModel: VectorViewModel) {
                                     val offsetX = -minX + (size.width / scale - exportWidth) / 2f
                                     val offsetY = -minY + (size.height / scale - exportHeight) / 2f
                                     canvas.translate(offsetX, offsetY)
-                                    canvas.nativeCanvas.clipRect(0f, 0f, exportWidth, exportHeight)
+                                    canvas.nativeCanvas.clipRect(minX, minY, minX + exportWidth, minY + exportHeight)
 
                                     sortedShapesToExport.forEach { shape ->
                                         val layer = viewModel.layers.find { it.id == shape.layerId }
