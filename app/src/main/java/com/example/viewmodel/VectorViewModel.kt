@@ -1478,10 +1478,10 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         val sourceXCandidates = mutableListOf(left1, cx1, right1)
         val sourceYCandidates = mutableListOf(top1, cy1, bottom1)
         
-        val gridSourceXCandidates = mutableListOf<Float>()
-        val gridSourceYCandidates = mutableListOf<Float>()
+        val gridSourceXCandidates = mutableListOf(cx1)
+        val gridSourceYCandidates = mutableListOf(cy1)
         
-        val activeSelected = shapes.filter { !ignoredIds.contains(it.id) && it.isVisible && selectedShapeIds.contains(it.id) }
+        val activeSelected = shapes.filter { ignoredIds.contains(it.id) && it.isVisible }
         for (selShape in activeSelected) {
             val pivot = selShape.getPivotCenter()
             sourceXCandidates.add(pivot.x + totalDX)
@@ -3305,18 +3305,22 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         pushToUndoStack()
 
         val activeShapes = shapes.filter { selectedShapeIds.contains(it.id) }
-        val minX = activeShapes.minOfOrNull { it.getBoundingBox().left } ?: 0f
-        val maxX = activeShapes.maxOfOrNull { it.getBoundingBox().right } ?: 0f
-        val minY = activeShapes.minOfOrNull { it.getBoundingBox().top } ?: 0f
-        val maxY = activeShapes.maxOfOrNull { it.getBoundingBox().bottom } ?: 0f
-        val combinedCenter = Offset((minX + maxX) / 2f, (minY + maxY) / 2f)
+        val combinedCenter = if (activeShapes.size == 1) {
+            activeShapes.first().getPivotCenter()
+        } else {
+            var sumX = 0f
+            var sumY = 0f
+            activeShapes.forEach {
+                val p = it.getPivotCenter()
+                sumX += p.x
+                sumY += p.y
+            }
+            Offset(sumX / activeShapes.size, sumY / activeShapes.size)
+        }
 
         shapes = shapes.map { shape ->
             if (selectedShapeIds.contains(shape.id)) {
-                val sBounds = shape.getBoundingBox()
-                val scx = (sBounds.left + sBounds.right) / 2f
-                val scy = (sBounds.top + sBounds.bottom) / 2f
-                val sCenter = Offset(scx, scy)
+                val sCenter = shape.getPivotCenter()
                 
                 val sCenterRotated = rotatePoint(sCenter, combinedCenter, angleDegrees)
                 val dx = sCenterRotated.x - sCenter.x

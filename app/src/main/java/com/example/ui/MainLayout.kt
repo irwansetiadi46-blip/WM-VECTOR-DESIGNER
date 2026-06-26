@@ -2729,28 +2729,28 @@ fun MainLayout(viewModel: VectorViewModel) {
 
         val minX = remember(sortedShapesToExport, exportSelectionOnly) {
             if (exportSelectionOnly && sortedShapesToExport.isNotEmpty()) {
-                sortedShapesToExport.minOfOrNull { it.getBoundingBox(includeStroke = true).left } ?: 0f
+                sortedShapesToExport.minOfOrNull { it.getRotatedBounds(includeStroke = true).left } ?: 0f
             } else {
                 0f
             }
         }
         val maxX = remember(sortedShapesToExport, exportSelectionOnly) {
             if (exportSelectionOnly && sortedShapesToExport.isNotEmpty()) {
-                sortedShapesToExport.maxOfOrNull { it.getBoundingBox(includeStroke = true).right } ?: viewModel.canvasWidth
+                sortedShapesToExport.maxOfOrNull { it.getRotatedBounds(includeStroke = true).right } ?: viewModel.canvasWidth
             } else {
                 viewModel.canvasWidth
             }
         }
         val minY = remember(sortedShapesToExport, exportSelectionOnly) {
             if (exportSelectionOnly && sortedShapesToExport.isNotEmpty()) {
-                sortedShapesToExport.minOfOrNull { it.getBoundingBox(includeStroke = true).top } ?: 0f
+                sortedShapesToExport.minOfOrNull { it.getRotatedBounds(includeStroke = true).top } ?: 0f
             } else {
                 0f
             }
         }
         val maxY = remember(sortedShapesToExport, exportSelectionOnly) {
             if (exportSelectionOnly && sortedShapesToExport.isNotEmpty()) {
-                sortedShapesToExport.maxOfOrNull { it.getBoundingBox(includeStroke = true).bottom } ?: viewModel.canvasHeight
+                sortedShapesToExport.maxOfOrNull { it.getRotatedBounds(includeStroke = true).bottom } ?: viewModel.canvasHeight
             } else {
                 viewModel.canvasHeight
             }

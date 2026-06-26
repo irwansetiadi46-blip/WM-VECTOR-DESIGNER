@@ -509,7 +509,7 @@ data class VectorShape(
         return if (minX == Float.MAX_VALUE) Rect(0f, 0f, 0f, 0f) else Rect(minX, minY, maxX, maxY)
     }
 
-    fun getRotatedBounds(): Rect {
+    fun getRotatedBounds(includeStroke: Boolean = false): Rect {
         val baseBox = if (type == ShapeType.BEZIER_PATH) {
             val pivot = getPivotCenter()
             val cx = pivot.x
@@ -531,7 +531,7 @@ data class VectorShape(
         } else {
             asComposePath().getBounds()
         }
-        return if (hasStroke && strokeWidth > 0f) {
+        return if (includeStroke && hasStroke && strokeWidth > 0f) {
             val halfStroke = strokeWidth / 2f
             Rect(
                 left = baseBox.left - halfStroke,
