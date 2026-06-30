@@ -1339,7 +1339,8 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
     var isSmartGuideEnabled by mutableStateOf(false)
     var isSnapToObjectEnabled by mutableStateOf(false)
     var isSnapToPointEnabled by mutableStateOf(false)
-    val isSnapToAngleEnabled get() = isSmartGuideEnabled
+    var isSnapToAngleEnabled by mutableStateOf(false)
+    var snapTolerance by mutableStateOf(15f)
     val isSnapToPathEnabled get() = false
     var activeSmartGuideHorizontal by mutableStateOf<Float?>(null)
     var activeSmartGuideVertical by mutableStateOf<Float?>(null)
@@ -1459,7 +1460,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         activeSmartGuideHorizontal = null
         activeSmartGuideVertical = null
 
-        val tolerance = 15f // Snapping distance threshold in pixels
+        val tolerance = snapTolerance // Snapping distance threshold in pixels
         val canvasTolerance = tolerance / zoomScale
 
         if (!isSnapToObjectEnabled && !isSmartGuideEnabled && !isSnapToPathEnabled && !isSnapToGrid && !isSnapToPointEnabled) {
@@ -1988,7 +1989,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         activeSmartGuideHorizontal = null
         activeSmartGuideVertical = null
 
-        val tolerance = 15f // Snapping distance threshold in pixels
+        val tolerance = snapTolerance // Snapping distance threshold in pixels
 
         // Angle Snapping
         if (isSnapToAngleEnabled) {
@@ -2133,7 +2134,7 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
         activeSmartGuideVertical = null
         activeSmartGuidesList = emptyList()
 
-        val tolerance = 15f
+        val tolerance = snapTolerance
 
         // Angle Snapping
         if (isSnapToAngleEnabled) {
@@ -3579,21 +3580,25 @@ class VectorViewModel(application: Application) : AndroidViewModel(application) 
             if (firstStartShape != null) {
                 val targetAngleUnsnapped = (firstStartShape.rotationAngle + angleOffset) % 360f
                 val targetAnglePos = if (targetAngleUnsnapped < 0f) targetAngleUnsnapped + 360f else targetAngleUnsnapped
-                val snapAngles = listOf(0f, 25f, 45f, 90f, 115f, 135f, 180f, 205f, 225f, 270f, 295f, 315f, 360f)
+                val snapAngles = listOf(0f, 45f, 90f, 135f, 180f, 225f, 270f, 315f, 360f)
                 var closestAngle = snapAngles[0]
                 var minDiff = kotlin.math.abs(targetAnglePos - snapAngles[0])
                 for (a in snapAngles) {
-                    val d = kotlin.math.abs(targetAnglePos - a)
+                    val diff = kotlin.math.abs(targetAnglePos - a)
+                    val d = kotlin.math.min(diff, 360f - diff)
                     if (d < minDiff) {
                         minDiff = d
                         closestAngle = a
                     }
                 }
-                val snappedTarget = closestAngle % 360f
-                var diff = snappedTarget - firstStartShape.rotationAngle
-                while (diff < -180f) diff += 360f
-                while (diff > 180f) diff -= 360f
-                actualAngleOffset = diff
+                
+                if (minDiff <= snapTolerance) {
+                    val snappedTarget = closestAngle % 360f
+                    var diff = snappedTarget - firstStartShape.rotationAngle
+                    while (diff < -180f) diff += 360f
+                    while (diff > 180f) diff -= 360f
+                    actualAngleOffset = diff
+                }
             }
         }
 

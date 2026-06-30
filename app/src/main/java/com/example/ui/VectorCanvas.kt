@@ -956,8 +956,8 @@ fun VectorCanvas(
                                                                 if (startNode != null) {
                                                                     val dxFromAnchor = targetX - startNode.anchorX
                                                                     val dyFromAnchor = targetY - startNode.anchorY
-                                                                    if (kotlin.math.abs(dxFromAnchor) < 15f / viewModel.zoomScale) targetX = startNode.anchorX
-                                                                    if (kotlin.math.abs(dyFromAnchor) < 15f / viewModel.zoomScale) targetY = startNode.anchorY
+                                                                    if (kotlin.math.abs(dxFromAnchor) < viewModel.snapTolerance / viewModel.zoomScale) targetX = startNode.anchorX
+                                                                    if (kotlin.math.abs(dyFromAnchor) < viewModel.snapTolerance / viewModel.zoomScale) targetY = startNode.anchorY
                                                                 }
                                                                 val snappedPos = viewModel.snapNodeComprehensive(Offset(targetX, targetY), id, nodeIdx)
                                                                 

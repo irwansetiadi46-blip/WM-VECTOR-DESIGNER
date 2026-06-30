@@ -1,6 +1,6 @@
 package com.example.ui
 
-import android.widget.Toast
+// import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -1026,6 +1026,43 @@ fun MainLayout(viewModel: VectorViewModel) {
                                 onCheckedChange = { viewModel.isSnapToPointEnabled = it },
                                 colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
                             )
+                        }
+
+                        // 5. Snap to Angle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Snap to Angle", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Snap rotation to common angles", color = Color.Gray, fontSize = 9.sp)
+                            }
+                            Switch(
+                                checked = viewModel.isSnapToAngleEnabled,
+                                onCheckedChange = { viewModel.isSnapToAngleEnabled = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFFF6D00))
+                            )
+                        }
+
+                        // Universal Snap Strength
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Strength", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                            Slider(
+                                value = viewModel.snapTolerance,
+                                onValueChange = { viewModel.snapTolerance = it },
+                                valueRange = 1f..30f,
+                                modifier = Modifier.weight(2f).height(24.dp),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFFF6D00),
+                                    activeTrackColor = Color(0xFFFF6D00)
+                                )
+                            )
+                            Text("${viewModel.snapTolerance.toInt()}", color = Color.White, fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp))
                         }
                     }
                 } else if (showBooleanInBottomScope) {
